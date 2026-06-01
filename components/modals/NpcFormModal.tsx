@@ -275,7 +275,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const id = activeData?.id || crypto.randomUUID();
+    const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
     
     // Original Form Data
     const npcData: Npc = {
@@ -305,7 +306,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
   };
 
   const handleOpenImport = () => {
-    const id = activeData?.id || crypto.randomUUID();
+    const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
     const currentActiveData = {
       id,
       ...constructNpcObject(formState, hasSpells, avatarBase64, activeData),

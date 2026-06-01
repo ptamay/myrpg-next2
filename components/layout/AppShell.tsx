@@ -33,8 +33,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Player sem personagem vinculado
   if (profile && profile.role === 'player' && !profile.player_id) {
     return (
-      <div className="waiting-screen">
-        <p>Aguarde o GM associar seu personagem.</p>
+      <div className="waiting-screen" style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)' }}>
+        <p style={{ color: 'white', fontSize: '1.2rem' }}>Aguarde o GM associar seu personagem.</p>
+        
+        {process.env.NODE_ENV === 'development' && (
+          <button 
+            className="btn secondary-btn"
+            style={{ marginTop: '2rem', fontSize: '0.8rem', opacity: 0.7 }}
+            onClick={async () => {
+              const { getSupabaseClient } = await import('@/lib/supabase/client');
+              const supabase = getSupabaseClient();
+              await supabase.from('profiles').update({ role: 'gm' }).eq('id', profile.id);
+              window.location.reload();
+            }}
+          >
+            🛠️ [DevMode] Forçar minha conta como GM
+          </button>
+        )}
       </div>
     )
   }

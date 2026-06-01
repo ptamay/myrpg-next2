@@ -21,8 +21,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Hidratação inicial — usa getSession (não getUser, evita request extra)
-    supabase.auth.getSession().then(({ data: { session } }: any) => {
-      setUser(session?.user ?? null)
+    supabase.auth.getSession().then(({ data }: any) => {
+      setUser(data?.session?.user ?? null)
+      setLoading(false)
+    }).catch((err: any) => {
+      console.error("Auth session error:", err)
       setLoading(false)
     })
 

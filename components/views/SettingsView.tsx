@@ -4,13 +4,18 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { useState } from "react";
+import UsersView from "./UsersView";
 
 export default function SettingsView() {
   const { diaAtual, indiceBlocoAtivo, jornadaPorDia, dadosGlobais, setDiaAtual, setIndiceBlocoAtivo, setDadosGlobais, setJornadaPorDia } = useApp();
   const { showAlert, showConfirm } = useSystemDialog();
-  const { isGM } = useUserSession();
+  const { isGM, profile } = useUserSession();
+  const [activeTab, setActiveTab] = useState<'backup' | 'users'>('backup');
 
-  if (!isGM) {
+  const isAdmin = profile?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+
+  if (!isGM && !isAdmin) {
     return (
       <div className="npc-view-container">
         <header className="npc-header glass-panel">
@@ -84,12 +89,26 @@ export default function SettingsView() {
     <div className="npc-view-container">
       <header className="npc-header glass-panel">
         <div className="npc-header-info">
-          <h1 className="view-title">Grimório de Dados</h1>
-          <p className="view-subtitle">Exporte ou importe sua campanha para garantir que nada se perca.</p>
+          <h1 className="view-title">Ajustes & Sistema</h1>
+          <p className="view-subtitle">Gerencie os dados da campanha ou acesse configurações de usuário.</p>
         </div>
       </header>
 
-      <div className="glass-panel" style={{ padding: "3rem", display: "flex", flexDirection: "column", gap: "3rem" }}>
+      <div className="tabs-nav" style={{ padding: "0 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", gap: "15px", marginBottom: "15px", marginTop: "20px" }}>
+        <button 
+          type="button"
+          className={`det-tab-btn ${activeTab === 'backup' ? 'active' : ''}`}
+          onClick={() => setActiveTab('backup')}
+        >Backup e Reset</button>
+        <button 
+          type="button"
+          className={`det-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+          onClick={() => setActiveTab('users')}
+        >Usuários</button>
+      </div>
+
+      {activeTab === 'backup' && (
+        <div className="glass-panel" style={{ padding: "3rem", display: "flex", flexDirection: "column", gap: "3rem" }}>
         <section>
           <h3 className="section-title" style={{ marginBottom: "1rem" }}>Backup da Jornada</h3>
           <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
@@ -131,6 +150,13 @@ export default function SettingsView() {
           <button className="btn danger-btn" onClick={handleReset}>Limpar Tudo e Recomeçar</button>
         </section>
       </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="glass-panel" style={{ marginTop: "1rem" }}>
+          <UsersView />
+        </div>
+      )}
     </div>
   );
 }

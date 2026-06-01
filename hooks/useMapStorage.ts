@@ -15,7 +15,7 @@ export async function saveMapToDB(id: string, name: string, base64Data: string):
   
   // Upload para o Storage
   const { error: uploadError } = await supabase.storage.from('maps').upload(path, blob, { upsert: true });
-  if (uploadError) throw uploadError;
+  if (uploadError) throw new Error(uploadError?.message || JSON.stringify(uploadError));
   
   // Obter campanha
   const { data: campaign } = await supabase.from('campaign').select('id').limit(1).single();
@@ -25,10 +25,10 @@ export async function saveMapToDB(id: string, name: string, base64Data: string):
     id,
     campaign_id: campaign?.id,
     name,
-    storage_path: path
+    image_url: path
   });
   
-  if (dbError) throw dbError;
+  if (dbError) throw new Error(dbError?.message || JSON.stringify(dbError));
 }
 
 export async function getAllMapsFromDB(): Promise<{id: string, name: string, data: string}[]> {
@@ -38,7 +38,7 @@ export async function getAllMapsFromDB(): Promise<{id: string, name: string, dat
   if (error || !mapsData) return [];
   
   return mapsData.map((map: any) => {
-    const { data: publicUrlData } = supabase.storage.from('maps').getPublicUrl(map.storage_path);
+    const { data: publicUrlData } = supabase.storage.from('maps').getPublicUrl(map.image_url);
     return {
       id: map.id,
       name: map.name,
@@ -49,21 +49,21 @@ export async function getAllMapsFromDB(): Promise<{id: string, name: string, dat
 
 export async function deleteMapFromDB(id: string): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: mapData } = await supabase.from('maps').select('storage_path').eq('id', id).single();
+  const { data: mapData } = await supabase.from('maps').select('image_url').eq('id', id).single();
   
   if (mapData) {
-    await supabase.storage.from('maps').remove([mapData.storage_path]);
+    await supabase.storage.from('maps').remove([mapData.image_url]);
     await supabase.from('maps').delete().eq('id', id);
   }
 }
 
 export async function clearAllMapsFromDB(): Promise<void> {
   const supabase = getSupabaseClient();
-  const { data: mapsData } = await supabase.from('maps').select('storage_path');
+  const { data: mapsData } = await supabase.from('maps').select('image_url');
   
   if (mapsData && mapsData.length > 0) {
-    const paths = mapsData.map((m: any) => m.storage_path);
+    const paths = mapsData.map((m: any) => m.image_url);
     await supabase.storage.from('maps').remove(paths);
-    await supabase.from('maps').delete().neq('id', '0'); // deleta todos
+    await supabase.from('maps').delete().not('id', 'is', null); // deleta todos
   }
 }

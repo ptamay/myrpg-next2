@@ -1,8 +1,10 @@
 import { Npc, Player } from '../gameData';
 
+const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 export function mapNpcToDB(npc: Npc, campaignId: string) {
   return {
-    id: npc.id,
+    id: (npc.id && isValidUUID(npc.id)) ? npc.id : crypto.randomUUID(),
     campaign_id: campaignId,
     name: npc.name || '',
     title: npc.title || '',
@@ -87,9 +89,10 @@ export function mapDBToNpc(row: any): Npc {
 
 export function mapPlayerToDB(player: Player, campaignId: string) {
   return {
-    id: player.id,
+    id: (player.id && isValidUUID(player.id)) ? player.id : crypto.randomUUID(),
     campaign_id: campaignId,
     name: player.name || '',
+    class: player.playerClass || '',
     player_name: player.playerName || '',
     player_class: player.playerClass || '',
     player_level: player.playerLevel || 1,

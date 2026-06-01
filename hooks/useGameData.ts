@@ -204,7 +204,8 @@ export function useNpcs() {
         return !p || JSON.stringify(p) !== JSON.stringify(n);
       });
       if (changed.length > 0) {
-        await supabase.from("npcs").upsert(changed.map(n => mapNpcToDB(n, campaign.id)));
+        const { error } = await supabase.from("npcs").upsert(changed.map(n => mapNpcToDB(n, campaign.id)));
+        if (error) throw new Error(error.message || JSON.stringify(error));
       }
       const prevIds = npcs.map(n => n.id);
       const nextIds = new Set(next.map(n => n.id));
@@ -270,11 +271,13 @@ export function usePlayers() {
       if (changed.length > 0) {
         const mapped = changed.map(p => mapPlayerToDB(p, campaign.id));
         if (role === 'gm') {
-          await supabase.from("players").upsert(mapped);
+          const { error } = await supabase.from("players").upsert(mapped);
+          if (error) throw new Error(error.message || JSON.stringify(error));
         } else if (role === 'player' && playerId) {
           const myPlayer = mapped.find(p => p.id === playerId);
           if (myPlayer) {
-            await supabase.from("players").update(myPlayer).eq("id", playerId);
+            const { error } = await supabase.from("players").update(myPlayer).eq("id", playerId);
+            if (error) throw new Error(error.message || JSON.stringify(error));
           }
         }
       }
@@ -365,7 +368,7 @@ export function useDiario() {
   const fetchEntries = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('diary_entries').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
+      if (error) throw new Error(error?.message || JSON.stringify(error));
       if (data) {
         setEntries(data.map((d: any) => ({
           id: d.id,
@@ -431,6 +434,7 @@ export function useDiario() {
         campaign_id: campaign?.id,
         session_number: entry.sessionNumber,
         session_title: entry.sessionTitle,
+        title: entry.sessionTitle || `Sessão ${entry.sessionNumber}`,
         author_id: entry.authorId,
         author_name: entry.authorName,
         content: entry.content,
@@ -439,7 +443,7 @@ export function useDiario() {
         comments: entry.comments,
       };
       const { error } = await supabase.from('diary_entries').insert(row);
-      if (error) throw error;
+      if (error) throw new Error(error?.message || JSON.stringify(error));
       setEntries(prev => [entry, ...prev].sort((a, b) => b.sessionNumber - a.sessionNumber));
     } catch (e: any) { showAlert({ title: "Erro", message: "Erro ao salvar diário: " + (e.message || JSON.stringify(e)), type: "danger" }); }
   }, [supabase, showAlert]);
@@ -447,7 +451,7 @@ export function useDiario() {
   const remove = useCallback(async (id: string) => {
     try {
       const { error } = await supabase.from('diary_entries').delete().eq('id', id);
-      if (error) throw error;
+      if (error) throw new Error(error?.message || JSON.stringify(error));
       setEntries(prev => prev.filter(e => e.id !== id));
     } catch (e: any) { showAlert({ title: "Erro", message: "Erro ao deletar: " + (e.message || JSON.stringify(e)), type: "danger" }); }
   }, [supabase, showAlert]);
@@ -457,13 +461,14 @@ export function useDiario() {
       const row = {
         session_number: entry.sessionNumber,
         session_title: entry.sessionTitle,
+        title: entry.sessionTitle || `Sessão ${entry.sessionNumber}`,
         content: entry.content,
         image_url: entry.imageUrl,
         likes: entry.likes,
         comments: entry.comments,
       };
       const { error } = await supabase.from('diary_entries').update(row).eq('id', entry.id);
-      if (error) throw error;
+      if (error) throw new Error(error?.message || JSON.stringify(error));
       setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
     } catch (e: any) { showAlert({ title: "Erro", message: "Erro ao atualizar diário: " + (e.message || JSON.stringify(e)), type: "danger" }); }
   }, [supabase, showAlert]);
@@ -484,11 +489,11 @@ export function useMurais() {
   const fetchMurais = useCallback(async () => {
     try {
       const { data: mData, error: mErr } = await supabase.from('murals').select('*');
-      if (mErr) throw mErr;
+      if (mErr) throw new Error(mErr?.message || JSON.stringify(mErr));
       const { data: cData, error: cErr } = await supabase.from('mural_cards').select('*');
-      if (cErr) throw cErr;
+      if (cErr) throw new Error(cErr?.message || JSON.stringify(cErr));
       const { data: lData, error: lErr } = await supabase.from('mural_connections').select('*');
-      if (lErr) throw lErr;
+      if (lErr) throw new Error(lErr?.message || JSON.stringify(lErr));
       
       const mapped = (mData || []).map((m: any) => {
         const cards = (cData || []).filter((c: any) => c.mural_id === m.id).map((c: any) => ({
@@ -579,7 +584,7 @@ export function useMurais() {
         name: mural.name,
         background_style: mural.backgroundStyle || 'grid'
       });
-      if (mErr) throw mErr;
+      if (mErr) throw new Error(mErr?.message || JSON.stringify(mErr));
 
       // Upsert and delete cards
       if (mural.cards && mural.cards.length > 0) {
@@ -596,7 +601,7 @@ export function useMurais() {
           created_by: c.createdBy || null
         }));
         const { error: cardsErr } = await supabase.from('mural_cards').upsert(cardsToInsert);
-        if (cardsErr) throw cardsErr;
+        if (cardsErr) throw new Error(cardsErr?.message || JSON.stringify(cardsErr));
         const cardIds = mural.cards.map(c => c.id);
         if (cardIds.length > 0) {
           // Fixed empty deletion bug
@@ -617,7 +622,7 @@ export function useMurais() {
           color: c.color
         }));
         const { error: connsErr } = await supabase.from('mural_connections').upsert(connsToInsert);
-        if (connsErr) throw connsErr;
+        if (connsErr) throw new Error(connsErr?.message || JSON.stringify(connsErr));
         const connIds = mural.connections.map(c => c.id);
         if (connIds.length > 0) {
           // Fixed empty deletion bug

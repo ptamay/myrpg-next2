@@ -7,6 +7,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { mapPlayerToDB } from "@/lib/supabase/mappers";
 
 interface PlayerFormModalProps {
   isOpen: boolean;
@@ -361,7 +362,8 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const id = activeData?.id || Date.now().toString();
+    const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
 
     const supabase = getSupabaseClient();
     
@@ -389,47 +391,26 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     }
 
     try {
-      // 1. Force player upsert first to satisfy any foreign key constraints
-      const mappedPlayer = {
-        id: playerData.id,
-        campaign_id: dadosGlobais.maps.length > 0 ? dadosGlobais.maps[0].campaign_id : null, // Not fully robust but useGameSync will fix it anyway
-        name: playerData.name || '',
-        player_name: playerData.playerName || '',
-        player_class: playerData.playerClass || '',
-        player_level: playerData.playerLevel || 1,
-        class_level: playerData.classLevel || '',
-        race: playerData.race || '',
-        str: Number(playerData.str || 10),
-        dex: Number(playerData.dex || 10),
-        con: Number(playerData.con || 10),
-        int: Number(playerData.int || 10),
-        wis: Number(playerData.wis || 10),
-        cha: Number(playerData.cha || 10),
-        hp_max: Number(playerData.hpMax || 0),
-        hp_current: Number(playerData.hpCurrent || 0),
-        ac: String(playerData.ac || ''),
-        initiative: playerData.init || '',
-        speed: playerData.speed || '',
-        perception: String(playerData.perc || ''),
-        hd_total: playerData.hdTotal || '',
-        prof_bonus: playerData.profBonus || '',
-        inspiration: playerData.inspiration || false,
-        saves: playerData.saves || [],
-        skills: playerData.skills || [],
-        attacks: playerData.attacks || [],
-        image_url: playerData.image || null,
-        is_dead: playerData.isDead || false,
-        min_sleep_req: playerData.minSleepReq || 8,
-        transformation: playerData.transformation || null,
-        is_transformed: playerData.isTransformed || false
-      };
+      // 1. Force player upsert/update first to satisfy any foreign key constraints
+      const { data: campData } = await supabase.from('campaign').select('id').limit(1).maybeSingle();
       
-      // If we don't know the campaign_id here, we can just let Supabase use the default or upsert without it if it's not strictly required by the FK right now.
-      // Actually, we can fetch campaign id from the db or just let useGameSync handle it if it doesn't violate FK.
-      // But wait! The actual FK that fails is `profiles.player_id -> players.id`.
-      // So we must upsert `players` first.
-      const { error: upsertError } = await supabase.from("players").upsert([mappedPlayer]);
-      if (upsertError) console.error("Erro ao fazer upsert antecipado do player:", upsertError);
+      const mappedPlayer = mapPlayerToDB(playerData, campData?.id || null);
+      
+      if (isGM) {
+        const { error: upsertError } = await supabase.from("players").upsert([mappedPlayer]);
+        if (upsertError) {
+          console.error("Erro ao fazer upsert do player:", upsertError);
+          await showAlert({ title: "Erro", message: "Erro ao salvar (RLS ou BD): " + (upsertError.message || JSON.stringify(upsertError)), type: "danger" });
+          return;
+        }
+      } else {
+        const { error: updateError } = await supabase.from("players").update(mappedPlayer).eq("id", mappedPlayer.id);
+        if (updateError) {
+          console.error("Erro ao atualizar player:", updateError);
+          await showAlert({ title: "Erro", message: "Erro ao atualizar sua ficha (RLS): " + (updateError.message || JSON.stringify(updateError)), type: "danger" });
+          return;
+        }
+      }
 
       // 2. Update profiles table
       if (selectedUserId) {

@@ -2,6 +2,7 @@
 import { UserSessionProvider } from '@/contexts/UserSessionContext'
 import { AppProvider } from '@/contexts/AppContext'
 import AppShell from '@/components/layout/AppShell'
+import ModalsContainer from '@/components/modals/ModalsContainer'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppShell>
           {children}
         </AppShell>
+        <ModalsContainer />
       </AppProvider>
     </UserSessionProvider>
   )

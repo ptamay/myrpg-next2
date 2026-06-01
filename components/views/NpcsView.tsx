@@ -18,6 +18,18 @@ export default function NpcsView() {
   const [combatMode, setCombatMode] = useState(false);
   const [hideEffects, setHideEffects] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
+  const [playerFavs, setPlayerFavs] = useState<string[]>([]);
+  
+  useEffect(() => {
+    if (!isGM) {
+      const loadFavs = () => {
+        setPlayerFavs(JSON.parse(localStorage.getItem('myrpg-fav-npcs') || '[]'));
+      };
+      loadFavs();
+      window.addEventListener('fav-npcs-changed', loadFavs);
+      return () => window.removeEventListener('fav-npcs-changed', loadFavs);
+    }
+  }, [isGM]);
   
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
@@ -38,6 +50,7 @@ export default function NpcsView() {
         if (activeFilter === "dead") return npc.isDead;
         if (activeFilter === "hidden") return npc.isHidden;
         
+        if (activeFilter === "favorites") return !isGM && playerFavs.includes(npc.id);
         if (npc.isDead || npc.isHidden) return false;
         if (activeFilter === "ally") return npc.faction === "ally";
         if (activeFilter === "neutral") return npc.faction === "neutral" || !npc.faction;
@@ -47,9 +60,10 @@ export default function NpcsView() {
       .sort((a: any, b: any) => {
         const aDead = a.isDead ? 1 : 0;
         const bDead = b.isDead ? 1 : 0;
-        return aDead - bDead;
+        if (aDead !== bDead) return aDead - bDead;
+        return (a.name || "").localeCompare(b.name || "");
       });
-  }, [npcs, debouncedSearch, activeFilter, isGM]);
+  }, [npcs, debouncedSearch, activeFilter, isGM, playerFavs]);
   
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(npcs, null, 2));
@@ -186,13 +200,13 @@ export default function NpcsView() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <div className="filter-tags">
-              {(isGM ? ["all", "ally", "neutral", "enemy", "dead", "hidden"] : ["all", "ally", "neutral", "enemy", "dead"]).map((filter) => (
+              {(isGM ? ["all", "ally", "neutral", "enemy", "dead", "hidden"] : ["all", "favorites", "ally", "neutral", "enemy", "dead"]).map((filter) => (
                 <button
                   key={filter}
                   className={`filter-tag ${activeFilter === filter ? "active" : ""}`}
                   onClick={() => setActiveFilter(filter)}
                 >
-                  {filter === "all" ? "Todos" : filter === "ally" ? "Aliados" : filter === "neutral" ? "Neutros" : filter === "enemy" ? "Inimigos" : filter === "dead" ? "Mortos (Baixas)" : "Ocultos"}
+                  {filter === "all" ? "Todos" : filter === "favorites" ? "Favoritos" : filter === "ally" ? "Aliados" : filter === "neutral" ? "Neutros" : filter === "enemy" ? "Inimigos" : filter === "dead" ? "Mortos (Baixas)" : "Ocultos"}
                 </button>
               ))}
             </div>

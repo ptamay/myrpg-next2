@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { blocosDeTempo } from "@/lib/gameData";
@@ -9,15 +9,28 @@ import DashboardBlock from "./DashboardBlock";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { useCampaignInfo, useNpcs, usePlayers } from "@/hooks/useGameData";
+import BackgroundEffects from "@/components/layout/BackgroundEffects";
 
 export default function DashboardView() {
-  const { openModal } = useApp();
+  const { openModal, setActiveData } = useApp();
   const { isGM } = useUserSession();
   const { showConfirm, showAlert } = useSystemDialog();
 
   const { diaAtual, setDiaAtual, indiceBlocoAtivo, setIndiceBlocoAtivo, jornadaPorDia, setJornadaPorDia, loading: campLoading } = useCampaignInfo();
   const { npcs, setNpcs, loading: npcsLoading } = useNpcs();
   const { players, setPlayers, loading: playersLoading } = usePlayers();
+
+  useEffect(() => {
+    const bloco = blocosDeTempo[indiceBlocoAtivo];
+    if (bloco) {
+      document.body.classList.remove(
+        'theme-diurnal', 'theme-nocturnal',
+        'theme-block-1', 'theme-block-2', 'theme-block-3',
+        'theme-block-4', 'theme-block-5', 'theme-block-6'
+      );
+      document.body.classList.add(`theme-${bloco.tema}`, `theme-block-${bloco.id}`);
+    }
+  }, [indiceBlocoAtivo]);
 
   const handleExportLog = () => {
     let rel = "RELATÓRIO DE CAMPANHA\n\n";
@@ -109,6 +122,7 @@ export default function DashboardView() {
 
   return (
     <div id="view-dashboard" className="view active" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      <BackgroundEffects weatherEffect={jornadaPorDia[diaAtual]?.blocos?.[indiceBlocoAtivo]?.weatherEffect || "clear"} />
       <div className="dash-ultra-wrapper">
         <header className="dash-ultra-header glass-panel">
           <div className="dash-day-control">
@@ -192,12 +206,12 @@ export default function DashboardView() {
               </h4>
               <ul id="display-npcs-alive" className="npc-status-list">
                 {players?.filter(p => !p.isDead).map(p => (
-                  <li key={p.id} onClick={() => openModal('summaryCard', p)} style={{ cursor: "pointer", fontWeight: "bold", color: "var(--primary-color)" }}>
+                  <li key={p.id} onClick={() => { setActiveData(p); openModal('summaryCard'); }} style={{ cursor: "pointer", fontWeight: "bold", color: "var(--primary-color)" }}>
                     {p.name}
                   </li>
                 ))}
                 {npcs?.filter(n => !n.isDead && !n.isHidden && n.faction !== 'enemy').map(n => (
-                  <li key={n.id} onClick={() => openModal('summaryCard', n)} style={{ cursor: "pointer" }}>
+                  <li key={n.id} onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     {n.name}
                   </li>
                 ))}
@@ -209,12 +223,12 @@ export default function DashboardView() {
               </h4>
               <ul id="display-npcs-dead" className="npc-status-list">
                 {players?.filter(p => p.isDead).map(p => (
-                  <li key={p.id} className="dead-member" onClick={() => openModal('summaryCard', p)} style={{ cursor: "pointer", fontWeight: "bold" }}>
+                  <li key={p.id} className="dead-member" onClick={() => { setActiveData(p); openModal('summaryCard'); }} style={{ cursor: "pointer", fontWeight: "bold" }}>
                     💀 {p.name}
                   </li>
                 ))}
                 {npcs?.filter(n => n.isDead && !n.isHidden && n.faction !== 'enemy').map(n => (
-                  <li key={n.id} className="dead-member" onClick={() => openModal('summaryCard', n)} style={{ cursor: "pointer" }}>
+                  <li key={n.id} className="dead-member" onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     💀 {n.name}
                   </li>
                 ))}

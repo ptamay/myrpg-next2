@@ -101,7 +101,7 @@ export default function MapsView() {
           
           const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
           
-          const id = "map_" + Date.now() + "_" + i;
+          const id = crypto.randomUUID();
           await saveMapToDB(id, file.name, compressedDataUrl);
           mapsAdded++;
           

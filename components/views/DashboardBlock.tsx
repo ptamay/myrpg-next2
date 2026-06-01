@@ -342,7 +342,7 @@ export default function DashboardBlock({
 
   const playersBlock = (
     <div className="players-events">
-      <h3 className="section-title mb-3">{isGM ? "Os Jogadores" : "Party"}</h3>
+      <h3 className="section-title mb-3">{isGM ? "Personagens" : "Party"}</h3>
       <div className="players-grid scrollable-area">
         {sortedPlayers.length === 0 ? (
           <div className="session-players-empty">

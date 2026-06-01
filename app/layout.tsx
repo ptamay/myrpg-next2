@@ -12,6 +12,7 @@ import './styles/players-npcs.css'
 import './styles/modals.css'
 import './styles/blocks.css'
 import './styles/quests-weather.css'
+import './styles/sidebar.css'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 export const metadata: Metadata = { title: 'MyRPG' }

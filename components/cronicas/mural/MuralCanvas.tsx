@@ -16,6 +16,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import Modal from "@/components/ui/Modal";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
+const getSlotId = (isGM: boolean, slotIndex: number) => {
+  const prefix = isGM ? "1" : "2";
+  return `00000000-0000-0000-0000-0000000000${prefix}${slotIndex}`;
+};
+
 export default function MuralCanvas({ isActive = true }: { isActive?: boolean }) {
   const { murais, loading, save } = useMurais();
   const { isGM, session } = useUserSession();
@@ -342,7 +347,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
         {(isGM || players?.length > 0) && (
           <button className="btn primary-btn" onClick={() => {
             const novo: Mural = {
-              id: "slot-1",
+              id: getSlotId(isGM, 1),
               name: "Investigação 1",
               cards: [], connections: [],
               createdAt: new Date().toISOString(),
@@ -447,8 +452,8 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
               <div style={{ width: "1px", height: "20px", background: "var(--border-subtle)", margin: "0 0.25rem" }}></div>
     
               {[1, 2, 3, 4, 5, 6].map(slot => {
-                const defaultSlotId = isGM ? `slot-${slot}` : `player-slot-${slot}`;
-                const actualMural = murais.find(m => m.id === defaultSlotId || (isGM && m.id === `gm-slot-${slot}`));
+                const defaultSlotId = getSlotId(isGM, slot);
+                const actualMural = murais.find(m => m.id === defaultSlotId || m.id === `slot-${slot}` || m.id === `player-slot-${slot}` || m.id === `gm-slot-${slot}`);
                 const isSaved = !!actualMural;
                 const actualMuralId = actualMural?.id || defaultSlotId;
                 const isActive = activeMuralId === actualMuralId;

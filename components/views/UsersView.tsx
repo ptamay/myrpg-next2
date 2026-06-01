@@ -15,8 +15,8 @@ interface Profile {
   created_at: string;
 }
 
-export default function UsuariosPage() {
-  const { profile, sessionLoading } = useUserSession();
+export default function UsersView() {
+  const { profile, sessionLoading, isGM } = useUserSession();
   const { loading: authLoading } = useAuth();
   const userProfile = profile; // Alias to avoid breaking other usages below
   const router = useRouter();
@@ -32,11 +32,12 @@ export default function UsuariosPage() {
   const [deletedUserIds, setDeletedUserIds] = useState<Set<string>>(new Set());
 
   const isAdmin = userProfile?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const canManageUsers = isGM || isAdmin;
 
   useEffect(() => {
     if (authLoading) return; // Wait for auth resolution
     
-    if (userProfile && !isAdmin) {
+    if (userProfile && !canManageUsers) {
       router.push("/dashboard");
       return;
     }
@@ -48,7 +49,7 @@ export default function UsuariosPage() {
           .select('*')
           .order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) throw new Error(error?.message || JSON.stringify(error));
         setProfiles(data || []);
       } catch (error) {
         console.error("Erro ao buscar perfis:", error);
@@ -57,12 +58,12 @@ export default function UsuariosPage() {
       }
     };
 
-    if (isAdmin) {
+    if (canManageUsers) {
       fetchProfiles();
     } else if (!userProfile) {
       setLoading(false); // Make sure loading state resolves if unauthenticated
     }
-  }, [userProfile, isAdmin, router, supabase, authLoading]);
+  }, [userProfile, canManageUsers, router, supabase, authLoading]);
 
   const handleRoleChangeLocal = (userId: string, newRole: 'gm' | 'player') => {
     const originalProfile = profiles.find(p => p.id === userId);
@@ -129,7 +130,7 @@ export default function UsuariosPage() {
           .in('id', Array.from(deletedUserIds))
           .select();
 
-        if (deleteError) throw deleteError;
+        if (deleteError) throw new Error(deleteError?.message || JSON.stringify(deleteError));
         if (!deletedData || deletedData.length === 0) {
           throw new Error("Nenhum usuário pôde ser excluído. Verifique as políticas de segurança (RLS) no Supabase.");
         }
@@ -143,7 +144,7 @@ export default function UsuariosPage() {
           .eq('id', userId)
           .select();
 
-        if (updateError) throw updateError;
+        if (updateError) throw new Error(updateError?.message || JSON.stringify(updateError));
         if (!updatedData || updatedData.length === 0) {
           throw new Error("Não foi possível atualizar o papel do usuário. Verifique as políticas de segurança (RLS) no Supabase.");
         }
@@ -185,11 +186,11 @@ export default function UsuariosPage() {
 
   if (!userProfile && !authLoading) return null;
   
-  if (!isAdmin) {
+  if (!canManageUsers) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", flexDirection: "column" }}>
         <h1 className="view-title" style={{ color: "var(--danger)" }}>Acesso Negado</h1>
-        <p className="narrative-text">Apenas o administrador do sistema pode acessar esta página.</p>
+        <p className="narrative-text">Apenas o administrador ou mestre do sistema podem acessar esta página.</p>
       </div>
     );
   }

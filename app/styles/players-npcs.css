@@ -144,9 +144,27 @@
 
 .npc-cards-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 1.5rem;
-    padding: 8px 8px 2rem 8px;
+    padding: 1rem 1.5rem 2rem 1.5rem;
+}
+
+@media (max-width: 1600px) {
+    .npc-cards-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 1100px) {
+    .npc-cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .npc-cards-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .npc-card {

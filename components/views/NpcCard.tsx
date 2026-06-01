@@ -221,9 +221,8 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
           <div className="npc-card-placeholder" style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }}>{(activeNpc.name || "?").charAt(0).toUpperCase()}</div>
         )}
         <div className="npc-card-title-area">
-          <div className="npc-card-name" style={{ color: npc.isTransformed ? "var(--accent-primary)" : "inherit", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px" }}>
-            <span>{activeNpc.name}</span>
-            {npc.isTransformed && <span style={{fontSize: "0.65rem", backgroundColor: "var(--accent-primary)", padding: "2px 6px", borderRadius: "8px", color: "#fff", fontWeight: "bold", letterSpacing: "0.05em", textTransform: "uppercase"}}>Transformado</span>}
+          <div className="npc-card-name" style={{ color: npc.isTransformed ? "var(--accent-primary)" : "inherit", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", paddingRight: "40px" }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{activeNpc.name}</span>
             {npc.transformation && combatMode && isGM && (
               <button 
                 title={npc.isTransformed ? 'Reverter Forma' : 'Transformar'} 
@@ -240,7 +239,11 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
                   justifyContent: 'center',
                   cursor: 'pointer',
                   fontSize: '11px',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  position: 'absolute',
+                  top: '10px',
+                  right: '38px',
+                  zIndex: 2
                 }}
               >
                 ⚡
@@ -249,6 +252,7 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
           </div>
           <div className="npc-card-title">{activeNpc.title || 'Sem título'}</div>
           <div className="npc-card-meta">
+            {npc.isTransformed && <span style={{fontSize: "0.65rem", backgroundColor: "var(--accent-primary)", padding: "2px 6px", borderRadius: "8px", color: "#fff", fontWeight: "bold", letterSpacing: "0.05em", textTransform: "uppercase", marginRight: "4px"}}>Transformado</span>}
             <span>{activeNpc.race || '---'}</span>
             <span>•</span>
             <span>ND {activeNpc.cr || '0'}</span>

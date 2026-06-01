@@ -17,17 +17,19 @@ export default function MeuPerfilView() {
   
   const [newItemName, setNewItemName] = useState("");
   const [newItemQtd, setNewItemQtd] = useState(1);
-  const [activeBioTab, setActiveBioTab] = useState<"history" | "goals">("history");
+  const [activeBioTab, setActiveBioTab] = useState<"history" | "goals" | "notes">("history");
 
   const [backgroundText, setBackgroundText] = useState("");
   const [personalGoalsText, setPersonalGoalsText] = useState("");
+  const [notesText, setNotesText] = useState("");
 
   useEffect(() => {
     if (player) {
       setBackgroundText(player.background || "");
       setPersonalGoalsText(player.personalGoals || "");
+      setNotesText(player.notes || "");
     }
-  }, [player?.id]);
+  }, [player?.id, player?.background, player?.personalGoals, player?.notes]);
 
   if (!player) {
     return (
@@ -266,6 +268,22 @@ export default function MeuPerfilView() {
                 >
                   Objetivos Pessoais
                 </button>
+                <button 
+                  onClick={() => setActiveBioTab("notes")} 
+                  style={{ 
+                    padding: "4px 8px 6px", 
+                    background: "transparent", 
+                    border: "none", 
+                    color: activeBioTab === "notes" ? "#fff" : "var(--text-muted)", 
+                    borderBottom: activeBioTab === "notes" ? "2px solid var(--accent-primary)" : "2px solid transparent", 
+                    fontWeight: 700, 
+                    fontSize: "0.9rem",
+                    cursor: "pointer",
+                    transition: "color 0.2s"
+                  }}
+                >
+                  Minhas Anotações
+                </button>
               </div>
               
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -273,20 +291,22 @@ export default function MeuPerfilView() {
                   key={activeBioTab}
                   className="modern-input" 
                   style={{ flex: 1, minHeight: "120px", resize: "none", padding: "0.75rem", background: "rgba(0,0,0,0.2)", fontFamily: "'Fira Code', 'Courier New', Consolas, monospace", fontSize: "0.85rem", lineHeight: 1.4, color: "#fff" }} 
-                  placeholder={activeBioTab === "history" ? "Escreva a história do seu personagem..." : "Quais são as motivações e objetivos do seu personagem?"}
-                  value={activeBioTab === "history" ? backgroundText : personalGoalsText}
+                  placeholder={activeBioTab === "history" ? "Escreva a história do seu personagem..." : activeBioTab === "goals" ? "Quais são as motivações e objetivos do seu personagem?" : "Espaço livre para suas anotações pessoais..."}
+                  value={activeBioTab === "history" ? backgroundText : activeBioTab === "goals" ? personalGoalsText : notesText}
                   onChange={(e) => {
                     if (activeBioTab === "history") {
                       setBackgroundText(e.target.value);
-                    } else {
+                    } else if (activeBioTab === "goals") {
                       setPersonalGoalsText(e.target.value);
+                    } else {
+                      setNotesText(e.target.value);
                     }
                   }}
                 />
                 
                 <button 
                   onClick={() => {
-                    updatePlayer({ background: backgroundText, personalGoals: personalGoalsText });
+                    updatePlayer({ background: backgroundText, personalGoals: personalGoalsText, notes: notesText });
                   }} 
                   className="btn primary-btn small-btn" 
                   style={{ alignSelf: "flex-end", padding: "0 1.25rem", height: "34px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "6px" }}

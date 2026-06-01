@@ -85,7 +85,7 @@ export default function PlayersView() {
                   className={`filter-tag ${activeTab === "jogadores" ? "active" : ""}`}
                   onClick={() => setActiveTab("jogadores")}
                 >
-                  Jogadores
+                  Personagens
                 </button>
               </div>
             )}
@@ -112,7 +112,7 @@ export default function PlayersView() {
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  <span>Novo Jogador</span>
+                  <span>Novo Personagem</span>
                 </button>
               </div>
             )}
