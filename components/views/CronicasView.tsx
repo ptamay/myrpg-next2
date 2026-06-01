@@ -23,7 +23,7 @@ export default function CronicasView() {
   ];
 
   return (
-    <div className="npc-view-container" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="npc-view-container" style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1 }}>
       <div className="npc-header glass-panel" style={{ alignItems: "center" }}>
         <div>
           <h2 className="view-title">Crônicas</h2>
