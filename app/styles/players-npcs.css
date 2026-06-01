@@ -1,0 +1,942 @@
+/* ====== PLAYER MODAL SPECIFIC ====== */
+.player-modal-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.section-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.5rem;
+}
+
+.section-header-row h4 {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.player-topic-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.topic-item {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    animation: slideInLeft 0.3s ease-out backwards;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.btn-remove-topic {
+    background: hsla(0, 84%, 60%, 0.1);
+    border: 1px solid hsla(0, 84%, 60%, 0.2);
+    color: var(--danger);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+    flex-shrink: 0;
+}
+
+.btn-remove-topic:hover {
+    background: var(--danger);
+    color: white;
+    transform: scale(1.1);
+}
+
+.small-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    height: auto;
+}
+
+.modal-footer-status {
+    flex: 1;
+}
+
+/* ====== VIEW: NPCs Grid ====== */
+.npc-view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.sticky-npc-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+}
+
+.npc-filters {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 200px;
+    opacity: 1;
+    overflow: hidden;
+}
+
+.npc-filters.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: -0.75rem;
+    border-color: transparent;
+    pointer-events: none;
+}
+
+.btn.icon-only {
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+}
+
+.toggle-arrow {
+    transition: transform 0.3s ease;
+}
+
+.npc-filters.collapsed~.npc-cards-wrapper {
+    margin-top: 0;
+}
+
+.filters-hidden .toggle-arrow {
+    transform: rotate(-180deg);
+}
+
+.npc-cards-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 0.5rem;
+}
+
+.npc-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    gap: 1.5rem;
+    padding: 8px 8px 2rem 8px;
+}
+
+.npc-card {
+    background: hsla(240, 10%, 6%, 0.6);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    animation: cardFadeIn 0.4s ease backwards;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes cardFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.npc-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 0%, hsla(0, 0%, 0%, 0.4) 100%);
+    pointer-events: none;
+}
+
+.npc-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: var(--accent-primary);
+    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+}
+
+/* Narrative vs Combat Details */
+.npc-card-combat-details {
+    display: none;
+}
+
+.npc-card-narrative-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.combat-expanded .npc-card-combat-details {
+    display: block;
+}
+
+.combat-expanded .npc-card-narrative-details {
+    display: none;
+}
+
+.narrative-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.narrative-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.narrative-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Dead State (Tombstone Style Refined) */
+.status-dead-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    z-index: 5;
+    opacity: 0;
+    pointer-events: none;
+    color: white;
+    text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    background: transparent;
+    transition: background 0.3s, opacity 0.3s;
+    border-radius: inherit;
+}
+
+.npc-card.is-dead {
+    filter: grayscale(100%) opacity(0.6);
+    border-color: hsla(0, 0%, 100%, 0.05);
+    position: relative;
+}
+
+.npc-card.is-dead .status-dead-overlay {
+    display: flex;
+}
+
+.npc-card.is-dead .npc-card-avatar {
+    filter: grayscale(100%) brightness(0.5);
+    border-color: var(--border-subtle);
+}
+
+.npc-card.is-dead:hover {
+    filter: grayscale(100%) opacity(1);
+    border-color: var(--border-bright);
+}
+
+.npc-card.is-dead:hover .status-dead-overlay {
+    opacity: 1;
+}
+
+/* NPC Detail Modal Refinement */
+.npc-detail-header {
+    padding: 3rem;
+    background: linear-gradient(135deg, hsla(250, 20%, 5%, 0.8) 0%, hsla(250, 20%, 10%, 0.4) 100%);
+    display: flex;
+    gap: 3rem;
+    align-items: center;
+    position: relative;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.npc-detail-avatar {
+    width: 450px;
+    height: 450px;
+    border-radius: var(--radius-lg);
+    border: 6px solid var(--border-bright);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 1);
+    object-fit: cover;
+}
+
+.npc-detail-placeholder {
+    width: 450px;
+    height: 450px;
+    border-radius: var(--radius-lg);
+    background: hsla(0, 0%, 100%, 0.05);
+    border: 6px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10rem;
+    color: var(--text-muted);
+}
+
+.det-name {
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
+}
+
+.det-title {
+    font-size: 1rem;
+    color: var(--accent-primary);
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.det-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.det-combat-stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: hsla(0, 0%, 0%, 0.3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+}
+
+.det-combat-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.det-combat-stat .lbl {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.det-combat-stat .val {
+    font-size: 1.75rem;
+    font-weight: 900;
+    color: var(--text-primary);
+}
+
+.det-action-card {
+    background: hsla(250, 89%, 66%, 0.05);
+    border-left: 4px solid var(--accent-primary);
+    padding: 1.25rem;
+    border-radius: 4px 8px 8px 4px;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    box-shadow: 4px 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.det-action-card:hover {
+    background: hsla(250, 89%, 66%, 0.1);
+    transform: scale(1.01);
+}
+
+.det-action-card.highlight-atk {
+    border-left-color: var(--warning);
+    background: hsla(45, 100%, 50%, 0.05);
+}
+
+
+.npc-card-header {
+    padding: 1.5rem;
+    gap: 1.5rem;
+    display: flex;
+    align-items: center;
+    background: hsla(0, 0%, 0%, 0.15);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.npc-card-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+    border: 3px solid var(--border-bright);
+    object-fit: cover;
+    transition: 0.3s;
+}
+
+.npc-card:hover .npc-card-avatar {
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.npc-card-placeholder {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-md);
+    background: hsla(0, 0%, 100%, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    border: 3px solid var(--border-subtle);
+}
+
+.npc-card-name {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin-bottom: 0.25rem;
+}
+
+.npc-card-title {
+    font-size: 0.9rem;
+    color: var(--accent-primary);
+    font-weight: 700;
+    opacity: 0.9;
+}
+
+.npc-card-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    display: flex;
+    gap: 6px;
+}
+
+.npc-card-hp-area {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.hp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.hp-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hp-mod-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background: hsla(0, 0%, 100%, 0.05);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+}
+
+.hp-mod-btn:hover {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.hp-bar-bg {
+    position: relative;
+    height: 10px;
+    border-radius: 10px;
+    background: hsla(0, 0%, 100%, 0.05);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.npc-card-modifiers {
+    display: none;
+    padding: 1.25rem 1.5rem;
+    background: hsla(210, 100%, 50%, 0.08);
+    border-top: 1px solid hsla(210, 100%, 50%, 0.15);
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.combat-expanded .npc-card-modifiers {
+    display: flex;
+}
+
+.modifiers-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.mod-section-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin-top: 0.5rem;
+}
+
+.conditions-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.condition-tag {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: hsla(0, 0%, 100%, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.condition-tag.active {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+    box-shadow: 0 0 12px hsla(0, 84%, 60%, 0.4);
+}
+
+.condition-tag.res-active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+    box-shadow: 0 0 12px hsla(210, 100%, 50%, 0.4);
+}
+
+.btn-clear-mods {
+    background: hsla(0, 0%, 100%, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 800;
+    transition: 0.2s;
+}
+
+.btn-clear-mods:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+.hp-bar-fill {
+    height: 100%;
+    background: var(--success);
+    transition: width 0.5s ease-out;
+}
+
+.hp-bar-temp {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #3b82f6;
+    box-shadow: 0 0 15px hsla(210, 100%, 50%, 0.6);
+    opacity: 0.8;
+    transition: width 0.6s ease;
+    pointer-events: none;
+    z-index: 2;
+}
+
+
+
+/* Transitions and Animations */
+@keyframes valueUpdate {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+
+    50% {
+        transform: scale(1.2);
+        filter: brightness(1.6);
+    }
+
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+}
+
+.update-pulse {
+    animation: valueUpdate 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+}
+
+.npc-card,
+.btn,
+.filter-tag,
+.journey-input,
+.slot-dot {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hp-bar-fill.warning {
+    background: var(--warning);
+}
+
+.hp-bar-fill.danger {
+    background: var(--danger);
+}
+
+.npc-card-active-conditions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 0.5rem;
+    min-height: 22px;
+    /* Espaço reservado para evitar pulos quando vazio */
+}
+
+.active-cond-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--danger);
+    color: white;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.active-res-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #3b82f6;
+    color: white;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.npc-card-stats {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: hsla(0, 0%, 0%, 0.2);
+    border-top: 1px solid var(--border-subtle);
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.combat-expanded .stat-mini[title="Classe de Armadura"] {
+    cursor: pointer;
+}
+
+.combat-expanded .stat-mini[title="Classe de Armadura"]:hover {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.stat-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: hsla(0, 0%, 100%, 0.03);
+    border: 1px solid var(--border-subtle);
+}
+
+.stat-mini svg {
+    width: 14px;
+    height: 14px;
+}
+
+.npc-card-attrs {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 0 1.5rem 1rem;
+}
+
+.attr-m {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: hsla(0, 0%, 100%, 0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 6px 2px;
+    transition: all 0.2s ease;
+}
+
+.attr-m:hover {
+    transform: translateY(-2px);
+    background-color: hsla(0, 0%, 100%, 0.08);
+    border-color: var(--accent-primary);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.attr-lbl {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+}
+
+.attr-mod {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--text-primary);
+    margin: 2px 0;
+}
+
+.attr-val {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.npc-card-atk-container {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: hsla(0, 0%, 0%, 0.3);
+    border-top: 1px solid var(--border-subtle);
+    min-height: 40px;
+}
+
+.atk-header {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+}
+
+.npc-card-atk-item {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+    padding: 12px 16px;
+    background: hsla(250, 89%, 66%, 0.05);
+    border-radius: 8px;
+    border: 1px solid hsla(250, 89%, 66%, 0.15);
+    transition: var(--transition-fast);
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.npc-card-atk-item.highlight-atk {
+    border-left: 4px solid var(--warning);
+    background: hsla(45, 100%, 50%, 0.08);
+    border-radius: 4px 8px 8px 4px;
+    border-right: 1px solid hsla(45, 100%, 50%, 0.1);
+    border-top: 1px solid hsla(45, 100%, 50%, 0.1);
+    border-bottom: 1px solid hsla(45, 100%, 50%, 0.1);
+}
+
+.npc-card-atk-item:hover {
+    background: hsla(250, 89%, 66%, 0.1);
+    border-color: var(--accent-primary);
+    transform: translateX(5px);
+}
+
+.npc-card-res-area {
+    padding: 0.5rem 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.npc-card-res {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.npc-card-res strong {
+    color: var(--warning);
+    font-weight: 800;
+    margin-right: 4px;
+}
+
+/* Spell Slots Styles */
+.spell-slots-inputs {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 8px;
+    margin-top: 1rem;
+}
+
+.slot-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.slot-field label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 800;
+}
+
+.slot-field input {
+    width: 100%;
+    padding: 6px;
+    text-align: center;
+    background: hsla(0, 0%, 0%, 0.2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    color: var(--text-primary);
+}
+
+.npc-card-spells {
+    padding: 0.5rem 1.5rem 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-top: 1px dashed hsla(0, 0%, 100%, 0.1);
+}
+
+.spell-slot-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.slot-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-weight: 800;
+    text-align: center;
+}
+
+.slot-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.npc-card-spells {
+    padding: 0.5rem 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.spell-slot-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slot-label {
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: var(--text-muted);
+}
+
+.slot-dots {
+    display: flex;
+    gap: 5px;
+}
+
+.slot-dot {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1.5px solid hsla(210, 100%, 50%, 0.4);
+    background: hsla(0, 0%, 0%, 0.5);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slot-dot.available {
+    background: #3b82f6;
+    border-color: #93c5fd;
+    box-shadow: 0 0 12px hsla(210, 100%, 50%, 0.7);
+}
+
+.slot-dot:hover {
+    transform: scale(1.3);
+}
+
+
+/* Combat Mode Visibility */
+.npc-card .hp-mod-btn {
+    display: none;
+}
+
+.npc-card .hp-input {
+    pointer-events: none;
+    border-color: transparent;
+    background: transparent;
+}
+
+.npc-card .slot-dot {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.combat-expanded .npc-card .hp-mod-btn {
+    display: flex;
+}
+
+.combat-expanded .npc-card .hp-input {
+    pointer-events: auto;
+    border-color: var(--border-subtle);
+    background: hsla(0, 0%, 0%, 0.2);
+}
+
+.combat-expanded .npc-card .slot-dot {
+    pointer-events: auto;
+    opacity: 1;
+}
+

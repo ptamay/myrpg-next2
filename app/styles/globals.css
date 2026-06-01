@@ -1,0 +1,35 @@
+:root {
+  /* Backgrounds */
+  --bg-dark: #0d0d14;
+  --bg-card: #14141f;
+  --bg-modal: #1a1a2e;
+  --bg-sidebar: #0f0f1a;
+  --bg-elevated: #1e1e2e;
+
+  /* Borders */
+  --border-subtle: hsla(240, 20%, 60%, 0.15);
+  --border-active: hsla(240, 80%, 70%, 0.4);
+
+  /* Accent */
+  --accent-primary: #646cff;
+  --accent-hover: #535bf2;
+  --accent-glow: hsla(240, 100%, 70%, 0.3);
+
+  /* Text */
+  --text-primary: #e8e8f0;
+  --text-muted: hsla(240, 20%, 70%, 0.6);
+  --text-dim: hsla(240, 20%, 60%, 0.4);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+}
