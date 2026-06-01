@@ -120,7 +120,12 @@ export default function DashboardView() {
   const isFirstLoad = (campLoading || npcsLoading || playersLoading) && !hasData;
 
   if (isFirstLoad) {
-    return <div className="loading-state">Carregando Dashboard...</div>;
+    return (
+      <div style={{ display: 'flex', height: '100%', minHeight: '60vh', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ width: '40px', height: '40px', border: '3px solid var(--border-subtle)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   return (

@@ -61,7 +61,12 @@ export default function PlayersView() {
     }
   };
 
-  if (loading && (!players || players.length === 0)) return <div className="loading-state">Carregando Personagens...</div>;
+  if (loading && (!players || players.length === 0)) return (
+    <div style={{ display: 'flex', height: '100%', minHeight: '60vh', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ width: '40px', height: '40px', border: '3px solid var(--border-subtle)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 
   return (
     <div className="npc-view-container">

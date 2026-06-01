@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
@@ -22,6 +22,15 @@ export default function FoodView() {
 
   const [peopleAmount, setPeopleAmount] = useState(dadosGlobais.food?.people || 0);
   const [consumptionRate, setConsumptionRate] = useState<number>(dadosGlobais.food?.consumptionRate || 1);
+
+  useEffect(() => {
+    if (dadosGlobais.food) {
+      setManualWater(dadosGlobais.food.water || 0);
+      setManualFood(dadosGlobais.food.food || 0);
+      setPeopleAmount(dadosGlobais.food.people || 0);
+      setConsumptionRate(dadosGlobais.food.consumptionRate || 1);
+    }
+  }, [dadosGlobais.food]);
 
   const handleAdjustConfirm = () => {
     if (!adjustAmount) return;

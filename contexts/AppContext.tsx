@@ -46,10 +46,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { food, setFood } = useSupplies()
 
   const dadosGlobais = { players, npcs, food }
-  const setDadosGlobais = (newObj: any) => {
-    if (newObj.players) setPlayers(newObj.players)
-    if (newObj.npcs) setNpcs(newObj.npcs)
-    if (newObj.food) setFood(newObj.food)
+  const setDadosGlobais = (newObjOrFn: any) => {
+    const newObj = typeof newObjOrFn === 'function' ? newObjOrFn(dadosGlobais) : newObjOrFn;
+    if (newObj.players !== undefined) setPlayers(newObj.players)
+    if (newObj.npcs !== undefined) setNpcs(newObj.npcs)
+    if (newObj.food !== undefined) setFood(newObj.food)
   }
   const salvarEstadoLocal = () => {} // no-op
 

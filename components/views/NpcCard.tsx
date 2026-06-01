@@ -212,6 +212,34 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
         )}
       </button>
 
+      {npc.transformation && combatMode && isGM && (
+        <button 
+          className="btn-quick-transform"
+          title={npc.isTransformed ? 'Reverter Forma' : 'Transformar'} 
+          onClick={(e) => { e.stopPropagation(); toggleTransform(e); }}
+          style={{
+            position: 'absolute',
+            top: '40px',
+            right: '10px',
+            background: npc.isTransformed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: npc.isTransformed ? '#fff' : 'var(--text-muted)',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            fontSize: '14px',
+            transition: 'all 0.2s',
+            zIndex: 10,
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          ⚡
+        </button>
+      )}
 
 
       <div className="npc-card-header" onClick={openDetail}>
@@ -223,32 +251,6 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
         <div className="npc-card-title-area">
           <div className="npc-card-name" style={{ color: npc.isTransformed ? "var(--accent-primary)" : "inherit", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px", paddingRight: "40px" }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{activeNpc.name}</span>
-            {npc.transformation && combatMode && isGM && (
-              <button 
-                title={npc.isTransformed ? 'Reverter Forma' : 'Transformar'} 
-                onClick={(e) => { e.stopPropagation(); toggleTransform(e); }}
-                style={{
-                  background: npc.isTransformed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: npc.isTransformed ? '#fff' : 'var(--text-muted)',
-                  width: '22px',
-                  height: '22px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  fontSize: '11px',
-                  transition: 'all 0.2s',
-                  position: 'absolute',
-                  top: '10px',
-                  right: '38px',
-                  zIndex: 2
-                }}
-              >
-                ⚡
-              </button>
-            )}
           </div>
           <div className="npc-card-title">{activeNpc.title || 'Sem título'}</div>
           <div className="npc-card-meta">
