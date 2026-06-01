@@ -116,7 +116,10 @@ export default function DashboardView() {
     });
   };
 
-  if (campLoading || npcsLoading || playersLoading) {
+  const hasData = Object.keys(jornadaPorDia).length > 0;
+  const isFirstLoad = (campLoading || npcsLoading || playersLoading) && !hasData;
+
+  if (isFirstLoad) {
     return <div className="loading-state">Carregando Dashboard...</div>;
   }
 

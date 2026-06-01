@@ -61,7 +61,7 @@ export default function PlayersView() {
     }
   };
 
-  if (loading) return <div className="loading-state">Carregando Personagens...</div>;
+  if (loading && (!players || players.length === 0)) return <div className="loading-state">Carregando Personagens...</div>;
 
   return (
     <div className="npc-view-container">

@@ -4,8 +4,12 @@ import { useUserSession } from '@/contexts/UserSessionContext'
 import { useGameSync } from '@/hooks/useGameSync'
 import Sidebar from '@/components/layout/Sidebar'
 
+import { usePathname } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { sessionLoading, profile } = useUserSession()
+  const pathname = usePathname()
 
   // Canal único montado no nível mais alto da app autenticada
   const { broadcast } = useGameSync((event) => {
@@ -58,8 +62,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar />
       <main className="main-content" style={{ flex: 1, overflowY: 'auto' }}>
-        {children}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            style={{ minHeight: '100%' }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   )
 }
+

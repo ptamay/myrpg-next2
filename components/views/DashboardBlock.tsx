@@ -155,8 +155,8 @@ export default function DashboardBlock({
 
   const openPersonalNote = (index?: number) => {
     if (index !== undefined) {
-      if (session?.id) {
-        const myNotes = bData.playerSessions?.[session.id]?.notes || [];
+      if (session?.playerId) {
+        const myNotes = bData.playerSessions?.[session.playerId]?.notes || [];
         setActiveData({ topicIndex: index, data: myNotes[index] });
         setModals((prev: any) => ({ ...prev, personalNoteDetail: true }));
       }
@@ -678,7 +678,7 @@ export default function DashboardBlock({
             </button>
           </div>
           <div className="world-cards-grid" style={{ padding: "8px 4px 8px 12px" }}>
-            {(session?.id && bData.playerSessions?.[session.id]?.notes?.length > 0) ? bData.playerSessions[session.id].notes.map((n: any, i: number) => {
+            {(session?.playerId && bData.playerSessions?.[session.playerId]?.notes?.length > 0) ? bData.playerSessions[session.playerId].notes.map((n: any, i: number) => {
               
               // Definir cores baseadas no tipo de anotação
               let noteBg = "rgba(255, 255, 255, 0.03)";

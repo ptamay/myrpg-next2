@@ -120,13 +120,15 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
   const prevIsOpenRef = useRef(false);
+  const loadedPlayerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       const justOpened = !prevIsOpenRef.current;
+      const isNewData = activeData?.id !== loadedPlayerIdRef.current;
       
       if (activeData) {
-        if (justOpened) {
+        if (justOpened || isNewData) {
           setFormState(dataToFormState(activeData));
           setAvatarBase64(activeData.image || null);
           setAttacksState(dataToAttacks(activeData));
@@ -150,7 +152,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
           }
         }
       } else {
-        if (justOpened) {
+        if (justOpened || isNewData) {
           setFormState(initialFormState);
           setAvatarBase64(null);
           setAttacksState(dataToAttacks({}));
@@ -166,7 +168,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
         }
       }
       
-      if (justOpened) setIsEditingTransformation(activeData?.isTransformed || false);
+      if (justOpened || isNewData) setIsEditingTransformation(activeData?.isTransformed || false);
 
       const fetchProfiles = async () => {
         const supabase = getSupabaseClient();
@@ -182,11 +184,13 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
           }
         }
       };
-      if (justOpened && isGM) fetchProfiles();
+      if ((justOpened || isNewData) && isGM) fetchProfiles();
       
+      loadedPlayerIdRef.current = activeData?.id || null;
       prevIsOpenRef.current = true;
     } else {
       prevIsOpenRef.current = false;
+      loadedPlayerIdRef.current = null;
     }
   }, [isOpen, activeData, isGM]);
 

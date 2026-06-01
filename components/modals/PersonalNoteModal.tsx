@@ -75,7 +75,7 @@ export default function PersonalNoteModal({ isOpen, onClose }: PersonalNoteModal
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formRef.current || !session?.id) return;
+    if (!formRef.current || !session?.playerId) return;
     
     const form = formRef.current;
     const noteData = {
@@ -95,13 +95,13 @@ export default function PersonalNoteModal({ isOpen, onClose }: PersonalNoteModal
     if (!bData.playerSessions) bData.playerSessions = {};
     else bData.playerSessions = { ...bData.playerSessions };
 
-    if (!bData.playerSessions[session.id]) {
-      bData.playerSessions[session.id] = { acoes: [], objetivos: [], concluido: false, notes: [] };
+    if (!bData.playerSessions[session.playerId]) {
+      bData.playerSessions[session.playerId] = { acoes: [], objetivos: [], concluido: false, notes: [] };
     } else {
-      bData.playerSessions[session.id] = { ...bData.playerSessions[session.id] };
+      bData.playerSessions[session.playerId] = { ...bData.playerSessions[session.playerId] };
     }
     
-    let notes = bData.playerSessions[session.id].notes || [];
+    let notes = bData.playerSessions[session.playerId].notes || [];
     notes = [...notes];
 
     if (activeData && activeData.topicIndex !== undefined) {
@@ -110,13 +110,13 @@ export default function PersonalNoteModal({ isOpen, onClose }: PersonalNoteModal
       notes.push({ id: Date.now(), ...noteData });
     }
     
-    bData.playerSessions[session.id].notes = notes;
+    bData.playerSessions[session.playerId].notes = notes;
     setJornadaPorDia(newJornada);
     onClose();
   };
 
   const handleDelete = () => {
-    if (!activeData || activeData.topicIndex === undefined || !session?.id) return;
+    if (!activeData || activeData.topicIndex === undefined || !session?.playerId) return;
     
     const newJornada = { ...jornadaPorDia };
     if (!newJornada[diaAtual]) return;
@@ -125,12 +125,12 @@ export default function PersonalNoteModal({ isOpen, onClose }: PersonalNoteModal
     newJornada[diaAtual].blocos[indiceBlocoAtivo] = { ...newJornada[diaAtual].blocos[indiceBlocoAtivo] };
     const bData = newJornada[diaAtual].blocos[indiceBlocoAtivo];
     
-    if (bData.playerSessions && bData.playerSessions[session.id]) {
+    if (bData.playerSessions && bData.playerSessions[session.playerId]) {
       bData.playerSessions = { ...bData.playerSessions };
-      bData.playerSessions[session.id] = { ...bData.playerSessions[session.id] };
-      if (bData.playerSessions[session.id].notes) {
-        bData.playerSessions[session.id].notes = [...bData.playerSessions[session.id].notes];
-        bData.playerSessions[session.id].notes.splice(activeData.topicIndex, 1);
+      bData.playerSessions[session.playerId] = { ...bData.playerSessions[session.playerId] };
+      if (bData.playerSessions[session.playerId].notes) {
+        bData.playerSessions[session.playerId].notes = [...bData.playerSessions[session.playerId].notes];
+        bData.playerSessions[session.playerId].notes.splice(activeData.topicIndex, 1);
       }
     }
 
@@ -242,7 +242,7 @@ export function PersonalNoteDetailModal({ isOpen, onClose }: PersonalNoteModalPr
   };
 
   const handleDelete = () => {
-    if (!activeData || activeData.topicIndex === undefined || !session?.id) return;
+    if (!activeData || activeData.topicIndex === undefined || !session?.playerId) return;
     
     const newJornada = { ...jornadaPorDia };
     if (!newJornada[diaAtual]) return;
@@ -251,12 +251,12 @@ export function PersonalNoteDetailModal({ isOpen, onClose }: PersonalNoteModalPr
     newJornada[diaAtual].blocos[indiceBlocoAtivo] = { ...newJornada[diaAtual].blocos[indiceBlocoAtivo] };
     const bData = newJornada[diaAtual].blocos[indiceBlocoAtivo];
     
-    if (bData.playerSessions && bData.playerSessions[session.id]) {
+    if (bData.playerSessions && bData.playerSessions[session.playerId]) {
       bData.playerSessions = { ...bData.playerSessions };
-      bData.playerSessions[session.id] = { ...bData.playerSessions[session.id] };
-      if (bData.playerSessions[session.id].notes) {
-        bData.playerSessions[session.id].notes = [...bData.playerSessions[session.id].notes];
-        bData.playerSessions[session.id].notes.splice(activeData.topicIndex, 1);
+      bData.playerSessions[session.playerId] = { ...bData.playerSessions[session.playerId] };
+      if (bData.playerSessions[session.playerId].notes) {
+        bData.playerSessions[session.playerId].notes = [...bData.playerSessions[session.playerId].notes];
+        bData.playerSessions[session.playerId].notes.splice(activeData.topicIndex, 1);
       }
     }
 

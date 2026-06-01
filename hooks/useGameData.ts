@@ -479,7 +479,7 @@ export function useDiario() {
 // ─────────────────────────────────────────────────────────────
 // useMurais
 // ─────────────────────────────────────────────────────────────
-export function useMurais() {
+export function useMurais(activeMuralId?: string | null) {
   const [murais, setMurais] = useState<Mural[]>([]);
   const [loading, setLoading] = useState(true);
   const { showAlert } = useSystemDialog();
@@ -490,8 +490,10 @@ export function useMurais() {
     try {
       const { data: mData, error: mErr } = await supabase.from('murals').select('*');
       if (mErr) throw new Error(mErr?.message || JSON.stringify(mErr));
+
       const { data: cData, error: cErr } = await supabase.from('mural_cards').select('*');
       if (cErr) throw new Error(cErr?.message || JSON.stringify(cErr));
+
       const { data: lData, error: lErr } = await supabase.from('mural_connections').select('*');
       if (lErr) throw new Error(lErr?.message || JSON.stringify(lErr));
       
@@ -531,7 +533,7 @@ export function useMurais() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, activeMuralId]);
 
   const muralChannelRef = useRef<any>(null);
 
@@ -548,11 +550,21 @@ export function useMurais() {
       if (currentChannel) supabase.removeChannel(currentChannel);
 
       const channelId = `murals_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      currentChannel = supabase.channel(channelId)
-        .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, () => { fetchMurais(); })
-        .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, () => { fetchMurais(); })
-        .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, () => { fetchMurais(); });
+      let channel = supabase.channel(channelId);
 
+      if (activeMuralId) {
+        channel = channel
+          .on("postgres_changes", { event: "*", schema: "public", table: "murals", filter: `id=eq.${activeMuralId}` }, () => { fetchMurais(); })
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards", filter: `mural_id=eq.${activeMuralId}` }, () => { fetchMurais(); })
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections", filter: `mural_id=eq.${activeMuralId}` }, () => { fetchMurais(); });
+      } else {
+        channel = channel
+          .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, () => { fetchMurais(); })
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, () => { fetchMurais(); })
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, () => { fetchMurais(); });
+      }
+
+      currentChannel = channel;
       currentChannel.subscribe((status: string) => {
         if (!isMounted) return;
         if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
@@ -572,7 +584,7 @@ export function useMurais() {
       if (currentChannel) supabase.removeChannel(currentChannel);
       muralChannelRef.current = null;
     };
-  }, [fetchMurais, supabase, sessionLoading]);
+  }, [fetchMurais, supabase, sessionLoading, activeMuralId]);
 
   const save = useCallback(async (mural: Mural) => {
     try {

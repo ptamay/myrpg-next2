@@ -78,7 +78,7 @@ export default function DiarioFeed() {
       const blocos = jornadaPorDia[day]?.blocos || [];
       blocos.forEach((bloco: any, bIdx: number) => {
         const pSessions = bloco.playerSessions || {};
-        const pSession = pSessions[session.id];
+        const pSession = pSessions[session.playerId];
         if (pSession && pSession.notes && pSession.notes.length > 0) {
           pSession.notes.forEach((note: any) => {
             personalNotes.push({

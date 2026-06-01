@@ -129,7 +129,7 @@ export default function NpcsView() {
     };
   }, [combatMode, hideEffects]);
 
-  if (loading) return <div className="loading-state">Carregando NPCs...</div>;
+  if (loading && npcs.length === 0) return <div className="loading-state">Carregando NPCs...</div>;
 
   return (
     <div className="npc-view-container">

@@ -16,13 +16,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import Modal from "@/components/ui/Modal";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
-const getSlotId = (isGM: boolean, slotIndex: number) => {
-  const prefix = isGM ? "1" : "2";
+const getSlotId = (slotIndex: number, mode: "private" | "players") => {
+  const prefix = mode === "private" ? "1" : "2";
   return `00000000-0000-0000-0000-0000000000${prefix}${slotIndex}`;
 };
 
 export default function MuralCanvas({ isActive = true }: { isActive?: boolean }) {
-  const { murais, loading, save } = useMurais();
   const { isGM, session } = useUserSession();
   const { npcs } = useNpcs();
   const { players } = usePlayers();
@@ -30,13 +29,17 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
 
   const canEdit = isGM || !!session?.playerId;
 
+  const [viewingMode, setViewingMode] = useState<"private" | "players">(isGM ? "private" : "players");
+  
   const [activeMuralId, setActiveMuralId] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem("mural-active-id");
       if (saved) return saved;
     }
-    return murais[0]?.id ?? null;
+    return null;
   });
+
+  const { murais, loading, save } = useMurais(activeMuralId);
 
   const [zoom, setZoom] = useState(() => {
     if (typeof window !== "undefined") {
@@ -347,7 +350,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
         {(isGM || players?.length > 0) && (
           <button className="btn primary-btn" onClick={() => {
             const novo: Mural = {
-              id: getSlotId(isGM, 1),
+              id: getSlotId(1, viewingMode),
               name: "Investigação 1",
               cards: [], connections: [],
               createdAt: new Date().toISOString(),
@@ -433,6 +436,29 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                   <span style={{ color: "var(--text-primary)", fontSize: "0.9rem", fontWeight: 800, textTransform: "uppercase" }}>
                     {mural ? mural.name : "INVESTIGAÇÕES"}
                   </span>
+                  {isGM && (
+                    <select
+                      value={viewingMode}
+                      onChange={(e) => {
+                        const newMode = e.target.value as "private" | "players";
+                        setViewingMode(newMode);
+                        setActiveMuralId(getSlotId(1, newMode));
+                      }}
+                      style={{
+                        background: "rgba(0,0,0,0.5)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-secondary)",
+                        borderRadius: "4px",
+                        padding: "2px 6px",
+                        fontSize: "0.75rem",
+                        outline: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="private">Privado (Mestre)</option>
+                      <option value="players">Compartilhado (Jogadores)</option>
+                    </select>
+                  )}
                   {mural && canEdit && (
                     <button 
                       className="ghost-delete-btn" 
@@ -452,7 +478,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
               <div style={{ width: "1px", height: "20px", background: "var(--border-subtle)", margin: "0 0.25rem" }}></div>
     
               {[1, 2, 3, 4, 5, 6].map(slot => {
-                const defaultSlotId = getSlotId(isGM, slot);
+                const defaultSlotId = getSlotId(slot, viewingMode);
                 const actualMural = murais.find(m => m.id === defaultSlotId || m.id === `slot-${slot}` || m.id === `player-slot-${slot}` || m.id === `gm-slot-${slot}`);
                 const isSaved = !!actualMural;
                 const actualMuralId = actualMural?.id || defaultSlotId;
