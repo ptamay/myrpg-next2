@@ -38,22 +38,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (profile && profile.role === 'player' && !profile.player_id) {
     return (
       <div className="waiting-screen" style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-dark)' }}>
-        <p style={{ color: 'white', fontSize: '1.2rem' }}>Aguarde o GM associar seu personagem.</p>
-        
-        {process.env.NODE_ENV === 'development' && (
-          <button 
-            className="btn secondary-btn"
-            style={{ marginTop: '2rem', fontSize: '0.8rem', opacity: 0.7 }}
-            onClick={async () => {
-              const { getSupabaseClient } = await import('@/lib/supabase/client');
-              const supabase = getSupabaseClient();
-              await supabase.from('profiles').update({ role: 'gm' }).eq('id', profile.id);
-              window.location.reload();
-            }}
-          >
-            🛠️ [DevMode] Forçar minha conta como GM
-          </button>
-        )}
+        <div className="glass-panel" style={{ padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', maxWidth: '400px', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>⏳</div>
+          <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.5rem', fontWeight: 800 }}>Aguardando Vinculação</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5, margin: 0 }}>
+            Seu usuário ainda não possui um personagem associado. Aguarde até que o Mestre (GM) vincule um personagem à sua conta.
+          </p>
+          <div className="pulse-indicator" style={{ marginTop: '1rem' }} />
+        </div>
       </div>
     )
   }
