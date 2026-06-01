@@ -72,13 +72,14 @@ export default function DiarioFeed() {
 
   // Coletar anotações pessoais do jogador atual
   const personalNotes: any[] = [];
-  if (session?.playerId) {
+  const playerId = session?.playerId;
+  if (playerId) {
     Object.keys(jornadaPorDia).forEach((dayStr) => {
       const day = Number(dayStr);
       const blocos = jornadaPorDia[day]?.blocos || [];
       blocos.forEach((bloco: any, bIdx: number) => {
         const pSessions = bloco.playerSessions || {};
-        const pSession = pSessions[session.playerId];
+        const pSession = pSessions[playerId];
         if (pSession && pSession.notes && pSession.notes.length > 0) {
           pSession.notes.forEach((note: any) => {
             personalNotes.push({

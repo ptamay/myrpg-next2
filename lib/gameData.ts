@@ -43,6 +43,7 @@ export interface Player {
   sleepHoursToday?: number;
   background?: string;
   personalGoals?: string;
+  notes?: string;
   inventory?: string;
   transformation?: Partial<Player>;
   isTransformed?: boolean;
