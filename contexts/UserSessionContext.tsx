@@ -56,7 +56,10 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
         .eq('id', user.id)
         .single()
 
+      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+
       if (profileError && profileError.code === 'PGRST116') {
+        const defaultRole = user.email && user.email === adminEmail ? 'gm' : 'player';
         // Profile não existe ainda — cria (fallback caso trigger falhe)
         const { data: newProfile } = await supabase
           .from('profiles')
@@ -64,13 +67,14 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
             id: user.id,
             email: user.email ?? '',
             display_name: user.email?.split('@')[0] ?? 'Jogador',
-            role: 'player',
+            role: defaultRole,
             player_id: null,
           })
           .select()
           .single()
         const mappedProfile = {
           ...newProfile,
+          role: defaultRole,
           playerId: newProfile.player_id,
           name: newProfile.display_name || newProfile.email
         }
@@ -78,6 +82,7 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
       } else {
         const mappedProfile = {
           ...profileData,
+          role: profileData.email && profileData.email === adminEmail ? 'gm' : profileData.role,
           playerId: profileData.player_id,
           name: profileData.display_name || profileData.email
         }
