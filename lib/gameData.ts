@@ -1,3 +1,5 @@
+import { ActiveBuff } from "./types/buffs";
+
 export const personagens = ['Kronodyr', 'Alric', 'Marop', 'Vynik'];
 
 export const blocosDeTempo = [
@@ -41,6 +43,9 @@ export interface Player {
   isSleepingAction?: boolean;
   exhaustionLevel?: number;
   sleepHoursToday?: number;
+  tempHp?: number;
+  conditions?: string[];
+  activeBuffs?: ActiveBuff[];
   background?: string;
   personalGoals?: string;
   notes?: string;
@@ -84,6 +89,13 @@ export interface Npc {
   spellSlotsUsed?: Record<number, number>;
   isDead: boolean;
   isHidden: boolean;
+  tempHp?: number;
+  tempAc?: number;
+  tempRes?: string[];
+  conditions?: string[];
+  activeBuffs?: ActiveBuff[];
+  saves?: string[];
+  profBonus?: string;
   image?: string;
   transformation?: Partial<Npc>;
   isTransformed?: boolean;

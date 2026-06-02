@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import HpInlineEditor from "../ui/HpInlineEditor";
+import BuffPanel from "../ui/BuffPanel";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
 
@@ -20,19 +22,8 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
 
   const activePlayer = player.isTransformed && player.transformation ? player.transformation : player;
 
-  const [localHp, setLocalHp] = useState<string | number>("");
-  const [localTempHp, setLocalTempHp] = useState<string | number>("");
-
   const activeHp = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
   const activeTemp = activePlayer.tempHp || 0;
-
-  React.useEffect(() => {
-    setLocalHp(activeHp);
-  }, [activeHp]);
-
-  React.useEffect(() => {
-    setLocalTempHp(activeTemp);
-  }, [activeTemp]);
 
   const isOwner = player.id === session?.playerId;
   const canViewDetails = isGM || isOwner;
@@ -102,76 +93,12 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
     handleActiveUpdate({ tempAc: currentTempAc + mod });
   };
 
-  const handleHpMod = (e: React.MouseEvent, direction: number) => {
-    e.stopPropagation();
-    if (!canViewDetails) return;
-    const amount = 1;
-    let current = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
-    let temp = activePlayer.tempHp || 0;
-    
-    if (direction > 0) {
-      current = Math.min(activePlayer.hpMax, current + amount);
-    } else {
-      if (temp > 0) {
-        if (temp >= amount) {
-          temp -= amount;
-        } else {
-          const overflow = amount - temp;
-          temp = 0;
-          current = Math.max(0, current - overflow);
-        }
-      } else {
-        current = Math.max(0, current - amount);
-      }
-    }
-    
-    if (current <= 0 && temp <= 0 && player.isTransformed) {
-      handleUpdate({ 
-        isTransformed: false, 
-        transformation: { ...player.transformation, hpCurrent: 0, tempHp: 0, isDead: true } 
-      });
-      return;
-    }
-    
-    handleActiveUpdate({ 
-      hpCurrent: current, 
-      tempHp: temp,
-      isDead: current <= 0 && temp <= 0
-    });
-  };
-
-  const handleHpChange = (valStr: string) => {
-    setLocalHp(valStr);
-  };
-
-  const handleHpCommit = () => {
-    if (localHp === "") {
-      const defaultHp = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
-      setLocalHp(defaultHp);
-      return;
-    }
-    const val = Math.max(0, parseInt(localHp.toString()) || 0);
-    handleActiveUpdate({ 
-      hpCurrent: val,
-      isDead: val <= 0 && (activePlayer.tempHp || 0) <= 0
-    });
-  };
-
-  const handleTempHpChange = (valStr: string) => {
-    setLocalTempHp(valStr);
-  };
-
-  const handleTempHpCommit = () => {
-    if (localTempHp === "") {
-      setLocalTempHp(0);
-      handleActiveUpdate({ tempHp: 0 });
-      return;
-    }
-    const val = Math.max(0, parseInt(localTempHp.toString()) || 0);
-    handleActiveUpdate({ 
-      tempHp: val,
-      isDead: (activePlayer.hpCurrent || 0) <= 0 && val <= 0
-    });
+  const handleHpUpdate = (updates: Partial<{ hpCurrent: number; tempHp: number; isDead?: boolean }>) => {
+    const isNowDead = updates.hpCurrent !== undefined 
+      ? updates.hpCurrent <= 0 && (updates.tempHp !== undefined ? updates.tempHp : activeTemp) <= 0
+      : activeHp <= 0 && updates.tempHp !== undefined && updates.tempHp <= 0;
+      
+    handleActiveUpdate({ ...updates, isDead: isNowDead });
   };
 
   const hpPct = activePlayer.hpMax > 0 ? Math.max(0, Math.min(100, ((activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : activePlayer.hpMax) / activePlayer.hpMax) * 100)) : 0;
@@ -320,54 +247,21 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
           <div className="npc-card-hp-area" style={{ flex: 2.2, display: "flex", flexDirection: "column", padding: 0 }}>
             <div className="hp-header" style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.05em" }}>HP</span>
-              {canViewDetails ? (
-                <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                    <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, -1)} title="Subtrair 1 HP">-</button>
-                    <input 
-                      type="number" 
-                      className="hp-current-input" 
-                      value={localHp} 
-                      onChange={e => handleHpChange(e.target.value)}
-                      onBlur={handleHpCommit}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") {
-                          handleHpCommit();
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                      onClick={e => e.stopPropagation()}
-                      style={{ width: "32px", textAlign: "center" }}
-                    />
-                    <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, 1)} title="Adicionar 1 HP">+</button>
-                    <span className="hp-max-val" style={{ marginLeft: "2px" }}>/ {activePlayer.hpMax}</span>
-                    
-                    <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "6px" }}>
-                      <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
-                      <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: Math.max(0, (activePlayer.tempHp || 0) - 1) }) }} title="Subtrair Temp">-</button>
-                      <input 
-                        type="number" 
-                        className="hp-input temp-hp-input" 
-                        value={localTempHp} 
-                        onChange={e => handleTempHpChange(e.target.value)}
-                        onBlur={handleTempHpCommit}
-                        onKeyDown={e => {
-                          if (e.key === "Enter") {
-                            handleTempHpCommit();
-                            (e.target as HTMLInputElement).blur();
-                          }
-                        }}
-                        onClick={e => e.stopPropagation()}
-                        style={{ width: "28px", textAlign: "center", padding: "2px" }}
-                      />
-                      <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: (activePlayer.tempHp || 0) + 1 }) }} title="Adicionar Temp">+</button>
-                    </div>
-                  </div>
-                </div>
+              {(isGM || session?.playerId === player.id) ? (
+                <HpInlineEditor
+                  hpCurrent={activeHp}
+                  hpMax={activePlayer.hpMax}
+                  tempHp={activeTemp}
+                  onApplyDamage={(dmg) => handleHpUpdate({ hpCurrent: Math.max(0, activeHp - dmg) })}
+                  onApplyHeal={(heal) => handleHpUpdate({ hpCurrent: activeHp + heal })}
+                  onSetTempHp={(val) => handleHpUpdate({ tempHp: val })}
+                  onSetHp={(val) => handleHpUpdate({ hpCurrent: Math.max(0, val) })}
+                />
               ) : (
                 <div className="hp-values-group">
-                  <span className="hp-total-display">{activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0)}</span>
+                  <span className="hp-total-display">{activeHp}</span>
                   <span className="hp-max-val">/ {activePlayer.hpMax || 0}</span>
+                  {activeTemp > 0 && <span className="temp-hp-badge">+{activeTemp} Temp</span>}
                 </div>
               )}
             </div>
@@ -382,6 +276,12 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
             <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "var(--text-primary)", marginTop: "2px", lineHeight: 1, display: "block" }}>{activePlayer.hdTotal || '1d10'}</span>
           </div>
         </div>
+        
+        <BuffPanel 
+          buffs={activePlayer.activeBuffs || []} 
+          onUpdateBuffs={(newBuffs) => handleActiveUpdate({ activeBuffs: newBuffs })} 
+          isGM={isGM} 
+        />
 
         {activePlayer.attacks && activePlayer.attacks.length > 0 && (
           <>

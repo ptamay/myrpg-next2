@@ -1,0 +1,89 @@
+/* ====== BUTTONS SYSTEM ====== */
+.btn {
+    padding: 0.85rem 1.5rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+    font-size: 0.95rem;
+    font-family: var(--font-main);
+    letter-spacing: -0.01em;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: white;
+    box-shadow: 0 8px 20px -6px var(--accent-glow);
+    border: 1px solid hsla(0, 0%, 100%, 0.2);
+}
+
+.primary-btn:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 12px 28px -6px var(--accent-glow);
+    filter: brightness(1.1);
+}
+
+.primary-btn:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.secondary-btn {
+    background: hsla(0, 0%, 100%, 0.05);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+}
+
+.secondary-btn:hover {
+    background: hsla(0, 0%, 100%, 0.1);
+    border-color: var(--border-bright);
+}
+
+.save-btn {
+    background: hsla(150, 80%, 50%, 0.1);
+    border: 1px solid hsla(150, 80%, 50%, 0.2);
+    color: var(--success);
+}
+
+.save-btn:hover {
+    background: hsla(150, 80%, 50%, 0.15);
+    box-shadow: 0 0 15px hsla(150, 80%, 50%, 0.1);
+}
+
+.danger-btn {
+    background: hsla(0, 84%, 60%, 0.05);
+    border: 1px solid hsla(0, 84%, 60%, 0.1);
+    color: var(--text-muted);
+}
+
+.danger-btn:hover {
+    color: var(--danger);
+    border-color: hsla(0, 84%, 60%, 0.3);
+    background: hsla(0, 84%, 60%, 0.1);
+}
+
+.nav-btn {
+    background: hsla(0, 0%, 100%, 0.03);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-base);
+}
+
+.nav-btn:hover {
+    background: hsla(0, 0%, 100%, 0.08);
+    color: var(--text-primary);
+    border-color: var(--border-bright);
+    transform: scale(1.1);
+}
+

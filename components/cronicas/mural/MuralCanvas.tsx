@@ -216,11 +216,14 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
 
     // Broadcast para outros jogadores
     const supabase = getSupabaseClient();
-    supabase.channel(`mural_drag_${mural.id}`).send({
-      type: 'broadcast',
-      event: 'card_move',
-      payload: { cardId, position: newPos }
-    });
+    const channel = supabase.channel(`mural_drag_${mural.id}`);
+    if (channel.state === 'joined') {
+      channel.send({
+        type: 'broadcast',
+        event: 'card_move',
+        payload: { cardId, position: newPos }
+      });
+    }
 
     // Salva em background com debounce
     const updated: Mural = {

@@ -11,6 +11,8 @@ export type SyncEventType =
   | 'mural_update'
   | 'map_update'
   | 'campaign_update'
+  | 'dice_roll'
+  | 'combat_update'
 
 export type SyncEvent = {
   type: SyncEventType
@@ -54,11 +56,13 @@ export function useGameSync(onEvent: SyncHandler) {
   // Broadcast de evento para todos (GM → jogadores)
   const broadcast = useCallback(async (event: SyncEvent) => {
     if (!channelRef.current) return
-    await channelRef.current.send({
-      type: 'broadcast',
-      event: 'game_update',
-      payload: event,
-    })
+    if (channelRef.current.state === 'joined') {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'game_update',
+        payload: event,
+      })
+    }
   }, [])
 
   return { broadcast }

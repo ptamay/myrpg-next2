@@ -985,4 +985,139 @@
     pointer-events: auto;
     opacity: 1;
 }
+
+/* ====== HP Inline Editor ====== */
+.hp-inline-editor {
+    position: relative;
+    display: inline-block;
+}
+
+.hp-display-area {
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.hp-display-area:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.hp-values {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.hp-values .current-hp {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.hp-values .max-hp {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.hp-values .temp-hp {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #eab308; /* yellow-500 */
+    background: rgba(234, 179, 8, 0.15);
+    padding: 1px 4px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+.hp-editor-panel {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.hp-editor-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hp-editor-input {
+    width: 100%;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: bold;
+    padding: 8px;
+}
+
+.hp-editor-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.hp-btn-damage, .hp-btn-heal {
+    flex: 1;
+    border: none;
+    padding: 8px 0;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: filter 0.2s, opacity 0.2s;
+}
+
+.hp-btn-damage {
+    background-color: #ef4444; /* red-500 */
+    color: white;
+}
+
+.hp-btn-damage:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.hp-btn-heal {
+    background-color: #22c55e; /* green-500 */
+    color: white;
+}
+
+.hp-btn-heal:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.hp-btn-damage:disabled, .hp-btn-heal:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.hp-editor-temp {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.hp-editor-temp label {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #eab308;
+}
+
+.hp-temp-input {
+    width: 60px;
+    text-align: right;
+    padding: 4px;
+}
 

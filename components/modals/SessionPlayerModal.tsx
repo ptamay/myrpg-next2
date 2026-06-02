@@ -5,6 +5,7 @@ import Modal from "../ui/Modal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import HpInlineEditor from "../ui/HpInlineEditor";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
 
@@ -16,7 +17,7 @@ interface SessionPlayerModalProps {
 export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerModalProps) {
   const { diaAtual, jornadaPorDia, setJornadaPorDia, activeData, setActiveData, setModals, dadosGlobais, setDadosGlobais, salvarEstadoLocal } = useApp();
   const { showAlert, showConfirm } = useSystemDialog();
-  const { isGM } = useUserSession();
+  const { isGM, session } = useUserSession();
 
   const [acoes, setAcoes] = useState<any[]>([]);
   const [concluido, setConcluido] = useState(false);
@@ -159,6 +160,30 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
         newPlayers[idx].hpCurrent = currentHp;
         newPlayers[idx].tempHp = tempHp;
         newPlayers[idx].isDead = currentHp <= 0 && tempHp <= 0;
+      }
+      setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+      setTimeout(salvarEstadoLocal, 100);
+    }
+  };
+
+  const mergePlayerHpUpdates = (updates: Partial<{ hpCurrent: number; tempHp: number }>) => {
+    const newPlayers = [...(dadosGlobais.players || [])];
+    const idx = newPlayers.findIndex(p => p.id === rawPlayer.id);
+    if (idx !== -1) {
+      let finalHp = activeHp;
+      let finalTemp = activeTemp;
+      
+      if (updates.hpCurrent !== undefined) finalHp = updates.hpCurrent;
+      if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
+
+      if (rawPlayer.isTransformed && newPlayers[idx].transformation) {
+        newPlayers[idx].transformation.hpCurrent = finalHp;
+        newPlayers[idx].transformation.tempHp = finalTemp;
+        newPlayers[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+      } else {
+        newPlayers[idx].hpCurrent = finalHp;
+        newPlayers[idx].tempHp = finalTemp;
+        newPlayers[idx].isDead = finalHp <= 0 && finalTemp <= 0;
       }
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
       setTimeout(salvarEstadoLocal, 100);
@@ -416,61 +441,25 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
 
                 <div style={{ display: "flex", gap: "8px", marginTop: "1rem", alignItems: "stretch", width: "100%" }}>
                   <div className="npc-card-hp-area" style={{ flex: 2, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                    <div className="hp-header" style={{ marginBottom: "4px" }}>
-                      <span>PONTOS DE VIDA</span>
-                      <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div className="hp-adjuster-group" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, -1)} title="Subtrair HP (Dano)">-</button>
-                          <input 
-                            type="number" 
-                            className="hp-mod-amount-input" 
-                            placeholder="Qtd" 
-                            value={hpModInput} 
-                            onChange={e => setHpModInput(e.target.value)} 
-                            onClick={e => e.stopPropagation()}
-                            style={{ width: "40px", textAlign: "center", fontSize: "0.8rem" }}
-                          />
-                          <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, 1)} title="Adicionar HP (Cura)">+</button>
-                        </div>
-                        
+                    <div className="hp-header" style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                      <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.05em" }}>PONTOS DE VIDA</span>
+                      {(isGM || session?.playerId === player.id) ? (
+                        <HpInlineEditor
+                          hpCurrent={activeHp}
+                          hpMax={player.hpMax}
+                          tempHp={activeTemp}
+                          onApplyDamage={(dmg) => mergePlayerHpUpdates({ hpCurrent: Math.max(0, activeHp - dmg) })}
+                          onApplyHeal={(heal) => mergePlayerHpUpdates({ hpCurrent: Math.min(player.hpMax, activeHp + heal) })}
+                          onSetTempHp={(val) => mergePlayerHpUpdates({ tempHp: val })}
+                          onSetHp={(val) => mergePlayerHpUpdates({ hpCurrent: Math.max(0, val) })}
+                        />
+                      ) : (
                         <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <input 
-                            type="number" 
-                            className="hp-current-input" 
-                            value={localHp} 
-                            onChange={e => handleHpChange(e.target.value)}
-                            onBlur={handleHpCommit}
-                            onKeyDown={e => {
-                              if (e.key === "Enter") {
-                                handleHpCommit();
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            onClick={e => e.stopPropagation()}
-                            style={{ width: "40px", textAlign: "center", fontSize: "0.9rem", fontWeight: "bold" }}
-                          />
+                          <span className="hp-current-input" style={{ width: "40px", textAlign: "center", fontSize: "0.9rem", fontWeight: "bold" }}>{activeHp}</span>
                           <span className="hp-max-val">/ {player.hpMax}</span>
-                          
-                          <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
-                            <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
-                            <input 
-                              type="number" 
-                              className="hp-input temp-hp-input" 
-                              value={localTempHp} 
-                              onChange={e => handleTempHpChange(e.target.value)}
-                              onBlur={handleTempHpCommit}
-                              onKeyDown={e => {
-                                if (e.key === "Enter") {
-                                  handleTempHpCommit();
-                                  (e.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              onClick={e => e.stopPropagation()}
-                              style={{ width: "36px", textAlign: "center", fontSize: "0.8rem" }}
-                            />
-                          </div>
+                          {activeTemp > 0 && <span className="temp-hp-badge" style={{ fontSize: "0.7rem", padding: "2px 6px", background: "rgba(59, 130, 246, 0.2)", color: "#93c5fd", borderRadius: "12px", fontWeight: "bold", border: "1px solid rgba(59, 130, 246, 0.3)" }}>+{activeTemp} Temp</span>}
                         </div>
-                      </div>
+                      )}
                     </div>
                     <div className="hp-bar-bg" style={{ height: "6px" }}>
                       <div className="hp-bar-fill" style={{ width: `${hpPct}%`, backgroundColor: hpColor }}></div>

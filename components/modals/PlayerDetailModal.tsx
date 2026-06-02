@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Modal from "../ui/Modal";
 import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import HpInlineEditor from "../ui/HpInlineEditor";
 
 export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen: boolean; onClose: () => void; player: any }) {
   const { setModals, setActiveData, dadosGlobais } = useApp();
@@ -27,6 +28,32 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen:
     setActiveData(freshPlayer);
     onClose();
     setModals((prev: any) => ({ ...prev, playerForm: true }));
+  };
+
+  const mergePlayerHpUpdates = (updates: Partial<{ hpCurrent: number; tempHp: number }>) => {
+    const newPlayers = [...(dadosGlobais.players || [])];
+    const idx = newPlayers.findIndex(p => p.id === freshPlayer.id);
+    if (idx !== -1) {
+      const activeHp = freshPlayer.hpCurrent !== undefined ? freshPlayer.hpCurrent : (freshPlayer.hpMax || 0);
+      const activeTemp = freshPlayer.tempHp || 0;
+      
+      let finalHp = activeHp;
+      let finalTemp = activeTemp;
+      
+      if (updates.hpCurrent !== undefined) finalHp = updates.hpCurrent;
+      if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
+
+      if (freshPlayer.isTransformed && newPlayers[idx].transformation) {
+        newPlayers[idx].transformation.hpCurrent = finalHp;
+        newPlayers[idx].transformation.tempHp = finalTemp;
+        newPlayers[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+      } else {
+        newPlayers[idx].hpCurrent = finalHp;
+        newPlayers[idx].tempHp = finalTemp;
+        newPlayers[idx].isDead = finalHp <= 0 && finalTemp <= 0;
+      }
+      setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+    }
   };
 
   const hpPct = freshPlayer?.hpMax > 0 ? Math.max(0, Math.min(100, ((freshPlayer.hpCurrent || 0) / freshPlayer.hpMax) * 100)) : 0;
@@ -139,8 +166,23 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen:
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
                 <div style={{ background: "rgba(255, 255, 255, 0.02)", border: `1px solid rgba(255, 255, 255, 0.05)`, borderRadius: "8px", padding: "16px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 700, textTransform: "uppercase" }}>Pontos de Vida</span>
-                  <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff", margin: "4px 0" }}>
-                    {activePlayer.hpCurrent || 0} <span style={{ fontSize: "1rem", color: "var(--text-muted)" }}>/ {activePlayer.hpMax || 0}</span>
+                  <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff", margin: "4px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                    {(isGM || session?.playerId === freshPlayer.id) ? (
+                      <HpInlineEditor
+                        hpCurrent={activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : activePlayer.hpMax}
+                        hpMax={activePlayer.hpMax}
+                        tempHp={activePlayer.tempHp || 0}
+                        onApplyDamage={(dmg) => mergePlayerHpUpdates({ hpCurrent: Math.max(0, (activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : activePlayer.hpMax) - dmg) })}
+                        onApplyHeal={(heal) => mergePlayerHpUpdates({ hpCurrent: Math.min(activePlayer.hpMax, (activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : activePlayer.hpMax) + heal) })}
+                        onSetTempHp={(val) => mergePlayerHpUpdates({ tempHp: val })}
+                        onSetHp={(val) => mergePlayerHpUpdates({ hpCurrent: Math.max(0, val) })}
+                      />
+                    ) : (
+                      <>
+                        {activePlayer.hpCurrent || 0} <span style={{ fontSize: "1rem", color: "var(--text-muted)" }}>/ {activePlayer.hpMax || 0}</span>
+                        {(activePlayer.tempHp || 0) > 0 && <span style={{ fontSize: "0.8rem", padding: "2px 8px", background: "rgba(59, 130, 246, 0.2)", color: "#93c5fd", borderRadius: "12px" }}>+{activePlayer.tempHp}</span>}
+                      </>
+                    )}
                   </div>
                 </div>
                 

@@ -3,6 +3,9 @@ import { useEffect } from 'react'
 import { useUserSession } from '@/contexts/UserSessionContext'
 import { useGameSync } from '@/hooks/useGameSync'
 import Sidebar from '@/components/layout/Sidebar'
+import DiceWidget from '@/components/ui/DiceWidget'
+import DiceRollFeed from '@/components/ui/DiceRollFeed'
+import CombatTracker from '@/components/combat/CombatTracker'
 
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -67,6 +70,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </motion.div>
         </AnimatePresence>
       </main>
+      <DiceWidget />
+      <DiceRollFeed />
+      <CombatTracker />
     </div>
   )
 }

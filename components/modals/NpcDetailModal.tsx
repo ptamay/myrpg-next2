@@ -6,6 +6,7 @@ import { useApp } from "../../contexts/AppContext";
 import { useSystemDialog } from "../../contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { Npc } from "@/lib/gameData";
+import HpInlineEditor from "../ui/HpInlineEditor";
 
 interface NpcDetailModalProps {
   isOpen: boolean;
@@ -40,6 +41,33 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
       setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
       setTimeout(salvarEstadoLocal, 100);
       onClose();
+    }
+  };
+
+  const mergeNpcHpUpdates = (updates: Partial<{ hpCurrent: number; tempHp: number }>) => {
+    const newNpcs = [...(dadosGlobais.npcs || [])];
+    const idx = newNpcs.findIndex(n => n.id === freshNpc.id);
+    if (idx !== -1) {
+      const activeHp = freshNpc.hpCurrent !== undefined ? freshNpc.hpCurrent : (freshNpc.hpMax || 0);
+      const activeTemp = freshNpc.tempHp || 0;
+      
+      let finalHp = activeHp;
+      let finalTemp = activeTemp;
+      
+      if (updates.hpCurrent !== undefined) finalHp = updates.hpCurrent;
+      if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
+
+      if (freshNpc.isTransformed && newNpcs[idx].transformation) {
+        newNpcs[idx].transformation.hpCurrent = finalHp;
+        newNpcs[idx].transformation.tempHp = finalTemp;
+        newNpcs[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+      } else {
+        newNpcs[idx].hpCurrent = finalHp;
+        newNpcs[idx].tempHp = finalTemp;
+        newNpcs[idx].isDead = finalHp <= 0 && finalTemp <= 0;
+      }
+      setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
+      setTimeout(salvarEstadoLocal, 100);
     }
   };
 
@@ -135,7 +163,25 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
           <div className="npc-detail-tabs-content">
             <div className={`det-tab-content ${activeTab === "tab-combat" ? "active" : ""}`}>
               <div className="det-combat-stats-bar">
-                <div className="det-combat-stat"><span className="lbl">PV Máx</span><span className="val">{activeNpc.hpMax || "---"}</span></div>
+                <div className="det-combat-stat" style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: "100px", zIndex: 10 }}>
+                  <span className="lbl">PV</span>
+                  {isGM ? (
+                    <HpInlineEditor
+                      hpCurrent={activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : activeNpc.hpMax}
+                      hpMax={activeNpc.hpMax}
+                      tempHp={activeNpc.tempHp || 0}
+                      onApplyDamage={(dmg) => mergeNpcHpUpdates({ hpCurrent: Math.max(0, (activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : activeNpc.hpMax) - dmg) })}
+                      onApplyHeal={(heal) => mergeNpcHpUpdates({ hpCurrent: Math.min(activeNpc.hpMax, (activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : activeNpc.hpMax) + heal) })}
+                      onSetTempHp={(val) => mergeNpcHpUpdates({ tempHp: val })}
+                      onSetHp={(val) => mergeNpcHpUpdates({ hpCurrent: Math.max(0, val) })}
+                    />
+                  ) : (
+                    <span className="val">
+                      {activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : activeNpc.hpMax} / {activeNpc.hpMax || "---"}
+                      {(activeNpc.tempHp || 0) > 0 && ` (+${activeNpc.tempHp})`}
+                    </span>
+                  )}
+                </div>
                 <div className="det-combat-stat"><span className="lbl">CA</span><span className="val">{activeNpc.ac || "---"}</span></div>
                 <div className="det-combat-stat"><span className="lbl">Iniciativa</span><span className="val">{activeNpc.init || "---"}</span></div>
                 <div className="det-combat-stat"><span className="lbl">Desloc.</span><span className="val">{activeNpc.speed || "---"}</span></div>

@@ -248,7 +248,7 @@ export default function UsersView() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", background: "var(--bg-dark)" }}>
-      <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
+      <div style={{ padding: "2rem 2rem 8rem 2rem", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
         
         {/* HEADER SECTION */}
         <header style={{ marginBottom: "2.5rem", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "1.5rem" }}>

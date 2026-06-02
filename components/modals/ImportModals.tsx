@@ -15,7 +15,7 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
   const { showAlert } = useSystemDialog();
   const { activeData, setActiveData, setModals } = useApp();
   const [text, setText] = useState("");
-  const templateStr = `Nome: \nTítulo/Ocupação: \nFacção (ally/neutral/enemy): \nRaça: \nAlinhamento: \nND: \nPV Máx: \nCA: \nDeslocamento: \nIniciativa: \nPercepção: \nFOR: 10\nDES: 10\nCON: 10\nINT: 10\nSAB: 10\nCAR: 10\nAtaque Principal: \nResistências: \nImunidades: \nAções (Livre): \nMotivações: \nSegredos: \nTraços: \nItens Visíveis: \nItens Ocultos: \nNotas Extras: \nMagias Diárias: 1º[0] 2º[0] 3º[0] 4º[0] 5º[0] 6º[0] 7º[0] 8º[0] 9º[0]`;
+  const templateStr = `Nome: \nTítulo/Ocupação: \nFacção (ally/neutral/enemy): \nRaça: \nAlinhamento: \nND/CR: \nPV Máx: \nCA: \nDeslocamento (ex: 30 ft): \nIniciativa (ex: +2): \nPercepção: \nBônus de Proficiência (ex: +3): \nFOR: 10\nDES: 10\nCON: 10\nINT: 10\nSAB: 10\nCAR: 10\nSalvaguardas (ex: FOR, CON): \nPerícias (ex: Furtividade (Des), Percepção (Sab)): \nAtaque Principal (resumo): \nAtaques: Nome[Espada] Bônus[+5] Dano[1d6+3 cortante] | Nome[Arco] Bônus[+4] Dano[1d8+2 perfurante]\nResistências: \nImunidades: \nAções (Livre): \nMotivações: \nSegredos: \nTraços: \nItens Visíveis: \nItens Ocultos: \nNotas Extras: \nMagias Diárias: 1º[0] 2º[0] 3º[0] 4º[0] 5º[0] 6º[0] 7º[0] 8º[0] 9º[0]`;
 
   const handleCopyTemplate = async () => {
     try {
@@ -51,7 +51,8 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
             "ataque", "resistencias", "resistencia", "imunidades", "imunidade",
             "acoes", "acao", "motivacoes", "motivacao", "segredos", "segredo",
             "tracos", "traco", "visiveis", "visivel", "ocultos", "oculto", "escondidos",
-            "notas", "extras", "magias"
+            "notas", "extras", "magias", "salvaguardas", "saves", "bonus de proficiencia",
+            "prof", "pericias", "skills", "ataques"
           ];
           const foundKey = knownKeys.find(k => lowerLine.startsWith(k + " ") || lowerLine === k);
           if (foundKey) {
@@ -74,8 +75,12 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
         if (key === "raca") data.race = value;
         if (key === "alinhamento") data.alignment = value;
         if (key === "nd" || key === "cr") data.cr = value;
-        if (key.includes("pv") || key.includes("hp")) data.hpMax = parseInt(value) || 0;
-        if (key === "ca" || key === "ac") data.ac = value;
+        if (key.includes("pv") || key.includes("hp")) {
+          const val = parseInt(value) || 0;
+          data.hpMax = val;
+          data.hpCurrent = val;
+        }
+        if (key === "ca" || key === "ac") data.ac = parseInt(value) || 0;
         if (key === "deslocamento" || key === "speed") data.speed = value;
         if (key === "iniciativa" || key === "init") data.init = value;
         if (key === "percepcao" || key === "perc") data.perc = value;
@@ -95,6 +100,27 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
         if (key.includes("visiveis") || key.includes("visivel")) data.itemsVis = value;
         if (key.includes("ocultos") || key.includes("oculto") || key.includes("escondidos")) data.itemsHid = value;
         if (key.includes("notas") || key.includes("extras")) data.notes = value;
+        if (key.includes("salvaguardas") || key === "saves") {
+          data.saves = value.split(",").map((s: string) => s.trim().toUpperCase()).filter(Boolean);
+        }
+        if (key.includes("bonus de proficiencia") || key.includes("prof")) {
+          data.profBonus = value.trim();
+        }
+        if (key.includes("pericias") || key.includes("skills")) {
+          data.skills = value.split(",").map((s: string) => s.trim()).filter(Boolean);
+        }
+        if (key === "ataques") {
+          data.attacks = value.split("|").map((atk: string) => {
+            const nomeMatch = atk.match(/Nome\[([^\]]+)\]/i);
+            const bonusMatch = atk.match(/B[oô]nus\[([^\]]+)\]/i);
+            const danoMatch = atk.match(/Dano\[([^\]]+)\]/i);
+            return {
+              name: nomeMatch?.[1]?.trim() || "",
+              bonus: bonusMatch?.[1]?.trim() || "",
+              dmg: danoMatch?.[1]?.trim() || ""
+            };
+          }).filter((atk: any) => atk.name);
+        }
         if (key.includes("magias")) {
           data.hasSpells = true;
           data.spellSlots = {};

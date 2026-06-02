@@ -6,6 +6,7 @@ import CropModal from "./CropModal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { Npc } from "@/lib/gameData";
+import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
 
 interface NpcFormModalProps {
   isOpen: boolean;
@@ -51,6 +52,9 @@ const initialFormState = {
   s7: "0",
   s8: "0",
   s9: "0",
+  profBonus: "",
+  saves: [] as string[],
+  skills: [] as string[],
 };
 
 const dataToFormState = (data: any) => ({
@@ -92,6 +96,9 @@ const dataToFormState = (data: any) => ({
   s7: data?.spellSlots?.[7]?.toString() || "0",
   s8: data?.spellSlots?.[8]?.toString() || "0",
   s9: data?.spellSlots?.[9]?.toString() || "0",
+  profBonus: data?.profBonus || "",
+  saves: data?.saves || [],
+  skills: data?.skills || [],
 });
 
 export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
@@ -110,6 +117,12 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
   const [transHasSpells, setTransHasSpells] = useState(false);
   const [transAvatarBase64, setTransAvatarBase64] = useState<string | null>(null);
 
+  // Stats arrays that aren't strings in formState
+  const [selectedSaves, setSelectedSaves] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [transSelectedSaves, setTransSelectedSaves] = useState<string[]>([]);
+  const [transSelectedSkills, setTransSelectedSkills] = useState<string[]>([]);
+
   // Crop modal state
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -122,9 +135,13 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       if (target === 'transformation') {
          setTransFormState(prev => ({ ...prev, ...dataToFormState(data) }));
          if (data.hasSpells !== undefined) setTransHasSpells(data.hasSpells);
+         if (data.saves) setTransSelectedSaves(data.saves);
+         if (data.skills) setTransSelectedSkills(data.skills);
       } else {
          setFormState(prev => ({ ...prev, ...dataToFormState(data) }));
          if (data.hasSpells !== undefined) setHasSpells(data.hasSpells);
+         if (data.saves) setSelectedSaves(data.saves);
+         if (data.skills) setSelectedSkills(data.skills);
       }
     };
     window.addEventListener('npcImported', handleImportEvent);
@@ -140,17 +157,23 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
           setHasSpells(activeData.hasSpells || false);
           setAvatarBase64(activeData.image || null);
           setFormState(dataToFormState(activeData));
+          setSelectedSaves(activeData.saves || []);
+          setSelectedSkills(activeData.skills || []);
           
           if (activeData.transformation) {
             setHasTransformation(true);
             setTransHasSpells(activeData.transformation.hasSpells || false);
             setTransAvatarBase64(activeData.transformation.image || null);
             setTransFormState(dataToFormState(activeData.transformation));
+            setTransSelectedSaves(activeData.transformation.saves || []);
+            setTransSelectedSkills(activeData.transformation.skills || []);
           } else {
             setHasTransformation(false);
             setTransHasSpells(false);
             setTransAvatarBase64(null);
             setTransFormState(dataToFormState({ name: activeData.name + " (Transformado)" }));
+            setTransSelectedSaves([]);
+            setTransSelectedSkills([]);
           }
           
           setIsEditingTransformation(activeData.isTransformed || false);
@@ -160,11 +183,15 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
           setHasSpells(false);
           setAvatarBase64(null);
           setFormState(initialFormState);
+          setSelectedSaves([]);
+          setSelectedSkills([]);
 
           setHasTransformation(false);
           setTransHasSpells(false);
           setTransAvatarBase64(null);
           setTransFormState(initialFormState);
+          setTransSelectedSaves([]);
+          setTransSelectedSkills([]);
           
           setIsEditingTransformation(false);
         }
@@ -180,6 +207,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
   const activeState = isEditingTransformation ? transFormState : formState;
   const activeHasSpells = isEditingTransformation ? transHasSpells : hasSpells;
   const activeAvatar = isEditingTransformation ? transAvatarBase64 : avatarBase64;
+  const activeSaves = isEditingTransformation ? transSelectedSaves : selectedSaves;
+  const activeSkills = isEditingTransformation ? transSelectedSkills : selectedSkills;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -203,6 +232,26 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     }
   };
 
+  const handleSavesChange = (save: string, checked: boolean) => {
+    if (isEditingTransformation) {
+      if (checked) setTransSelectedSaves([...transSelectedSaves, save]);
+      else setTransSelectedSaves(transSelectedSaves.filter(s => s !== save));
+    } else {
+      if (checked) setSelectedSaves([...selectedSaves, save]);
+      else setSelectedSaves(selectedSaves.filter(s => s !== save));
+    }
+  };
+
+  const handleSkillsChange = (skill: string, checked: boolean) => {
+    if (isEditingTransformation) {
+      if (checked) setTransSelectedSkills([...transSelectedSkills, skill]);
+      else setTransSelectedSkills(transSelectedSkills.filter(s => s !== skill));
+    } else {
+      if (checked) setSelectedSkills([...selectedSkills, skill]);
+      else setSelectedSkills(selectedSkills.filter(s => s !== skill));
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -223,7 +272,7 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     }
   };
 
-  const constructNpcObject = (state: typeof initialFormState, isSpells: boolean, imgBase: string | null, prevData: any) => {
+  const constructNpcObject = (state: typeof initialFormState, isSpells: boolean, imgBase: string | null, prevData: any, saves: string[], skills: string[]) => {
     const hpMax = parseInt(state.hpMax) || 0;
     return {
       name: state.name,
@@ -270,6 +319,9 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
         9: parseInt(state.s9) || 0,
       } : undefined,
       spellSlotsUsed: prevData?.spellSlotsUsed || {},
+      saves,
+      skills,
+      profBonus: state.profBonus || ""
     };
   };
 
@@ -281,14 +333,14 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     // Original Form Data
     const npcData: Npc = {
       id,
-      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData),
+      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData, selectedSaves, selectedSkills),
       transformation: undefined,
       isTransformed: hasTransformation ? isEditingTransformation : false,
     } as Npc;
 
     // Transformation Data
     if (hasTransformation) {
-      npcData.transformation = constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation);
+      npcData.transformation = constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills);
     }
 
     const newNpcs = [...(dadosGlobais.npcs || [])];
@@ -310,8 +362,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
     const currentActiveData = {
       id,
-      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData),
-      transformation: hasTransformation ? constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation) : undefined,
+      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData, selectedSaves, selectedSkills),
+      transformation: hasTransformation ? constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills) : undefined,
       importTarget: isEditingTransformation ? 'transformation' : 'original'
     };
     setActiveData(currentActiveData);
@@ -480,6 +532,44 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
 
               <h4 className="form-section-title mt-4">Detalhes de Combate</h4>
               <div className="form-row">
+                <div className="form-group flex-1"><label>Bônus de Proficiência</label><input type="text" name="profBonus" className="journey-input" placeholder="Ex: +2" value={activeState.profBonus} onChange={handleChange} /></div>
+              </div>
+              
+              <div className="form-group mt-3">
+                <label style={{ display: 'block', marginBottom: '8px' }}>Salvaguardas (Saves) com Proficiência</label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {SAVES_LIST.map(s => (
+                    <label key={s} className="custom-checkbox" style={{ marginRight: '10px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={activeSaves.includes(s)}
+                        onChange={(e) => handleSavesChange(s, e.target.checked)}
+                      />
+                      <span className="checkmark"></span>
+                      <span>{s}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group mt-3">
+                <label style={{ display: 'block', marginBottom: '8px' }}>Perícias (Skills) com Proficiência</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px' }}>
+                  {SKILLS_LIST.map(skill => (
+                    <label key={skill} className="custom-checkbox">
+                      <input 
+                        type="checkbox" 
+                        checked={activeSkills.includes(skill)}
+                        onChange={(e) => handleSkillsChange(skill, e.target.checked)}
+                      />
+                      <span className="checkmark"></span>
+                      <span style={{ fontSize: '0.85rem' }}>{skill}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-row mt-4">
                 <div className="form-group flex-1"><label>Resistências</label><input type="text" name="res" className="journey-input" value={activeState.res} onChange={handleChange} /></div>
                 <div className="form-group flex-1"><label>Imunidades</label><input type="text" name="imm" className="journey-input" value={activeState.imm} onChange={handleChange} /></div>
               </div>

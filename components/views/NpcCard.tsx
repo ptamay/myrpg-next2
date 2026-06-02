@@ -3,32 +3,24 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import HpInlineEditor from "../ui/HpInlineEditor";
+import BuffPanel from "../ui/BuffPanel";
 
 interface NpcCardProps {
   npc: any;
-  combatMode: boolean;
-  hideEffects: boolean;
 }
 
-export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) {
+export default React.memo(function NpcCard({ npc }: NpcCardProps) {
   const { dadosGlobais, setDadosGlobais, setModals, setActiveData, salvarEstadoLocal } = useApp();
   const { isGM } = useUserSession();
 
   const activeNpc = npc.isTransformed && npc.transformation ? npc.transformation : npc;
 
-  const [localHp, setLocalHp] = useState<string | number>("");
-  const [localTempHp, setLocalTempHp] = useState<string | number>("");
+  const combatMode = true;
+  const [hideEffects, setHideEffects] = useState(true);
 
   const activeHp = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
   const activeTemp = activeNpc.tempHp || 0;
-
-  useEffect(() => {
-    setLocalHp(activeHp);
-  }, [activeHp]);
-
-  useEffect(() => {
-    setLocalTempHp(activeTemp);
-  }, [activeTemp]);
 
   const handleUpdate = (updates: any) => {
     const newNpcs = dadosGlobais.npcs.map((n: any) => n.id === npc.id ? { ...n, ...updates } : n);
@@ -84,75 +76,12 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
     setModals((prev: any) => ({ ...prev, npcDetail: true }));
   };
 
-  const handleHpMod = (e: React.MouseEvent, direction: number) => {
-    e.stopPropagation();
-    const amount = 1;
-    let current = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
-    let temp = activeNpc.tempHp || 0;
-    
-    if (direction > 0) {
-      current = Math.min(activeNpc.hpMax, current + amount);
-    } else {
-      if (temp > 0) {
-        if (temp >= amount) {
-          temp -= amount;
-        } else {
-          const overflow = amount - temp;
-          temp = 0;
-          current = Math.max(0, current - overflow);
-        }
-      } else {
-        current = Math.max(0, current - amount);
-      }
-    }
-    
-    if (current <= 0 && temp <= 0 && npc.isTransformed) {
-      handleUpdate({ 
-        isTransformed: false, 
-        transformation: { ...npc.transformation, hpCurrent: 0, tempHp: 0, isDead: true } 
-      });
-      return;
-    }
-    
-    handleActiveUpdate({ 
-      hpCurrent: current, 
-      tempHp: temp,
-      isDead: current <= 0 && temp <= 0
-    });
-  };
-
-  const handleHpChange = (valStr: string) => {
-    setLocalHp(valStr);
-  };
-
-  const handleHpCommit = () => {
-    if (localHp === "") {
-      const defaultHp = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
-      setLocalHp(defaultHp);
-      return;
-    }
-    const val = Math.max(0, parseInt(localHp.toString()) || 0);
-    handleActiveUpdate({ 
-      hpCurrent: val,
-      isDead: val <= 0 && (activeNpc.tempHp || 0) <= 0
-    });
-  };
-
-  const handleTempHpChange = (valStr: string) => {
-    setLocalTempHp(valStr);
-  };
-
-  const handleTempHpCommit = () => {
-    if (localTempHp === "") {
-      setLocalTempHp(0);
-      handleActiveUpdate({ tempHp: 0 });
-      return;
-    }
-    const val = Math.max(0, parseInt(localTempHp.toString()) || 0);
-    handleActiveUpdate({ 
-      tempHp: val,
-      isDead: (activeNpc.hpCurrent || 0) <= 0 && val <= 0
-    });
+  const handleHpUpdate = (updates: Partial<{ hpCurrent: number; tempHp: number; isDead?: boolean }>) => {
+    const isNowDead = updates.hpCurrent !== undefined 
+      ? updates.hpCurrent <= 0 && (updates.tempHp !== undefined ? updates.tempHp : activeTemp) <= 0
+      : activeHp <= 0 && updates.tempHp !== undefined && updates.tempHp <= 0;
+      
+    handleActiveUpdate({ ...updates, isDead: isNowDead });
   };
 
   const toggleCondition = (e: React.MouseEvent, cond: string) => {
@@ -216,8 +145,8 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
           onClick={(e) => { e.stopPropagation(); toggleTransform(e); }}
           style={{
             position: 'absolute',
-            top: '40px',
-            right: '10px',
+            top: '10px',
+            right: '40px',
             background: npc.isTransformed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)',
             border: '1px solid rgba(255,255,255,0.1)',
             color: npc.isTransformed ? '#fff' : 'var(--text-muted)',
@@ -312,6 +241,12 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
             </div>
           )}
 
+          <BuffPanel 
+            buffs={activeNpc.activeBuffs || []} 
+            onUpdateBuffs={(newBuffs) => handleActiveUpdate({ activeBuffs: newBuffs })} 
+            isGM={isGM} 
+          />
+
           {!hideEffects && (
             <div className="npc-card-combat-console">
               <div className="console-section">
@@ -345,6 +280,13 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
             </div>
           )}
 
+          <div 
+            style={{ textAlign: "center", fontSize: "0.7rem", color: "var(--text-muted)", cursor: "pointer", padding: "4px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}
+            onClick={(e) => { e.stopPropagation(); setHideEffects(!hideEffects); }}
+          >
+            {hideEffects ? "Mostrar Condições ▼" : "Ocultar Condições ▲"}
+          </div>
+
           {activeNpc.hasSpells && activeNpc.spellSlots && (
             <div className="npc-card-spells">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(level => {
@@ -373,51 +315,23 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
           <div className="npc-card-hp-area">
             <div className="hp-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.05em" }}>HP</span>
-              <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
-                  <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, -1)} title="Subtrair 1 HP">-</button>
-                  <input 
-                    type="number" 
-                    className="hp-current-input" 
-                    value={localHp} 
-                    onChange={e => handleHpChange(e.target.value)}
-                    onBlur={handleHpCommit}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        handleHpCommit();
-                        (e.target as HTMLInputElement).blur();
-                      }
-                    }}
-                    onClick={e => e.stopPropagation()}
-                    title="HP Atual"
-                    style={{ width: "32px", textAlign: "center" }}
-                  />
-                  <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, 1)} title="Adicionar 1 HP">+</button>
-                  <span className="hp-max-val" style={{ marginLeft: "2px" }}>/ {activeNpc.hpMax}</span>
-                  
-                  <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "6px" }}>
-                    <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
-                    <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: Math.max(0, (activeNpc.tempHp || 0) - 1) }) }} title="Subtrair Temp">-</button>
-                    <input 
-                      type="number" 
-                      className="hp-input temp-hp-input" 
-                      value={localTempHp} 
-                      onChange={e => handleTempHpChange(e.target.value)}
-                      onBlur={handleTempHpCommit}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") {
-                          handleTempHpCommit();
-                          (e.target as HTMLInputElement).blur();
-                        }
-                      }}
-                      onClick={e => e.stopPropagation()}
-                      title="HP Temporário"
-                      style={{ width: "28px", textAlign: "center", padding: "2px" }}
-                    />
-                    <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: (activeNpc.tempHp || 0) + 1 }) }} title="Adicionar Temp">+</button>
-                  </div>
+              {isGM ? (
+                <HpInlineEditor
+                  hpCurrent={activeHp}
+                  hpMax={activeNpc.hpMax}
+                  tempHp={activeTemp}
+                  onApplyDamage={(dmg) => handleHpUpdate({ hpCurrent: Math.max(0, activeHp - dmg) })}
+                  onApplyHeal={(heal) => handleHpUpdate({ hpCurrent: activeHp + heal })}
+                  onSetTempHp={(val) => handleHpUpdate({ tempHp: val })}
+                  onSetHp={(val) => handleHpUpdate({ hpCurrent: Math.max(0, val) })}
+                />
+              ) : (
+                <div className="hp-values-group">
+                  <span className="hp-total-display">{activeHp}</span>
+                  <span className="hp-max-val">/ {activeNpc.hpMax || 0}</span>
+                  {activeTemp > 0 && <span className="temp-hp-badge">+{activeTemp} Temp</span>}
                 </div>
-              </div>
+              )}
             </div>
             <div className="hp-bar-bg">
               <div className={`hp-bar-fill ${hpColorClass}`} style={{ width: `${hpPct}%` }}></div>
@@ -433,4 +347,4 @@ export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: Npc
       )}
     </div>
   );
-}, (prev, next) => JSON.stringify(prev.npc) === JSON.stringify(next.npc) && prev.combatMode === next.combatMode && prev.hideEffects === next.hideEffects);
+}, (prev, next) => JSON.stringify(prev.npc) === JSON.stringify(next.npc));

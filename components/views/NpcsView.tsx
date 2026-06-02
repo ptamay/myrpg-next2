@@ -15,8 +15,6 @@ export default function NpcsView() {
   const { showAlert, showConfirm } = useSystemDialog();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
-  const [combatMode, setCombatMode] = useState(false);
-  const [hideEffects, setHideEffects] = useState(true);
   const [showFilters, setShowFilters] = useState(true);
   const [playerFavs, setPlayerFavs] = useState<string[]>([]);
   
@@ -110,24 +108,7 @@ export default function NpcsView() {
     }
   };
 
-  useEffect(() => {
-    if (combatMode) {
-      document.body.classList.add('combat-mode-active');
-      if (hideEffects) {
-        document.body.classList.add('hide-combat-effects');
-      } else {
-        document.body.classList.remove('hide-combat-effects');
-      }
-    } else {
-      document.body.classList.remove('combat-mode-active');
-      document.body.classList.remove('hide-combat-effects');
-    }
 
-    return () => {
-      document.body.classList.remove('combat-mode-active');
-      document.body.classList.remove('hide-combat-effects');
-    };
-  }, [combatMode, hideEffects]);
 
   if (loading && npcs.length === 0) return (
     <div style={{ display: 'flex', height: '100%', minHeight: '60vh', justifyContent: 'center', alignItems: 'center' }}>
@@ -167,22 +148,7 @@ export default function NpcsView() {
                     <line x1="12" y1="3" x2="12" y2="15"></line>
                   </svg>
                 </label>
-                <label className="combat-toggle-label">
-                  <input type="checkbox" checked={combatMode} onChange={(e) => setCombatMode(e.target.checked)} />
-                  <div className="combat-toggle-box">
-                    <span className="toggle-icon">⚔️</span>
-                    <span>Modo Combate</span>
-                  </div>
-                </label>
-                {combatMode && (
-                  <label className="combat-toggle-label">
-                    <input type="checkbox" checked={hideEffects} onChange={(e) => setHideEffects(e.target.checked)} />
-                    <div className="combat-toggle-box">
-                      <span className="toggle-icon">🛡️</span>
-                      <span>Esconder Condições</span>
-                    </div>
-                  </label>
-                )}
+
                 <button className="btn primary-btn" onClick={() => { setActiveData(null); openModal('npcForm', null); }}>
                   <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -234,7 +200,7 @@ export default function NpcsView() {
           ) : (
             filteredNpcs.map((npc: any) => (
               isGM 
-                ? <NpcCard key={npc.id} npc={npc} combatMode={combatMode} hideEffects={hideEffects} />
+                ? <NpcCard key={npc.id} npc={npc} />
                 : <NpcCardPlayer key={npc.id} npc={npc} />
             ))
           )}

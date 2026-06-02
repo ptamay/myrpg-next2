@@ -41,7 +41,14 @@ export function mapNpcToDB(npc: Npc, campaignId: string) {
     is_hidden: npc.isHidden || false,
     image_url: npc.image || null,
     transformation: npc.transformation || null,
-    is_transformed: npc.isTransformed || false
+    is_transformed: npc.isTransformed || false,
+    temp_hp: npc.tempHp || 0,
+    temp_ac: npc.tempAc || 0,
+    temp_res: npc.tempRes || [],
+    conditions: npc.conditions || [],
+    active_buffs: npc.activeBuffs || [],
+    saves: npc.saves || [],
+    prof_bonus: npc.profBonus || ''
   };
 }
 
@@ -83,7 +90,14 @@ export function mapDBToNpc(row: any): Npc {
     isHidden: row.is_hidden,
     image: row.image_url,
     transformation: row.transformation,
-    isTransformed: row.is_transformed || false
+    isTransformed: row.is_transformed || false,
+    tempHp: row.temp_hp || 0,
+    tempAc: row.temp_ac || 0,
+    tempRes: row.temp_res || [],
+    conditions: row.conditions || [],
+    activeBuffs: row.active_buffs || [],
+    saves: row.saves || [],
+    profBonus: row.prof_bonus || ''
   };
 }
 
@@ -92,7 +106,6 @@ export function mapPlayerToDB(player: Player, campaignId: string) {
     id: (player.id && isValidUUID(player.id)) ? player.id : crypto.randomUUID(),
     campaign_id: campaignId,
     name: player.name || '',
-    class: player.playerClass || '',
     player_name: player.playerName || '',
     player_class: player.playerClass || '',
     player_level: player.playerLevel || 1,
@@ -126,7 +139,11 @@ export function mapPlayerToDB(player: Player, campaignId: string) {
     inventory: player.inventory || [],
     notes: player.notes || '',
     background: player.background || '',
-    personal_goals: player.personalGoals || ''
+    personal_goals: player.personalGoals || '',
+    temp_hp: player.tempHp || 0,
+    conditions: player.conditions || [],
+    active_buffs: player.activeBuffs || [],
+    sleep_hours_today: player.sleepHoursToday || 0
   };
 }
 
@@ -167,6 +184,10 @@ export function mapDBToPlayer(row: any): Player {
     inventory: row.inventory || [],
     notes: row.notes || '',
     background: row.background || '',
-    personalGoals: row.personal_goals || ''
+    personalGoals: row.personal_goals || '',
+    tempHp: row.temp_hp || 0,
+    conditions: row.conditions || [],
+    activeBuffs: row.active_buffs || [],
+    sleepHoursToday: row.sleep_hours_today || 0
   };
 }

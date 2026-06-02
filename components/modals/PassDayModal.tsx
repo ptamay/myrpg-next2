@@ -84,11 +84,14 @@ export default function PassDayModal({ isOpen, onClose }: PassDayModalProps) {
     });
 
     const supabase = getSupabaseClient();
-    supabase.channel('game-sync').send({
-      type: 'broadcast',
-      event: 'day_passed',
-      payload: { newDay: nextDay }
-    });
+    const channel = supabase.channel('game-sync');
+    if (channel.state === 'joined') {
+      channel.send({
+        type: 'broadcast',
+        event: 'day_passed',
+        payload: { newDay: nextDay }
+      });
+    }
 
     setTimeout(salvarEstadoLocal, 100);
     onClose();

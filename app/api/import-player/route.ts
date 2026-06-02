@@ -34,40 +34,43 @@ export async function POST(req: Request) {
     }
 
     parts.unshift({
-      text: `Você é um assistente mestre de RPG (D&D 5e). 
-Extraia os dados da ficha de personagem a partir da(s) imagem(ns) anexada(s).
-Se a imagem estiver em branco, invente valores base ou vazios.
+      text: `Você é um assistente especialista em D&D 5e.
+Extraia os dados da ficha de personagem da(s) imagem(ns) anexada(s).
+Se algum campo não for encontrado, use o valor padrão indicado.
 
-Retorne APENAS um JSON válido de acordo com a estrutura pedida.
-Para "saves" use as siglas: ["FOR", "DES", "CON", "INT", "SAB", "CAR"].
-Para "skills", procure identificar e listar as proficiências (ex: "Acrobacia (Des)").
+REGRAS OBRIGATÓRIAS DE FORMATO:
+- "ac": APENAS número inteiro (ex: 15). NUNCA texto como "(armadura de couro)".
+- "init": bônus com sinal (ex: "+3" ou "-1"). NUNCA "Vantagem" ou texto livre.
+- "speed": formato "30 ft" ou "9 m". SEMPRE inclua a unidade.
+- "profBonus": número com sinal (ex: "+2").
+- "saves": APENAS siglas do array: ["FOR", "DES", "CON", "INT", "SAB", "CAR"].
+- "skills": nome exato com atributo entre parênteses (ex: "Acrobacia (Des)").
+- "attacks.bonus": bônus de acerto com sinal (ex: "+5").
+- "attacks.dmg": fórmula de dado com tipo (ex: "1d6+3 cortante").
 
-Estrutura esperada do JSON:
+Retorne APENAS JSON válido com esta estrutura:
 {
   "name": "Nome do Personagem",
   "playerClass": "Classe",
-  "playerLevel": "1",
+  "playerLevel": 1,
   "race": "Raça",
-  "str": "10",
-  "dex": "10",
-  "con": "10",
-  "int": "10",
-  "wis": "10",
-  "cha": "10",
-  "hpMax": "10",
-  "ac": "10",
+  "background": "",
+  "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10,
+  "hpMax": 10,
+  "ac": 10,
   "init": "+0",
-  "speed": "9m",
-  "perc": "10",
+  "speed": "30 ft",
+  "perc": 10,
   "hdTotal": "1d10",
-  "inspiration": false,
-  "minSleepReq": "8",
   "profBonus": "+2",
+  "inspiration": false,
+  "minSleepReq": 8,
   "saves": [],
   "skills": [],
-  "attacks": [
-    { "name": "Arma", "bonus": "+4", "dmg": "1d6+2 cortante" }
-  ]
+  "attacks": [{ "name": "Arma", "bonus": "+4", "dmg": "1d6+2 cortante" }],
+  "inventory": [],
+  "notes": "",
+  "personalGoals": ""
 }`
     });
 

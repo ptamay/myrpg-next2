@@ -167,6 +167,12 @@ export default function DashboardView() {
           </div>
           <div className="dash-header-actions">
             {isGM && (
+              <button id="btn-combat-mode" className="btn primary-btn" style={{ backgroundColor: "var(--danger)" }} onClick={() => openModal('combatSetup', null)}>
+                <span style={{ marginRight: '4px' }}>⚔️</span>
+                <span>Iniciar Combate</span>
+              </button>
+            )}
+            {isGM && (
               <button id="btn-pass-day" className="btn primary-btn" onClick={() => openModal('passDay')}>
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
                   <polyline points="9 18 15 12 9 6"></polyline>

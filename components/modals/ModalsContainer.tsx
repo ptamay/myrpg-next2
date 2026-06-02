@@ -14,6 +14,7 @@ import SummaryCardModal from "./SummaryCardModal";
 import SessionPlayerModal from "./SessionPlayerModal";
 import PlayerDetailModal from "./PlayerDetailModal";
 import PersonalNoteModal, { PersonalNoteDetailModal } from "./PersonalNoteModal";
+import CombatSetupModal from "../combat/CombatSetupModal";
 
 export default function ModalsContainer() {
   const { modals, setModals, activeData } = useApp();
@@ -65,6 +66,8 @@ export default function ModalsContainer() {
 
       <PersonalNoteModal isOpen={checkOpen("personalNote")} onClose={() => close("personalNote")} />
       <PersonalNoteDetailModal isOpen={checkOpen("personalNoteDetail")} onClose={() => close("personalNoteDetail")} />
+      
+      <CombatSetupModal isOpen={checkOpen("combatSetup")} onClose={() => close("combatSetup")} />
     </>
   );
 }

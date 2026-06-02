@@ -8,6 +8,7 @@ import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapPlayerToDB } from "@/lib/supabase/mappers";
+import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
 
 interface PlayerFormModalProps {
   isOpen: boolean;
@@ -36,14 +37,6 @@ const initialFormState = {
   profBonus: "2"
 };
 
-const SAVES_LIST = ["FOR", "DES", "CON", "INT", "SAB", "CAR"];
-const SKILLS_LIST = [
-  "Acrobacia (Des)", "Arcanismo (Int)", "Atletismo (For)", "Atuação (Car)", 
-  "Enganação (Car)", "Furtividade (Des)", "História (Int)", "Intimidação (Car)", 
-  "Intuição (Sab)", "Investigação (Int)", "Lidar c/ Animais (Sab)", "Medicina (Sab)", 
-  "Natureza (Int)", "Percepção (Sab)", "Persuasão (Car)", "Prestidigitação (Des)", 
-  "Religião (Int)", "Sobrevivência (Sab)"
-];
 
 const dataToFormState = (data: any) => ({
   name: data?.name || "",
