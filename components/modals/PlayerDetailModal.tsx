@@ -7,7 +7,7 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "../ui/HpInlineEditor";
 
 export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen: boolean; onClose: () => void; player: any }) {
-  const { setModals, setActiveData, dadosGlobais } = useApp();
+  const { setModals, setActiveData, dadosGlobais, setDadosGlobais } = useApp();
   const { isGM, session } = useUserSession();
   const isOwner = player?.id === session?.playerId;
   const [activeTab, setActiveTab] = useState("stats");
