@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { MuralCard as MuralCardType } from "@/types/cronicas";
 import { useApp } from "@/contexts/AppContext";
@@ -15,7 +15,7 @@ interface MuralCardProps {
   onDelete?: () => void;
 }
 
-export default function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCardClick, onEdit, onDelete }: MuralCardProps) {
+function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCardClick, onEdit, onDelete }: MuralCardProps) {
   const { dadosGlobais, jornadaPorDia, setActiveData, setModals } = useApp();
   const [isHovered, setIsHovered] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -82,42 +82,42 @@ export default function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCa
     rotation = 0;
 
     if (card.type === 'nota') {
-      noteBg = "linear-gradient(135deg, #fef08a 0%, #fcd34d 100%)";
-      noteBorder = "#eab308";
-      noteAccent = "#92400e";
+      noteBg = "linear-gradient(135deg, hsla(45, 93%, 58%, 0.15) 0%, rgba(0,0,0,0.05) 100%)";
+      noteBorder = "var(--warning)";
+      noteAccent = "var(--warning)";
       noteIcon = "📝";
-      noteTextColor = "#334155";
+      noteTextColor = "var(--text-primary)";
     } else if (card.type === 'anotacao') {
       switch(noteType) {
         case 'importante':
-          noteBg = "linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(153, 27, 27, 0.05) 100%)";
-          noteBorder = "rgba(239, 68, 68, 0.4)";
-          noteAccent = "#fca5a5";
+          noteBg = "linear-gradient(135deg, hsla(0, 84%, 60%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+          noteBorder = "var(--danger)";
+          noteAccent = "var(--danger)";
           noteIcon = "❗";
           break;
         case 'pista':
-          noteBg = "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 58, 138, 0.05) 100%)";
-          noteBorder = "rgba(59, 130, 246, 0.4)";
-          noteAccent = "#93c5fd";
+          noteBg = "linear-gradient(135deg, var(--accent-glow) 0%, rgba(0, 0, 0, 0.05) 100%)";
+          noteBorder = "var(--accent-primary)";
+          noteAccent = "var(--accent-primary)";
           noteIcon = "🔍";
           break;
         case 'npc':
-          noteBg = "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(88, 28, 135, 0.05) 100%)";
-          noteBorder = "rgba(168, 85, 247, 0.4)";
-          noteAccent = "#d8b4fe";
+          noteBg = "linear-gradient(135deg, hsla(280, 80%, 60%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+          noteBorder = "hsl(280, 80%, 60%)";
+          noteAccent = "hsl(280, 80%, 60%)";
           noteIcon = "👤";
           break;
         case 'missao':
-          noteBg = "linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(133, 77, 14, 0.05) 100%)";
-          noteBorder = "rgba(234, 179, 8, 0.4)";
-          noteAccent = "#fde047";
+          noteBg = "linear-gradient(135deg, hsla(150, 80%, 50%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+          noteBorder = "var(--success)";
+          noteAccent = "var(--success)";
           noteIcon = "⭐";
           break;
         case 'padrao':
         default:
-          noteBg = "linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(180, 83, 9, 0.05) 100%)";
-          noteBorder = "rgba(251, 191, 36, 0.4)";
-          noteAccent = "#fcd34d";
+          noteBg = "linear-gradient(135deg, hsla(45, 93%, 58%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+          noteBorder = "var(--warning)";
+          noteAccent = "var(--warning)";
           noteIcon = "📌";
           break;
       }
@@ -293,3 +293,14 @@ export default function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCa
     </div>
   );
 }
+
+export default React.memo(MuralCard, (prev, next) => {
+  return (
+    prev.zoom === next.zoom &&
+    prev.pan.x === next.pan.x &&
+    prev.pan.y === next.pan.y &&
+    prev.isConnecting === next.isConnecting &&
+    prev.canEdit === next.canEdit &&
+    JSON.stringify(prev.card) === JSON.stringify(next.card)
+  );
+});

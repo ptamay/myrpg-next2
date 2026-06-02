@@ -111,8 +111,8 @@ export default function MuralConnectionLayer({
           <path
             d={p.path}
             stroke="var(--accent-primary)"
-            strokeOpacity="0.7"
-            strokeWidth="2"
+            strokeOpacity="0.8"
+            strokeWidth="2.5"
             fill="none"
           />
           {/* Linha invisível (hitbox) para clique e hover */}
@@ -159,8 +159,8 @@ export default function MuralConnectionLayer({
             >
               {p.label ? (
                 <>
-                  <rect x={p.midX - (p.label.length * 3.5) - 10} y={p.midY - 12} width={(p.label.length * 7) + 20} height={24} rx={4} fill="var(--bg-card)" stroke="var(--border-subtle)" />
-                  <text x={p.midX} y={p.midY + 4} fontSize="11" fill="var(--text-muted)" textAnchor="middle" fontWeight="bold">
+                  <rect x={p.midX - (p.label.length * 4) - 12} y={p.midY - 12} width={(p.label.length * 8) + 24} height={24} rx={12} fill="var(--bg-base)" stroke="var(--accent-primary)" strokeWidth="1.5" />
+                  <text x={p.midX} y={p.midY + 4} fontSize="11" fill="var(--text-primary)" textAnchor="middle" fontWeight="bold">
                     {p.label}
                   </text>
                 </>

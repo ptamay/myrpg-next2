@@ -11,12 +11,28 @@ interface PlayerCardProps {
   player: any;
 }
 
-export default function PlayerCard({ player }: PlayerCardProps) {
+export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
   const { dadosGlobais, setDadosGlobais, setModals, setActiveData, salvarEstadoLocal, jornadaPorDia, diaAtual } = useApp();
   const { showConfirm } = useSystemDialog();
   const { isGM, session } = useUserSession();
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [attacksExpanded, setAttacksExpanded] = useState(false);
+
+  const activePlayer = player.isTransformed && player.transformation ? player.transformation : player;
+
+  const [localHp, setLocalHp] = useState<string | number>("");
+  const [localTempHp, setLocalTempHp] = useState<string | number>("");
+
+  const activeHp = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
+  const activeTemp = activePlayer.tempHp || 0;
+
+  React.useEffect(() => {
+    setLocalHp(activeHp);
+  }, [activeHp]);
+
+  React.useEffect(() => {
+    setLocalTempHp(activeTemp);
+  }, [activeTemp]);
 
   const isOwner = player.id === session?.playerId;
   const canViewDetails = isGM || isOwner;
@@ -81,18 +97,92 @@ export default function PlayerCard({ player }: PlayerCardProps) {
   const handleAcMod = (e: React.MouseEvent, mod: number) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!canViewDetails) return;
     const currentTempAc = activePlayer.tempAc || 0;
     handleActiveUpdate({ tempAc: currentTempAc + mod });
   };
 
-  const activePlayer = player.isTransformed && player.transformation ? player.transformation : player;
+  const handleHpMod = (e: React.MouseEvent, direction: number) => {
+    e.stopPropagation();
+    if (!canViewDetails) return;
+    const amount = 1;
+    let current = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
+    let temp = activePlayer.tempHp || 0;
+    
+    if (direction > 0) {
+      current = Math.min(activePlayer.hpMax, current + amount);
+    } else {
+      if (temp > 0) {
+        if (temp >= amount) {
+          temp -= amount;
+        } else {
+          const overflow = amount - temp;
+          temp = 0;
+          current = Math.max(0, current - overflow);
+        }
+      } else {
+        current = Math.max(0, current - amount);
+      }
+    }
+    
+    if (current <= 0 && temp <= 0 && player.isTransformed) {
+      handleUpdate({ 
+        isTransformed: false, 
+        transformation: { ...player.transformation, hpCurrent: 0, tempHp: 0, isDead: true } 
+      });
+      return;
+    }
+    
+    handleActiveUpdate({ 
+      hpCurrent: current, 
+      tempHp: temp,
+      isDead: current <= 0 && temp <= 0
+    });
+  };
+
+  const handleHpChange = (valStr: string) => {
+    setLocalHp(valStr);
+  };
+
+  const handleHpCommit = () => {
+    if (localHp === "") {
+      const defaultHp = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
+      setLocalHp(defaultHp);
+      return;
+    }
+    const val = Math.max(0, parseInt(localHp.toString()) || 0);
+    handleActiveUpdate({ 
+      hpCurrent: val,
+      isDead: val <= 0 && (activePlayer.tempHp || 0) <= 0
+    });
+  };
+
+  const handleTempHpChange = (valStr: string) => {
+    setLocalTempHp(valStr);
+  };
+
+  const handleTempHpCommit = () => {
+    if (localTempHp === "") {
+      setLocalTempHp(0);
+      handleActiveUpdate({ tempHp: 0 });
+      return;
+    }
+    const val = Math.max(0, parseInt(localTempHp.toString()) || 0);
+    handleActiveUpdate({ 
+      tempHp: val,
+      isDead: (activePlayer.hpCurrent || 0) <= 0 && val <= 0
+    });
+  };
 
   const hpPct = activePlayer.hpMax > 0 ? Math.max(0, Math.min(100, ((activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : activePlayer.hpMax) / activePlayer.hpMax) * 100)) : 0;
   
   let hpColor = "#4ade80"; // Saudável (soft green)
   let hpStatusText = "Saudável";
 
-  if (hpPct <= 50) {
+  if (activePlayer.isDead || (activePlayer.hpCurrent !== undefined && activePlayer.hpCurrent <= 0 && !activePlayer.tempHp)) {
+    hpColor = "#9ca3af"; // Morto (gray)
+    hpStatusText = "Morto";
+  } else if (hpPct <= 50) {
     hpColor = "#f87171"; // Perigo (soft red)
     hpStatusText = "Perigo";
   } else if (hpPct <= 75) {
@@ -229,14 +319,61 @@ export default function PlayerCard({ player }: PlayerCardProps) {
         <div style={{ display: "flex", gap: "12px", marginTop: "1rem", alignItems: "center", width: "100%", padding: "0 1.5rem 1rem" }}>
           <div className="npc-card-hp-area" style={{ flex: 2.2, display: "flex", flexDirection: "column", padding: 0 }}>
             <div className="hp-header" style={{ marginBottom: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>PONTOS DE VIDA</span>
-              <div className="hp-values-group">
-                <span className="hp-total-display">{activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0)}</span>
-                <span className="hp-max-val">/ {activePlayer.hpMax || 0}</span>
-              </div>
+              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.05em" }}>HP</span>
+              {canViewDetails ? (
+                <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+                    <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, -1)} title="Subtrair 1 HP">-</button>
+                    <input 
+                      type="number" 
+                      className="hp-current-input" 
+                      value={localHp} 
+                      onChange={e => handleHpChange(e.target.value)}
+                      onBlur={handleHpCommit}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          handleHpCommit();
+                          (e.target as HTMLInputElement).blur();
+                        }
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: "32px", textAlign: "center" }}
+                    />
+                    <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, 1)} title="Adicionar 1 HP">+</button>
+                    <span className="hp-max-val" style={{ marginLeft: "2px" }}>/ {activePlayer.hpMax}</span>
+                    
+                    <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "6px" }}>
+                      <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
+                      <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: Math.max(0, (activePlayer.tempHp || 0) - 1) }) }} title="Subtrair Temp">-</button>
+                      <input 
+                        type="number" 
+                        className="hp-input temp-hp-input" 
+                        value={localTempHp} 
+                        onChange={e => handleTempHpChange(e.target.value)}
+                        onBlur={handleTempHpCommit}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            handleTempHpCommit();
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        onClick={e => e.stopPropagation()}
+                        style={{ width: "28px", textAlign: "center", padding: "2px" }}
+                      />
+                      <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: (activePlayer.tempHp || 0) + 1 }) }} title="Adicionar Temp">+</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="hp-values-group">
+                  <span className="hp-total-display">{activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0)}</span>
+                  <span className="hp-max-val">/ {activePlayer.hpMax || 0}</span>
+                </div>
+              )}
             </div>
             <div className="hp-bar-bg" style={{ height: "6px" }}>
               <div className="hp-bar-fill" style={{ width: `${hpPct}%`, backgroundColor: hpColor }}></div>
+              {(activePlayer.tempHp || 0) > 0 && <div className="hp-bar-temp" style={{ width: `${Math.min(100, (activePlayer.tempHp / activePlayer.hpMax) * 100)}%` }}></div>}
             </div>
           </div>
           
@@ -356,4 +493,4 @@ export default function PlayerCard({ player }: PlayerCardProps) {
     )}
   </div>
   );
-}
+}, (prev, next) => JSON.stringify(prev.player) === JSON.stringify(next.player));

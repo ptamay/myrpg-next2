@@ -32,4 +32,27 @@ body {
   background-color: var(--bg-dark);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, sans-serif;
+  overflow-y: overlay;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsla(240, 20%, 50%, 0.4);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--bg-dark);
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
 }

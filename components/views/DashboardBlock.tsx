@@ -417,7 +417,7 @@ export default function DashboardBlock({
 
           const isMe = !isGM && session?.playerId === player.id;
           const isOtherPlayer = !isGM && !isMe;
-          const isExpanded = expandedPlayers[player.id] !== undefined ? expandedPlayers[player.id] : isMe;
+          const isExpanded = expandedPlayers[player.id] !== undefined ? expandedPlayers[player.id] : true;
           const canEditInventory = isMe || isGM;
           
           const cardPadding = isMe ? "20px" : (isOtherPlayer ? "10px" : "16px");
@@ -689,34 +689,34 @@ export default function DashboardBlock({
 
               switch(n.type) {
                 case 'importante':
-                  noteBg = "linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(153, 27, 27, 0.05) 100%)";
-                  noteBorder = "rgba(239, 68, 68, 0.4)";
-                  noteAccent = "#fca5a5";
+                  noteBg = "linear-gradient(135deg, hsla(0, 84%, 60%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+                  noteBorder = "var(--danger)";
+                  noteAccent = "var(--danger)";
                   noteIcon = "❗";
                   break;
                 case 'pista':
-                  noteBg = "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(30, 58, 138, 0.05) 100%)";
-                  noteBorder = "rgba(59, 130, 246, 0.4)";
-                  noteAccent = "#93c5fd";
+                  noteBg = "linear-gradient(135deg, var(--accent-glow) 0%, rgba(0, 0, 0, 0.05) 100%)";
+                  noteBorder = "var(--accent-primary)";
+                  noteAccent = "var(--accent-primary)";
                   noteIcon = "🔍";
                   break;
                 case 'npc':
-                  noteBg = "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(88, 28, 135, 0.05) 100%)";
-                  noteBorder = "rgba(168, 85, 247, 0.4)";
-                  noteAccent = "#d8b4fe";
+                  noteBg = "linear-gradient(135deg, hsla(280, 80%, 60%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+                  noteBorder = "hsl(280, 80%, 60%)";
+                  noteAccent = "hsl(280, 80%, 60%)";
                   noteIcon = "👤";
                   break;
                 case 'missao':
-                  noteBg = "linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(133, 77, 14, 0.05) 100%)";
-                  noteBorder = "rgba(234, 179, 8, 0.4)";
-                  noteAccent = "#fde047";
+                  noteBg = "linear-gradient(135deg, hsla(150, 80%, 50%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+                  noteBorder = "var(--success)";
+                  noteAccent = "var(--success)";
                   noteIcon = "⭐";
                   break;
                 case 'padrao':
                 default:
-                  noteBg = "linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(180, 83, 9, 0.05) 100%)";
-                  noteBorder = "rgba(251, 191, 36, 0.4)";
-                  noteAccent = "#fcd34d";
+                  noteBg = "linear-gradient(135deg, hsla(45, 93%, 58%, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%)";
+                  noteBorder = "var(--warning)";
+                  noteAccent = "var(--warning)";
                   noteIcon = "📌";
                   break;
               }

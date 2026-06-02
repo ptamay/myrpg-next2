@@ -23,6 +23,26 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [attacksExpanded, setAttacksExpanded] = useState(false);
 
+  const rawPlayer = activeData?.player || activeData;
+  const player = rawPlayer?.isTransformed && rawPlayer?.transformation 
+    ? { ...rawPlayer, ...rawPlayer.transformation } 
+    : rawPlayer || {};
+
+  const [localHp, setLocalHp] = React.useState<string | number>("");
+  const [localTempHp, setLocalTempHp] = React.useState<string | number>("");
+  const [hpModInput, setHpModInput] = React.useState<string>("");
+
+  const activeHp = player.hpCurrent !== undefined ? player.hpCurrent : (player.hpMax || 0);
+  const activeTemp = player.tempHp || 0;
+
+  React.useEffect(() => {
+    setLocalHp(activeHp);
+  }, [activeHp]);
+
+  React.useEffect(() => {
+    setLocalTempHp(activeTemp);
+  }, [activeTemp]);
+
   React.useEffect(() => {
     if (isOpen && activeData) {
       const playerObj = activeData.player || activeData;
@@ -53,11 +73,6 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
   }, [isOpen, activeData, diaAtual, jornadaPorDia]);
 
   if (!activeData) return null;
-
-  const rawPlayer = activeData.player || activeData;
-  const player = rawPlayer?.isTransformed && rawPlayer?.transformation 
-    ? { ...rawPlayer, ...rawPlayer.transformation } 
-    : rawPlayer;
 
   const isDead = player.isDead;
 
@@ -95,7 +110,10 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
   let hpColor = "#4ade80"; // Saudável (soft green)
   let hpStatusText = "Saudável";
 
-  if (hpPct <= 50) {
+  if (player.isDead || (player.hpCurrent !== undefined && player.hpCurrent <= 0 && !player.tempHp)) {
+    hpColor = "#9ca3af"; // Morto (gray)
+    hpStatusText = "Morto";
+  } else if (hpPct <= 50) {
     hpColor = "#f87171"; // Perigo (soft red)
     hpStatusText = "Perigo";
   } else if (hpPct <= 75) {
@@ -129,39 +147,75 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
     }
   };
 
-  const handleHpChange = (amount: number) => {
+  const updatePlayerHpFields = (currentHp: number, tempHp: number) => {
     const newPlayers = [...(dadosGlobais.players || [])];
     const idx = newPlayers.findIndex(p => p.id === rawPlayer.id);
     if (idx !== -1) {
-      const transformation = newPlayers[idx].transformation;
-      if (rawPlayer.isTransformed && transformation) {
-        const max = Number(transformation.hpMax) || 0;
-        let current = Number(transformation.hpCurrent);
-        if (isNaN(current)) current = max;
-        current += amount;
-        if (current > max) current = max;
-        if (current < 0) current = 0;
-        transformation.hpCurrent = current;
-        if (current === 0) {
-           newPlayers[idx].isTransformed = false;
-           transformation.isDead = true;
-        } else {
-           transformation.isDead = false;
-        }
+      if (rawPlayer.isTransformed && newPlayers[idx].transformation) {
+        newPlayers[idx].transformation.hpCurrent = currentHp;
+        newPlayers[idx].transformation.tempHp = tempHp;
+        newPlayers[idx].transformation.isDead = currentHp <= 0 && tempHp <= 0;
       } else {
-        const max = Number(newPlayers[idx].hpMax) || 0;
-        let current = Number(newPlayers[idx].hpCurrent);
-        if (isNaN(current)) current = max;
-        current += amount;
-        if (current > max) current = max;
-        if (current < 0) current = 0;
-        newPlayers[idx].hpCurrent = current;
-        if (current === 0) newPlayers[idx].isDead = true;
-        else newPlayers[idx].isDead = false;
+        newPlayers[idx].hpCurrent = currentHp;
+        newPlayers[idx].tempHp = tempHp;
+        newPlayers[idx].isDead = currentHp <= 0 && tempHp <= 0;
       }
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
       setTimeout(salvarEstadoLocal, 100);
     }
+  };
+
+  const handleHpMod = (e: React.MouseEvent, direction: number) => {
+    e.stopPropagation();
+    const amount = Math.max(1, parseInt(hpModInput) || 1);
+    let current = player.hpCurrent !== undefined ? player.hpCurrent : (player.hpMax || 0);
+    let temp = player.tempHp || 0;
+    
+    if (direction > 0) {
+      current = Math.min(player.hpMax, current + amount);
+    } else {
+      if (temp > 0) {
+        if (temp >= amount) {
+          temp -= amount;
+        } else {
+          const overflow = amount - temp;
+          temp = 0;
+          current = Math.max(0, current - overflow);
+        }
+      } else {
+        current = Math.max(0, current - amount);
+      }
+    }
+    
+    updatePlayerHpFields(current, temp);
+    setHpModInput("");
+  };
+
+  const handleHpChange = (valStr: string) => {
+    setLocalHp(valStr);
+  };
+
+  const handleHpCommit = () => {
+    if (localHp === "") {
+      setLocalHp(activeHp);
+      return;
+    }
+    const val = Math.max(0, parseInt(localHp.toString()) || 0);
+    updatePlayerHpFields(val, player.tempHp || 0);
+  };
+
+  const handleTempHpChange = (valStr: string) => {
+    setLocalTempHp(valStr);
+  };
+
+  const handleTempHpCommit = () => {
+    if (localTempHp === "") {
+      setLocalTempHp(0);
+      updatePlayerHpFields(player.hpCurrent || 0, 0);
+      return;
+    }
+    const val = Math.max(0, parseInt(localTempHp.toString()) || 0);
+    updatePlayerHpFields(player.hpCurrent || 0, val);
   };
 
   const handleSaveDmControls = () => {
@@ -364,15 +418,63 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
                   <div className="npc-card-hp-area" style={{ flex: 2, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <div className="hp-header" style={{ marginBottom: "4px" }}>
                       <span>PONTOS DE VIDA</span>
-                      <div className="hp-values-group">
-                        <button onClick={(e) => { e.stopPropagation(); handleHpChange(-1); }} style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.4)", color: "#fca5a5", borderRadius: "3px", cursor: "pointer", fontSize: "0.85rem", fontWeight: "bold" }}>-</button>
-                        <span className="hp-total-display">{player.hpCurrent || 0}</span>
-                        <span className="hp-max-val">/ {player.hpMax || 0}</span>
-                        <button onClick={(e) => { e.stopPropagation(); handleHpChange(1); }} style={{ width: "18px", height: "18px", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.4)", color: "#a7f3d0", borderRadius: "3px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}>+</button>
+                      <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <div className="hp-adjuster-group" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, -1)} title="Subtrair HP (Dano)">-</button>
+                          <input 
+                            type="number" 
+                            className="hp-mod-amount-input" 
+                            placeholder="Qtd" 
+                            value={hpModInput} 
+                            onChange={e => setHpModInput(e.target.value)} 
+                            onClick={e => e.stopPropagation()}
+                            style={{ width: "40px", textAlign: "center", fontSize: "0.8rem" }}
+                          />
+                          <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, 1)} title="Adicionar HP (Cura)">+</button>
+                        </div>
+                        
+                        <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <input 
+                            type="number" 
+                            className="hp-current-input" 
+                            value={localHp} 
+                            onChange={e => handleHpChange(e.target.value)}
+                            onBlur={handleHpCommit}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") {
+                                handleHpCommit();
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            onClick={e => e.stopPropagation()}
+                            style={{ width: "40px", textAlign: "center", fontSize: "0.9rem", fontWeight: "bold" }}
+                          />
+                          <span className="hp-max-val">/ {player.hpMax}</span>
+                          
+                          <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
+                            <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
+                            <input 
+                              type="number" 
+                              className="hp-input temp-hp-input" 
+                              value={localTempHp} 
+                              onChange={e => handleTempHpChange(e.target.value)}
+                              onBlur={handleTempHpCommit}
+                              onKeyDown={e => {
+                                if (e.key === "Enter") {
+                                  handleTempHpCommit();
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              style={{ width: "36px", textAlign: "center", fontSize: "0.8rem" }}
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="hp-bar-bg" style={{ height: "6px" }}>
                       <div className="hp-bar-fill" style={{ width: `${hpPct}%`, backgroundColor: hpColor }}></div>
+                      {(player.tempHp || 0) > 0 && <div className="hp-bar-temp" style={{ width: `${Math.min(100, (player.tempHp / player.hpMax) * 100)}%` }}></div>}
                     </div>
                   </div>
                   

@@ -361,6 +361,10 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       skills: skillsList,
       profBonus: state.profBonus,
       minSleepReq: parseInt(state.minSleepReq) || 8,
+      inventory: prevData?.inventory || [],
+      notes: prevData?.notes || "",
+      background: prevData?.background || "",
+      personalGoals: prevData?.personalGoals || ""
     };
   };
 

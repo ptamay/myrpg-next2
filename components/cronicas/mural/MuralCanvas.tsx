@@ -603,7 +603,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
               save(updated);
             }}
           />
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence key={activeMuralId} mode="popLayout" initial={false}>
             {visibleCards.map(card => {
               const cardCanEdit = isGM || (card.authorId ? card.authorId === session?.playerId : card.createdBy === (players?.find((p: any) => p.id === session?.playerId)?.name || "Jogador"));
               return (

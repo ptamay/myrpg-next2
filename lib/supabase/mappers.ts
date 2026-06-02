@@ -122,7 +122,11 @@ export function mapPlayerToDB(player: Player, campaignId: string) {
     exhaustion_level: player.exhaustionLevel || 0,
     min_sleep_req: player.minSleepReq || 8,
     transformation: player.transformation || null,
-    is_transformed: player.isTransformed || false
+    is_transformed: player.isTransformed || false,
+    inventory: player.inventory || [],
+    notes: player.notes || '',
+    background: player.background || '',
+    personal_goals: player.personalGoals || ''
   };
 }
 
@@ -159,6 +163,10 @@ export function mapDBToPlayer(row: any): Player {
     exhaustionLevel: row.exhaustion_level,
     minSleepReq: row.min_sleep_req || 8,
     transformation: row.transformation,
-    isTransformed: row.is_transformed || false
+    isTransformed: row.is_transformed || false,
+    inventory: row.inventory || [],
+    notes: row.notes || '',
+    background: row.background || '',
+    personalGoals: row.personal_goals || ''
   };
 }

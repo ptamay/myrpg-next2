@@ -10,7 +10,7 @@ interface NpcCardProps {
   hideEffects: boolean;
 }
 
-export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) {
+export default React.memo(function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) {
   const { dadosGlobais, setDadosGlobais, setModals, setActiveData, salvarEstadoLocal } = useApp();
   const { isGM } = useUserSession();
 
@@ -18,7 +18,6 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
 
   const [localHp, setLocalHp] = useState<string | number>("");
   const [localTempHp, setLocalTempHp] = useState<string | number>("");
-  const [hpModInput, setHpModInput] = useState<string>("");
 
   const activeHp = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
   const activeTemp = activeNpc.tempHp || 0;
@@ -87,7 +86,7 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
 
   const handleHpMod = (e: React.MouseEvent, direction: number) => {
     e.stopPropagation();
-    const amount = Math.max(1, parseInt(hpModInput) || 1);
+    const amount = 1;
     let current = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
     let temp = activeNpc.tempHp || 0;
     
@@ -112,7 +111,6 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
         isTransformed: false, 
         transformation: { ...npc.transformation, hpCurrent: 0, tempHp: 0, isDead: true } 
       });
-      setHpModInput("");
       return;
     }
     
@@ -121,7 +119,6 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
       tempHp: temp,
       isDead: current <= 0 && temp <= 0
     });
-    setHpModInput("");
   };
 
   const handleHpChange = (valStr: string) => {
@@ -374,24 +371,11 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
           )}
 
           <div className="npc-card-hp-area">
-            <div className="hp-header">
-              <span>PONTOS DE VIDA</span>
-              <div className="hp-inputs">
-                <div className="hp-adjuster-group">
-                  <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, -1)} title="Subtrair HP (Dano)">-</button>
-                  <input 
-                    type="number" 
-                    className="hp-mod-amount-input" 
-                    placeholder="Qtd" 
-                    value={hpModInput} 
-                    onChange={e => setHpModInput(e.target.value)} 
-                    onClick={e => e.stopPropagation()}
-                    title="Quantidade para alterar"
-                  />
-                  <button className="hp-mod-btn" onClick={(e) => handleHpMod(e, 1)} title="Adicionar HP (Cura)">+</button>
-                </div>
-                
-                <div className="hp-values-group">
+            <div className="hp-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.05em" }}>HP</span>
+              <div className="hp-inputs" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <div className="hp-values-group" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+                  <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, -1)} title="Subtrair 1 HP">-</button>
                   <input 
                     type="number" 
                     className="hp-current-input" 
@@ -406,11 +390,14 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
                     }}
                     onClick={e => e.stopPropagation()}
                     title="HP Atual"
+                    style={{ width: "32px", textAlign: "center" }}
                   />
-                  <span className="hp-max-val">/ {activeNpc.hpMax}</span>
+                  <button className="hp-mod-btn micro" onClick={(e) => handleHpMod(e, 1)} title="Adicionar 1 HP">+</button>
+                  <span className="hp-max-val" style={{ marginLeft: "2px" }}>/ {activeNpc.hpMax}</span>
                   
-                  <div className="temp-hp-typing">
-                    <span className="temp-label">TEMP:</span>
+                  <div className="temp-hp-typing" style={{ display: "flex", alignItems: "center", gap: "2px", marginLeft: "6px" }}>
+                    <span className="temp-label" style={{ fontSize: "0.6rem", fontWeight: "bold", color: "var(--text-muted)" }}>TEMP:</span>
+                    <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: Math.max(0, (activeNpc.tempHp || 0) - 1) }) }} title="Subtrair Temp">-</button>
                     <input 
                       type="number" 
                       className="hp-input temp-hp-input" 
@@ -425,7 +412,9 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
                       }}
                       onClick={e => e.stopPropagation()}
                       title="HP Temporário"
+                      style={{ width: "28px", textAlign: "center", padding: "2px" }}
                     />
+                    <button className="hp-mod-btn micro" onClick={(e) => { e.stopPropagation(); handleActiveUpdate({ tempHp: (activeNpc.tempHp || 0) + 1 }) }} title="Adicionar Temp">+</button>
                   </div>
                 </div>
               </div>
@@ -444,4 +433,4 @@ export default function NpcCard({ npc, combatMode, hideEffects }: NpcCardProps) 
       )}
     </div>
   );
-}
+}, (prev, next) => JSON.stringify(prev.npc) === JSON.stringify(next.npc) && prev.combatMode === next.combatMode && prev.hideEffects === next.hideEffects);

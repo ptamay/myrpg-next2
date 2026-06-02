@@ -141,7 +141,11 @@ export default function PlayersView() {
                 <p>Nenhum personagem de jogador cadastrado ainda.</p>
               </div>
             ) : (
-              players.map((player: any) => (
+              [...players].sort((a: any, b: any) => {
+                if (a.id === session?.playerId) return -1;
+                if (b.id === session?.playerId) return 1;
+                return 0;
+              }).map((player: any) => (
                 <PlayerCard key={player.id} player={player} />
               ))
             )}

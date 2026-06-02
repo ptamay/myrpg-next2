@@ -236,6 +236,8 @@ export function usePlayers() {
   const role = profile?.role;
   const playerId = profile?.player_id;
 
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
   const fetchPlayers = useCallback(async () => {
     try {
       const { data } = await supabase.from("players").select("*");
@@ -255,46 +257,49 @@ export function usePlayers() {
     return () => window.removeEventListener('sync_player_update', handler);
   }, [fetchPlayers]);
 
-  const savePlayers = useCallback(async (val: Player[] | ((prev: Player[]) => Player[])) => {
+  const savePlayers = useCallback((val: Player[] | ((prev: Player[]) => Player[])) => {
     const next = typeof val === 'function' ? val(players) : val;
     setPlayers(next);
 
-    try {
-      const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (!campaign) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
+        if (!campaign) return;
 
-      const changed = next.filter(p => {
-        const prevP = players.find(x => x.id === p.id);
-        return !prevP || JSON.stringify(prevP) !== JSON.stringify(p);
-      });
+        const changed = next.filter(p => {
+          const prevP = players.find(x => x.id === p.id);
+          return !prevP || JSON.stringify(prevP) !== JSON.stringify(p);
+        });
 
-      if (changed.length > 0) {
-        const mapped = changed.map(p => mapPlayerToDB(p, campaign.id));
-        if (role === 'gm') {
-          const { error } = await supabase.from("players").upsert(mapped);
-          if (error) throw new Error(error.message || JSON.stringify(error));
-        } else if (role === 'player' && playerId) {
-          const myPlayer = mapped.find(p => p.id === playerId);
-          if (myPlayer) {
-            const { error } = await supabase.from("players").update(myPlayer).eq("id", playerId);
+        if (changed.length > 0) {
+          const mapped = changed.map(p => mapPlayerToDB(p, campaign.id));
+          if (role === 'gm') {
+            const { error } = await supabase.from("players").upsert(mapped);
             if (error) throw new Error(error.message || JSON.stringify(error));
+          } else if (role === 'player' && playerId) {
+            const myPlayer = mapped.find(p => p.id === playerId);
+            if (myPlayer) {
+              const { error } = await supabase.from("players").update(myPlayer).eq("id", playerId);
+              if (error) throw new Error(error.message || JSON.stringify(error));
+            }
           }
         }
-      }
 
-      if (role === 'gm') {
-        const prevIds = players.map(n => n.id);
-        const nextIds = new Set(next.map(n => n.id));
-        const deletedIds = prevIds.filter(id => !nextIds.has(id));
-        if (deletedIds.length > 0) {
-          await supabase.from("players").delete().in("id", deletedIds);
+        if (role === 'gm') {
+          const prevIds = players.map(n => n.id);
+          const nextIds = new Set(next.map(n => n.id));
+          const deletedIds = prevIds.filter(id => !nextIds.has(id));
+          if (deletedIds.length > 0) {
+            await supabase.from("players").delete().in("id", deletedIds);
+          }
         }
+        window.dispatchEvent(new CustomEvent('sync_player_update'));
+        window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'player_update', payload: {} } }));
+      } catch (err) {
+        console.error("Erro ao salvar Players", err);
       }
-      window.dispatchEvent(new CustomEvent('sync_player_update'));
-      window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'player_update', payload: {} } }));
-    } catch (err) {
-      console.error("Erro ao salvar Players", err);
-    }
+    }, 500);
   }, [players, role, playerId, supabase]);
 
   return { players, setPlayers: savePlayers, loading, error };
@@ -578,11 +583,18 @@ export function useMurais(activeMuralId?: string | null) {
 
     connect();
 
+    const broadcastHandler = (e: any) => {
+      // Opcional: checar se o ID do mural bate, mas um refetch geral é seguro
+      fetchMurais();
+    };
+    window.addEventListener('sync_mural_update', broadcastHandler);
+
     return () => {
       isMounted = false;
       clearTimeout(reconnectTimer);
       if (currentChannel) supabase.removeChannel(currentChannel);
       muralChannelRef.current = null;
+      window.removeEventListener('sync_mural_update', broadcastHandler);
     };
   }, [fetchMurais, supabase, sessionLoading, activeMuralId]);
 

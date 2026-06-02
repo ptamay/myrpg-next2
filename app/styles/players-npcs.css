@@ -501,6 +501,34 @@
     border-color: var(--accent-primary);
 }
 
+.hp-mod-btn.micro {
+    width: 18px;
+    height: 18px;
+    font-size: 0.75rem;
+    line-height: 1;
+    padding: 0;
+}
+
+.hp-current-input, .temp-hp-input {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    border-radius: 4px;
+    font-weight: 800;
+}
+.hp-current-input:focus, .temp-hp-input:focus {
+    border-color: var(--accent-primary);
+    outline: none;
+}
+
+.hp-current-input::-webkit-inner-spin-button,
+.hp-current-input::-webkit-outer-spin-button,
+.temp-hp-input::-webkit-inner-spin-button,
+.temp-hp-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
 .hp-bar-bg {
     position: relative;
     height: 10px;

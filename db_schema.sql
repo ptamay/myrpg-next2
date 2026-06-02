@@ -76,6 +76,8 @@ CREATE TABLE public.players (
   is_sleeping_action BOOLEAN DEFAULT false,
   exhaustion_level INTEGER DEFAULT 0,
   min_sleep_req INTEGER DEFAULT 8,
+  background    TEXT DEFAULT '',
+  personal_goals TEXT DEFAULT '',
   created_at    TIMESTAMPTZ DEFAULT now()
 );
 
