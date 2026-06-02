@@ -13,9 +13,9 @@ export default function DiceRollFeed() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const { session, isGM } = useUserSession();
 
-  useGameSync((event: SyncEvent) => {
-    if (event.type === 'dice_roll') {
-      const rollData = event.payload as RollResult;
+  useEffect(() => {
+    const handleRoll = (e: any) => {
+      const rollData = e.detail as RollResult;
       
       // Visibility Check
       if (rollData.visibility === 'private' && rollData.rolledBy !== session?.playerId) return;
@@ -28,8 +28,11 @@ export default function DiceRollFeed() {
         const newFeed = [{ ...rollData, timestamp_local: Date.now() }, ...prev];
         return newFeed.slice(0, 5); // Manter apenas os últimos 5
       });
-    }
-  });
+    };
+    
+    window.addEventListener('sync_dice_roll', handleRoll);
+    return () => window.removeEventListener('sync_dice_roll', handleRoll);
+  }, [session?.playerId, isGM]);
 
   // Limpar itens antigos após 8 segundos
   useEffect(() => {

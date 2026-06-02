@@ -24,25 +24,14 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [attacksExpanded, setAttacksExpanded] = useState(false);
 
-  const rawPlayer = activeData?.player || activeData;
+  const rawPlayerInit = activeData?.player || activeData;
+  const rawPlayer = dadosGlobais?.players?.find((p: any) => p.id === rawPlayerInit?.id) || rawPlayerInit;
   const player = rawPlayer?.isTransformed && rawPlayer?.transformation 
     ? { ...rawPlayer, ...rawPlayer.transformation } 
     : rawPlayer || {};
 
-  const [localHp, setLocalHp] = React.useState<string | number>("");
-  const [localTempHp, setLocalTempHp] = React.useState<string | number>("");
-  const [hpModInput, setHpModInput] = React.useState<string>("");
-
   const activeHp = player.hpCurrent !== undefined ? player.hpCurrent : (player.hpMax || 0);
   const activeTemp = player.tempHp || 0;
-
-  React.useEffect(() => {
-    setLocalHp(activeHp);
-  }, [activeHp]);
-
-  React.useEffect(() => {
-    setLocalTempHp(activeTemp);
-  }, [activeTemp]);
 
   React.useEffect(() => {
     if (isOpen && activeData) {
@@ -153,13 +142,22 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
     const idx = newPlayers.findIndex(p => p.id === rawPlayer.id);
     if (idx !== -1) {
       if (rawPlayer.isTransformed && newPlayers[idx].transformation) {
-        newPlayers[idx].transformation.hpCurrent = currentHp;
-        newPlayers[idx].transformation.tempHp = tempHp;
-        newPlayers[idx].transformation.isDead = currentHp <= 0 && tempHp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          transformation: {
+            ...newPlayers[idx].transformation,
+            hpCurrent: currentHp,
+            tempHp: tempHp,
+            isDead: currentHp <= 0 && tempHp <= 0
+          }
+        };
       } else {
-        newPlayers[idx].hpCurrent = currentHp;
-        newPlayers[idx].tempHp = tempHp;
-        newPlayers[idx].isDead = currentHp <= 0 && tempHp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          hpCurrent: currentHp,
+          tempHp: tempHp,
+          isDead: currentHp <= 0 && tempHp <= 0
+        };
       }
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
       setTimeout(salvarEstadoLocal, 100);
@@ -177,71 +175,29 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
       if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
 
       if (rawPlayer.isTransformed && newPlayers[idx].transformation) {
-        newPlayers[idx].transformation.hpCurrent = finalHp;
-        newPlayers[idx].transformation.tempHp = finalTemp;
-        newPlayers[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          transformation: {
+            ...newPlayers[idx].transformation,
+            hpCurrent: finalHp,
+            tempHp: finalTemp,
+            isDead: finalHp <= 0 && finalTemp <= 0
+          }
+        };
       } else {
-        newPlayers[idx].hpCurrent = finalHp;
-        newPlayers[idx].tempHp = finalTemp;
-        newPlayers[idx].isDead = finalHp <= 0 && finalTemp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          hpCurrent: finalHp,
+          tempHp: finalTemp,
+          isDead: finalHp <= 0 && finalTemp <= 0
+        };
       }
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
       setTimeout(salvarEstadoLocal, 100);
     }
   };
 
-  const handleHpMod = (e: React.MouseEvent, direction: number) => {
-    e.stopPropagation();
-    const amount = Math.max(1, parseInt(hpModInput) || 1);
-    let current = player.hpCurrent !== undefined ? player.hpCurrent : (player.hpMax || 0);
-    let temp = player.tempHp || 0;
-    
-    if (direction > 0) {
-      current = Math.min(player.hpMax, current + amount);
-    } else {
-      if (temp > 0) {
-        if (temp >= amount) {
-          temp -= amount;
-        } else {
-          const overflow = amount - temp;
-          temp = 0;
-          current = Math.max(0, current - overflow);
-        }
-      } else {
-        current = Math.max(0, current - amount);
-      }
-    }
-    
-    updatePlayerHpFields(current, temp);
-    setHpModInput("");
-  };
-
-  const handleHpChange = (valStr: string) => {
-    setLocalHp(valStr);
-  };
-
-  const handleHpCommit = () => {
-    if (localHp === "") {
-      setLocalHp(activeHp);
-      return;
-    }
-    const val = Math.max(0, parseInt(localHp.toString()) || 0);
-    updatePlayerHpFields(val, player.tempHp || 0);
-  };
-
-  const handleTempHpChange = (valStr: string) => {
-    setLocalTempHp(valStr);
-  };
-
-  const handleTempHpCommit = () => {
-    if (localTempHp === "") {
-      setLocalTempHp(0);
-      updatePlayerHpFields(player.hpCurrent || 0, 0);
-      return;
-    }
-    const val = Math.max(0, parseInt(localTempHp.toString()) || 0);
-    updatePlayerHpFields(player.hpCurrent || 0, val);
-  };
+  // Modals de dano obsoletos removidos a favor do HpInlineEditor
 
   const handleSaveDmControls = () => {
     let setPlayerToSleep = false;

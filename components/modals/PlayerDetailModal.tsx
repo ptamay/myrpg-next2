@@ -44,13 +44,22 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen:
       if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
 
       if (freshPlayer.isTransformed && newPlayers[idx].transformation) {
-        newPlayers[idx].transformation.hpCurrent = finalHp;
-        newPlayers[idx].transformation.tempHp = finalTemp;
-        newPlayers[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          transformation: {
+            ...newPlayers[idx].transformation,
+            hpCurrent: finalHp,
+            tempHp: finalTemp,
+            isDead: finalHp <= 0 && finalTemp <= 0
+          }
+        };
       } else {
-        newPlayers[idx].hpCurrent = finalHp;
-        newPlayers[idx].tempHp = finalTemp;
-        newPlayers[idx].isDead = finalHp <= 0 && finalTemp <= 0;
+        newPlayers[idx] = {
+          ...newPlayers[idx],
+          hpCurrent: finalHp,
+          tempHp: finalTemp,
+          isDead: finalHp <= 0 && finalTemp <= 0
+        };
       }
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
     }

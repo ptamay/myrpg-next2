@@ -58,13 +58,22 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
       if (updates.tempHp !== undefined) finalTemp = updates.tempHp;
 
       if (freshNpc.isTransformed && newNpcs[idx].transformation) {
-        newNpcs[idx].transformation.hpCurrent = finalHp;
-        newNpcs[idx].transformation.tempHp = finalTemp;
-        newNpcs[idx].transformation.isDead = finalHp <= 0 && finalTemp <= 0;
+        newNpcs[idx] = {
+          ...newNpcs[idx],
+          transformation: {
+            ...newNpcs[idx].transformation,
+            hpCurrent: finalHp,
+            tempHp: finalTemp,
+            isDead: finalHp <= 0 && finalTemp <= 0
+          }
+        };
       } else {
-        newNpcs[idx].hpCurrent = finalHp;
-        newNpcs[idx].tempHp = finalTemp;
-        newNpcs[idx].isDead = finalHp <= 0 && finalTemp <= 0;
+        newNpcs[idx] = {
+          ...newNpcs[idx],
+          hpCurrent: finalHp,
+          tempHp: finalTemp,
+          isDead: finalHp <= 0 && finalTemp <= 0
+        };
       }
       setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
       setTimeout(salvarEstadoLocal, 100);

@@ -21,7 +21,6 @@ type VisibilityType = "public" | "private" | "gm";
 export default function DiceWidget() {
   const { session, isGM } = useUserSession();
   const { dadosGlobais } = useApp();
-  const { broadcast } = useGameSync(() => {});
   const { combat, applyDamage, addToLog } = useCombat();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -205,7 +204,9 @@ export default function DiceWidget() {
     }
 
       // Broadcast
-      await broadcast({ type: 'dice_roll', payload: rollData });
+      window.dispatchEvent(new CustomEvent('send_broadcast', { 
+        detail: { type: 'dice_roll', payload: rollData } 
+      }));
       setIsRolling(false);
     }, 800);
   };

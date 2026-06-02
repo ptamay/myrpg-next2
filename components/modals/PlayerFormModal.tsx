@@ -397,6 +397,11 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       
       const mappedPlayer = mapPlayerToDB(playerData, campData?.id || null);
       
+      // Fallback de segurança para garantir que a classe não seja enviada como nula
+      if (!mappedPlayer.class && mappedPlayer.class !== "") {
+        (mappedPlayer as any).class = mappedPlayer.player_class || "Desconhecida";
+      }
+
       if (isGM) {
         const { error: upsertError } = await supabase.from("players").upsert([mappedPlayer]);
         if (upsertError) {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 interface HpInlineEditorProps {
   hpCurrent: number;
@@ -19,39 +19,12 @@ export default function HpInlineEditor({
   onSetTempHp,
   onSetHp
 }: HpInlineEditorProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [tempInputValue, setTempInputValue] = useState(tempHp.toString());
-  const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTempInputValue(tempHp.toString());
   }, [tempHp]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleEscape);
-      if (inputRef.current) inputRef.current.focus();
-    }
-    
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen]);
 
   const applyDamage = () => {
     const amount = parseInt(inputValue);
@@ -84,103 +57,64 @@ export default function HpInlineEditor({
   };
 
   return (
-    <div className="hp-inline-editor" ref={containerRef}>
-      <div 
-        className="hp-display-area" 
-        onClick={() => setIsOpen(!isOpen)}
-        title="Clique para editar PV"
-      >
-        <div className="hp-values">
-          <span className="current-hp">{hpCurrent}</span> / <span className="max-hp">{hpMax}</span>
-          {tempHp > 0 && <span className="temp-hp" title="Pontos de Vida Temporários">+{tempHp}</span>}
-        </div>
+    <div className="hp-inline-editor" style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+      <div className="hp-display-area" style={{ flexShrink: 0, fontWeight: "bold", fontSize: "0.95rem" }}>
+        <span className="current-hp" style={{ color: hpCurrent <= 0 ? "var(--danger)" : "#fff" }}>{hpCurrent}</span> 
+        <span className="max-hp" style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginLeft: "2px" }}>/ {hpMax}</span>
+        {tempHp > 0 && <span className="temp-hp" title="Pontos de Vida Temporários" style={{ color: "var(--accent-primary)", fontSize: "0.8rem", marginLeft: "6px" }}>+{tempHp}</span>}
       </div>
 
-      {isOpen && (
-        <div className="hp-editor-panel" style={{ background: '#09090b', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', width: '220px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          
-          {/* Section: Damage/Heal (Relative) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dano / Cura</label>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <input
-                ref={inputRef}
-                type="number"
-                className="hp-editor-input journey-input"
-                placeholder="Ex: 5"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applyDamage();
-                }}
-                style={{ flex: 1, padding: '6px', fontSize: '1rem', minWidth: '0' }}
-              />
-              <button 
-                type="button" 
-                className="hp-btn-damage" 
-                onClick={applyDamage}
-                disabled={!inputValue || parseInt(inputValue) <= 0}
-                style={{ padding: '6px 10px' }}
-                title="Aplicar Dano"
-              >
-                🗡️
-              </button>
-              <button 
-                type="button" 
-                className="hp-btn-heal" 
-                onClick={applyHeal}
-                disabled={!inputValue || parseInt(inputValue) <= 0}
-                style={{ padding: '6px 10px' }}
-                title="Aplicar Cura"
-              >
-                💚
-              </button>
-            </div>
-          </div>
-
-          {/* Section: Set Exact (Absolute) */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Setar HP</label>
-              <input
-                type="number"
-                className="hp-editor-input journey-input"
-                placeholder={hpCurrent.toString()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    const val = parseInt(e.currentTarget.value);
-                    if (!isNaN(val) && onSetHp) {
-                      onSetHp(val);
-                      setIsOpen(false);
-                    }
-                  }
-                }}
-                style={{ width: '100%', padding: '6px', fontSize: '0.9rem' }}
-              />
-            </div>
-
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--warning)', textTransform: 'uppercase' }}>Temp</label>
-              <input
-                type="number"
-                className="hp-temp-input journey-input"
-                value={tempInputValue}
-                onChange={(e) => setTempInputValue(e.target.value)}
-                onBlur={handleTempSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleTempSubmit();
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                min="0"
-                style={{ width: '100%', padding: '6px', fontSize: '0.9rem' }}
-              />
-            </div>
-          </div>
-
-        </div>
-      )}
+      <div style={{ display: "flex", gap: "4px", flexWrap: "nowrap" }}>
+        <input
+          type="number"
+          placeholder="Qtd"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") applyDamage();
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{ width: "45px", padding: "4px", fontSize: "0.85rem", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px", color: "white", textAlign: "center" }}
+        />
+        <button 
+          type="button" 
+          onClick={(e) => { e.stopPropagation(); applyDamage(); }}
+          disabled={!inputValue || parseInt(inputValue) <= 0}
+          style={{ padding: "4px 8px", background: "rgba(239, 68, 68, 0.2)", color: "#fca5a5", border: "1px solid rgba(239, 68, 68, 0.4)", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "center" }}
+          title="Dano"
+        >
+          🗡️
+        </button>
+        <button 
+          type="button" 
+          onClick={(e) => { e.stopPropagation(); applyHeal(); }}
+          disabled={!inputValue || parseInt(inputValue) <= 0}
+          style={{ padding: "4px 8px", background: "rgba(34, 197, 94, 0.2)", color: "#86efac", border: "1px solid rgba(34, 197, 94, 0.4)", borderRadius: "4px", cursor: "pointer", fontSize: "0.85rem", display: "flex", alignItems: "center", justifyContent: "center" }}
+          title="Cura"
+        >
+          💚
+        </button>
+      </div>
+      
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: "bold" }}>TMP</span>
+        <input
+          type="number"
+          value={tempInputValue}
+          onChange={(e) => setTempInputValue(e.target.value)}
+          onBlur={handleTempSubmit}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleTempSubmit();
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          min="0"
+          style={{ width: "40px", padding: "4px", fontSize: "0.85rem", background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px", color: "var(--accent-primary)", textAlign: "center" }}
+          title="HP Temporário"
+        />
+      </div>
     </div>
   );
 }

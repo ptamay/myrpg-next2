@@ -49,7 +49,7 @@ export default function CombatSetupModal({ isOpen, onClose }: { isOpen: boolean;
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 1100 }}>
+    <div className={`modal-overlay ${isOpen ? "active" : ""}`} style={{ zIndex: 1100 }}>
       <div className="modal-content glass-panel" style={{ maxWidth: "600px", width: "90%", display: "flex", flexDirection: "column" }}>
         <header className="modal-header">
           <h2>⚔️ Setup de Combate</h2>

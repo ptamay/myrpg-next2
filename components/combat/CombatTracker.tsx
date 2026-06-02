@@ -71,7 +71,7 @@ export default function CombatTracker() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {combat.participants.map((p, index) => {
+            {(combat.participants || []).map((p, index) => {
               const isActive = index === combat.currentTurnIndex;
               return (
                 <div key={p.refId} className={`glass-panel ${isActive ? 'active-turn' : ''}`} style={{
@@ -95,7 +95,7 @@ export default function CombatTracker() {
                       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Forma de: {p.originalName}</div>
                     )}
                     <div style={{ display: "flex", gap: "0.5rem", marginTop: "4px" }}>
-                      {p.conditions.map(c => (
+                      {(p.conditions || []).map(c => (
                         <span key={c} style={{ background: "var(--danger)", color: "white", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", textTransform: "uppercase" }}>
                           {c}
                         </span>
@@ -160,7 +160,7 @@ export default function CombatTracker() {
                             }}
                           />
                         </div>
-                        {p.conditions.length > 0 && (
+                        {(p.conditions || []).length > 0 && (
                           <button 
                             className="btn secondary-btn" 
                             style={{ padding: "4px 8px" }}
@@ -185,7 +185,7 @@ export default function CombatTracker() {
             Registro de Combate
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {combat.log.map(entry => (
+            {(combat.log || []).map(entry => (
               <div key={entry.id} style={{ padding: "0.5rem", background: "rgba(0,0,0,0.2)", borderRadius: "4px", fontSize: "0.85rem" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)", marginBottom: "4px", fontSize: "0.75rem" }}>
                   <span>{entry.actorName}</span>

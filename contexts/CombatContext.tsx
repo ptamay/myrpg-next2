@@ -94,60 +94,70 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     tempHp: activeForm.tempHp || 0,
     ac: parseAC(activeForm.ac || 10) + sumBuffs(activeForm.activeBuffs, 'acBonus'),
     speed: parseSpeed(activeForm.speed || "30 ft") + sumBuffs(activeForm.activeBuffs, 'speedBonus'),
-    conditions: activeForm.conditions || [],
-    activeBuffs: activeForm.activeBuffs || [],
+    conditions: Array.isArray(activeForm.conditions) ? activeForm.conditions : (activeForm.conditions ? [activeForm.conditions as unknown as string] : []),
+    activeBuffs: Array.isArray(activeForm.activeBuffs) ? activeForm.activeBuffs : [],
     isDelayed: false,
     isDead: activeForm.isDead ?? false,
-    saves: activeForm.saves || [],
+    saves: Array.isArray(activeForm.saves) ? activeForm.saves : (activeForm.saves ? [activeForm.saves as unknown as string] : []),
     profBonus: parseProfBonus(
       (activeForm as any).profBonus,
       (activeForm as Npc).cr
     ),
-    str: Number(activeForm.str || 10), dex: Number(activeForm.dex || 10),
-    con: Number(activeForm.con || 10), int: Number(activeForm.int || 10),
-    wis: Number(activeForm.wis || 10), cha: Number(activeForm.cha || 10),
-    attacks: (activeForm as Player).attacks || [],
+    str: parseInt(activeForm.str as any) || 10, dex: parseInt(activeForm.dex as any) || 10,
+    con: parseInt(activeForm.con as any) || 10, int: parseInt(activeForm.int as any) || 10,
+    wis: parseInt(activeForm.wis as any) || 10, cha: parseInt(activeForm.cha as any) || 10,
+    attacks: Array.isArray((activeForm as Player).attacks) ? (activeForm as Player).attacks : [],
   };
 }
 
 export function CombatProvider({ children }: { children: React.ReactNode }) {
   const [combat, setCombat] = useState<CombatSession | null>(null);
-  const { broadcast } = useGameSync((event: SyncEvent) => {
-    if (event.type === 'combat_update') {
-      setCombat(event.payload as CombatSession);
-    }
-  });
   const { isGM } = useUserSession();
+
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      setCombat(e.detail as CombatSession);
+    };
+    window.addEventListener('sync_combat_update', handleSync);
+    return () => window.removeEventListener('sync_combat_update', handleSync);
+  }, []);
 
   const broadcastCombatState = async (newState: CombatSession | null = combat) => {
     if (!isGM) return; // Only GM broadcasts combat state
-    await broadcast({ type: 'combat_update', payload: newState });
+    window.dispatchEvent(new CustomEvent('send_broadcast', { 
+      detail: { type: 'combat_update', payload: newState } 
+    }));
   };
 
   const startCombat = (players: Player[], npcs: Npc[]) => {
-    if (!isGM) return;
-    const participants = [
-      ...players.map(p => toCombatParticipant(p, 'player')),
-      ...npcs.map(n => toCombatParticipant(n, 'npc'))
-    ];
+    try {
+      if (!isGM) return;
+      const participants = [
+        ...players.map(p => toCombatParticipant(p, 'player')),
+        ...npcs.map(n => toCombatParticipant(n, 'npc'))
+      ];
 
-    const newCombat: CombatSession = {
-      id: generateId(),
-      isActive: true,
-      round: 1,
-      currentTurnIndex: 0,
-      participants,
-      log: [{
+      const newCombat: CombatSession = {
         id: generateId(),
+        isActive: true,
         round: 1,
-        actorName: 'Sistema',
-        action: 'O combate começou!',
-        timestamp: new Date().toISOString()
-      }]
-    };
-    
-    setCombat(newCombat);
-    broadcastCombatState(newCombat);
+        currentTurnIndex: 0,
+        participants,
+        log: [{
+          id: generateId(),
+          round: 1,
+          actorName: 'Sistema',
+          action: 'O combate começou!',
+          timestamp: new Date().toISOString()
+        }]
+      };
+      
+      setCombat(newCombat);
+      broadcastCombatState(newCombat);
+    } catch (err: any) {
+      window.alert("ERRO AO INICIAR COMBATE: " + err.message);
+      console.error("Erro em startCombat:", err);
+    }
   };
 
   const endCombat = async () => {

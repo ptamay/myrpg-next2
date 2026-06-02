@@ -14,23 +14,26 @@ export function parseAC(str: string | number): number {
   return match ? parseInt(match[0], 10) : 10;
 }
 
-export function parseSpeed(str: string): number {
+export function parseSpeed(str: string | number): number {
+  if (typeof str === 'number') return str;
   if (!str) return 30; // default 5e speed
   const match = str.toString().match(/\d+/);
   return match ? parseInt(match[0], 10) : 30;
 }
 
-function parseCR(cr?: string): number {
+function parseCR(cr?: string | number): number {
   if (!cr) return 0;
-  if (cr.includes('/')) {
-    const [num, den] = cr.split('/');
+  if (typeof cr === 'number') return cr;
+  const str = cr.toString();
+  if (str.includes('/')) {
+    const [num, den] = str.split('/');
     return parseInt(num) / parseInt(den);
   }
-  return parseFloat(cr) || 0;
+  return parseFloat(str) || 0;
 }
 
-export function parseProfBonus(str?: string, cr?: string): number {
-  if (str) return parseModifier(str);
+export function parseProfBonus(str?: string | number, cr?: string | number): number {
+  if (str !== undefined && str !== null && str !== '') return parseModifier(str);
   // Se não tem profBonus, tenta calcular pelo CR:
   const numCr = parseCR(cr);
   return Math.floor(Math.max(0, numCr - 1) / 4) + 2;
