@@ -277,13 +277,13 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
               const canvas = document.createElement("canvas");
               const ctx = canvas.getContext("2d");
               if (!ctx) return resolve(ev.target?.result as string);
-              const maxW = 1200, maxH = 1200;
+              const maxW = 800, maxH = 800;
               let width = img.width, height = img.height;
               if (width > height) { if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; } } 
               else { if (height > maxH) { width = Math.round(width * maxH / height); height = maxH; } }
               canvas.width = width; canvas.height = height;
               ctx.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL("image/jpeg", 0.7));
+              resolve(canvas.toDataURL("image/jpeg", 0.6));
             };
             img.onerror = () => resolve(ev.target?.result as string);
             img.src = ev.target?.result as string;
@@ -299,7 +299,21 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
         body: JSON.stringify({ images: base64Images })
       });
 
-      if (!res.ok) throw new Error((await res.json()).error || "Erro na importação.");
+      if (!res.ok) {
+        let errText = await res.text();
+        let errMsg = errText;
+        try {
+          const errJson = JSON.parse(errText);
+          if (errJson.error) errMsg = errJson.error;
+        } catch(e) {
+          if (errText.includes("Request Entity Too Large") || errText.includes("Body exceeded")) {
+            errMsg = "As imagens selecionadas são muito grandes. Tente com imagens menores.";
+          } else {
+            errMsg = errText.substring(0, 100);
+          }
+        }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       
       const newState = dataToFormState(data);
