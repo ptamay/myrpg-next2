@@ -164,7 +164,7 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
     }
   };
 
-  const mergePlayerHpUpdates = (updates: Partial<{ hpCurrent: number; tempHp: number }>) => {
+  const mergePlayerHpUpdates = (updates: Partial<import('@/lib/gameData').Player>) => {
     const newPlayers = [...(dadosGlobais.players || [])];
     const idx = newPlayers.findIndex(p => p.id === rawPlayer.id);
     if (idx !== -1) {
@@ -192,6 +192,11 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
           isDead: finalHp <= 0 && finalTemp <= 0
         };
       }
+      if (updates.exhaustionLevel !== undefined) newPlayers[idx].exhaustionLevel = updates.exhaustionLevel;
+      if (updates.hdSpent !== undefined) newPlayers[idx].hdSpent = updates.hdSpent;
+      if (updates.spellSlotsUsed !== undefined) newPlayers[idx].spellSlotsUsed = updates.spellSlotsUsed;
+      if (updates.classResources !== undefined) newPlayers[idx].classResources = updates.classResources;
+
       setDadosGlobais({ ...dadosGlobais, players: newPlayers });
       setTimeout(salvarEstadoLocal, 100);
     }
@@ -608,7 +613,7 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
                         </span>
                       </div>
                     )}
-                    <div style={{ textAlign: isGM ? "right" : "center", display: "flex", flexDirection: "column", justifyContent: "center", width: isGM ? "auto" : "100%" }}>
+                    <div style={{ textAlign: isGM ? "right" : "center", display: "flex", flexDirection: "column", justifyContent: "center", width: isGM ? "auto" : "100%", alignItems: isGM ? "flex-end" : "center" }}>
                       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>Total de Sono Hoje: <strong style={{ color: "var(--text-primary)" }}>{totalSleepHours}h</strong> <span style={{fontSize: "0.7rem"}}>/ {player.minSleepReq || 8}h mín</span></div>
                     </div>
                   </div>

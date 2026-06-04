@@ -78,11 +78,19 @@ REGRAS OBRIGATÓRIAS DE FORMATO:
 - "skills": nome exato com atributo entre parênteses (ex: "Acrobacia (Des)").
 - "attacks.bonus": bônus de acerto com sinal (ex: "+5").
 - "attacks.dmg": fórmula de dado com tipo (ex: "1d6+3 cortante").
+- "playerClass": DEVE ser exatamente um destes IDs se houver correspondência, ou "custom" se não houver: 'barbaro', 'bardo', 'clerigo', 'druida', 'guerreiro', 'ladino', 'mago', 'monge', 'paladino', 'guardinha', 'feiticeiro', 'bruxo', 'custom'.
+- "customClass": Se playerClass for "custom", coloque o nome da classe original aqui. Senão, string vazia.
+- "expertiseSkills": Array com nomes das skills que possuem marcação de especialização/expertise (ex: dobro de proficiência, asterisco duplo).
+- "hasSpells": true se a ficha contiver magias, slots de magia ou for classe conjuradora.
+- "spellcastingAbility": "int", "wis", "cha", "con", "dex" ou "str". Inferido pela classe se ausente.
+- "spellSlots": Objeto com níveis (1 a 9) como chaves e quantidade máxima de slots como valor. Ex: {"1": 4, "2": 2}.
+- "spellsKnown": Array de objetos para magias. O nível de cantrips/truques é 0.
 
 Retorne APENAS JSON válido com esta estrutura:
 {
   "name": "Nome do Personagem",
-  "playerClass": "Classe",
+  "playerClass": "mago",
+  "customClass": "",
   "playerLevel": 1,
   "race": "Raça",
   "background": "",
@@ -98,10 +106,15 @@ Retorne APENAS JSON válido com esta estrutura:
   "minSleepReq": 8,
   "saves": [],
   "skills": [],
+  "expertiseSkills": [],
   "attacks": [{ "name": "Arma", "bonus": "+4", "dmg": "1d6+2 cortante" }],
   "inventory": [],
   "notes": "",
-  "personalGoals": ""
+  "personalGoals": "",
+  "hasSpells": false,
+  "spellcastingAbility": "int",
+  "spellSlots": {},
+  "spellsKnown": [{ "id": "uuid-gerado", "name": "Mísseis Mágicos", "level": 1, "school": "Evocação", "castingTime": "1 ação", "range": "120 ft", "components": "V, S", "duration": "Instantânea", "isConcentration": false, "isRitual": false, "description": "Lança dardos...", "damageDice": "1d4+1", "damageType": "energia" }]
 }`
     });
 

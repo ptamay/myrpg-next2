@@ -113,7 +113,15 @@ export function useCampaignInfo() {
       ]);
 
       for (const day of Array.from(allDays)) {
-        if (jornadaPorDia[day] !== next[day] && next[day]?.blocos) {
+        if (jornadaPorDia[day] && !next[day]) {
+          if (role === 'gm') {
+            const { data: dayData } = await supabase.from("journey_days").select('id').eq('campaign_id', campaign.id).eq('day_number', day).maybeSingle();
+            if (dayData) {
+              await supabase.from("journey_blocks").delete().eq("day_id", dayData.id);
+              await supabase.from("journey_days").delete().eq("id", dayData.id);
+            }
+          }
+        } else if (jornadaPorDia[day] !== next[day] && next[day]?.blocos) {
           if (role === 'gm') {
             const { data: dayData } = await supabase.from("journey_days")
               .upsert({ campaign_id: campaign.id, day_number: day }, { onConflict: 'campaign_id,day_number' })

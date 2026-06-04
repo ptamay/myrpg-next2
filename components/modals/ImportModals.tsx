@@ -15,7 +15,57 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
   const { showAlert } = useSystemDialog();
   const { activeData, setActiveData, setModals } = useApp();
   const [text, setText] = useState("");
-  const templateStr = `Nome: \nTítulo/Ocupação: \nFacção (ally/neutral/enemy): \nRaça: \nAlinhamento: \nND/CR: \nPV Máx: \nCA: \nDeslocamento (ex: 30 ft): \nIniciativa (ex: +2): \nPercepção: \nBônus de Proficiência (ex: +3): \nFOR: 10\nDES: 10\nCON: 10\nINT: 10\nSAB: 10\nCAR: 10\nSalvaguardas (ex: FOR, CON): \nPerícias (ex: Furtividade (Des), Percepção (Sab)): \nAtaque Principal (resumo): \nAtaques: Nome[Espada] Bônus[+5] Dano[1d6+3 cortante] | Nome[Arco] Bônus[+4] Dano[1d8+2 perfurante]\nResistências: \nImunidades: \nAções (Livre): \nMotivações: \nSegredos: \nTraços: \nItens Visíveis: \nItens Ocultos: \nNotas Extras: \nMagias Diárias: 1º[0] 2º[0] 3º[0] 4º[0] 5º[0] 6º[0] 7º[0] 8º[0] 9º[0]`;
+  const templateStr = `# INSTRUÇÕES PARA IA: Preencha os campos abaixo com base nos dados do NPC fornecido.
+# Mantenha os nomes dos campos exatamente como estão. Não adicione campos extras.
+# REGRAS DE FORMATO:
+# - Facção: use exatamente uma destas opções: ally | neutral | enemy
+# - Salvaguardas: use as siglas separadas por vírgula: FOR, DES, CON, INT, SAB, CAR
+# - Perícias: nomes separados por vírgula. Ex: Furtividade, Percepção, Atletismo
+# - Ataques Automáticos: use o padrão: Nome[X] Bônus[+Y] Dano[ZdN+M] | Nome[X] Bônus[+Y] Dano[ZdN+M]
+# - Magias Diárias: use o padrão: 1º[N] 2º[N] 3º[N] 4º[N] 5º[N] (apenas slots > 0)
+# - Ataque Principal: uma linha descrevendo o ataque principal em texto corrido
+# - Ações Completas: texto livre, uma ação por linha (nome + descrição)
+# - Se um campo não se aplica, deixe em branco
+Nome: 
+Título/Ocupação: 
+Facção: 
+Raça: 
+Alinhamento: 
+ND/CR: 
+PV Máx: 
+CA: 
+Deslocamento: 
+Iniciativa: 
+Percepção: 
+Bônus de Proficiência: 
+FOR: 
+DES: 
+CON: 
+INT: 
+SAB: 
+CAR: 
+Salvaguardas: 
+Perícias: 
+Ataques Automáticos: 
+Resistências: 
+Imunidades: 
+Traços: 
+Magias Diárias: 
+
+Ataque Principal (Resumo / Texto Secundário)
+
+Ações Completas (Texto Livre)
+
+Motivações
+
+Segredos e Fraquezas
+
+Itens Visíveis
+
+Itens Escondidos
+
+Notas do Mestre
+`;
 
   const handleCopyTemplate = async () => {
     try {
@@ -30,10 +80,79 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
     try {
       const lines = text.split("\n");
       const data: any = {};
+      let currentSection = "";
+
+      const knownSingleLineKeys = [
+        "nome", "titulo", "ocupacao", "titulo/ocupacao", "titulo/ocupacao", "faccao", "faccao (ally/neutral/enemy)", "raca", "alinhamento",
+        "nd", "cr", "nd/cr", "pv", "hp", "pv max", "ca", "ac", "deslocamento", "speed",
+        "iniciativa", "init", "percepcao", "perc", "bonus de proficiencia", "prof",
+        "for", "str", "des", "dex", "con", "int", "sab", "wis", "car", "cha",
+        "salvaguardas", "saves", "salvaguardas (ex: for, con)", "salvaguardas (for, des, con, int, sab, car)",
+        "pericias", "skills", "pericias (ex: furtividade, percepcao)",
+        "ataques automaticos", "ataques",
+        "resistencias", "imunidades", "tracos", "magias", "magias diarias"
+      ];
+
       lines.forEach((line) => {
         const trimmed = line.trim();
-        if (!trimmed) return;
+
+        // Ignorar linhas de comentário (instruções para IA)
+        if (trimmed.startsWith("#")) return;
         
+        if (!trimmed) {
+          if (currentSection) {
+            data[currentSection] = (data[currentSection] || "") + "\n";
+          }
+          return;
+        }
+
+        const lowerLine = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+        if (lowerLine === "ataque principal" || lowerLine === "ataque principal (resumo)" || lowerLine === "ataque principal (resumo / texto secundario)") {
+          currentSection = "mainAttack";
+          return;
+        } else if (lowerLine === "acoes completas" || lowerLine === "acoes completas (texto livre)" || lowerLine === "outras acoes" || lowerLine === "acoes" || lowerLine === "acoes (livre)") {
+          currentSection = "actions";
+          return;
+        } else if (lowerLine === "motivacoes") {
+          currentSection = "mot";
+          return;
+        } else if (lowerLine === "segredos" || lowerLine === "segredos e fraquezas") {
+          currentSection = "sec";
+          return;
+        } else if (lowerLine === "itens visiveis") {
+          currentSection = "itemsVis";
+          return;
+        } else if (lowerLine === "itens ocultos" || lowerLine === "itens escondidos") {
+          currentSection = "itemsHid";
+          return;
+        } else if (lowerLine === "notas extras" || lowerLine === "notas do mestre") {
+          currentSection = "notes";
+          return;
+        }
+
+        let possibleKey = "";
+        let isSingleLineKey = false;
+        if (trimmed.includes(":")) {
+          possibleKey = trimmed.split(":")[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+          if (knownSingleLineKeys.includes(possibleKey)) {
+            isSingleLineKey = true;
+          }
+        } else {
+          if (knownSingleLineKeys.includes(lowerLine)) {
+             isSingleLineKey = true;
+             possibleKey = lowerLine;
+          }
+        }
+
+        if (isSingleLineKey) {
+          currentSection = "";
+        } else if (currentSection) {
+          const prefix = data[currentSection] && !data[currentSection].endsWith("\n") ? "\n" : "";
+          data[currentSection] = (data[currentSection] || "") + prefix + trimmed;
+          return;
+        }
+
         let key = "";
         let value = "";
         
@@ -42,26 +161,8 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
           key = parts[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
           value = parts.slice(1).join(":").trim();
         } else {
-          const lowerLine = trimmed.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-          const knownKeys = [
-            "titulo ou ocupacao", "itens visiveis", "itens ocultos", "ataque principal", "pv max",
-            "nome", "titulo", "ocupacao", "faccao", "raca", "alinhamento", "nd", "cr", "pv", "hp", "ca", "ac",
-            "deslocamento", "speed", "iniciativa", "init", "percepcao", "perc",
-            "for", "str", "des", "dex", "con", "int", "sab", "wis", "car", "cha",
-            "ataque", "resistencias", "resistencia", "imunidades", "imunidade",
-            "acoes", "acao", "motivacoes", "motivacao", "segredos", "segredo",
-            "tracos", "traco", "visiveis", "visivel", "ocultos", "oculto", "escondidos",
-            "notas", "extras", "magias", "salvaguardas", "saves", "bonus de proficiencia",
-            "prof", "pericias", "skills", "ataques"
-          ];
-          const foundKey = knownKeys.find(k => lowerLine.startsWith(k + " ") || lowerLine === k);
-          if (foundKey) {
-            key = foundKey;
-            const wordsInKey = foundKey.split(" ").length;
-            value = trimmed.split(" ").slice(wordsInKey).join(" ");
-          } else {
-            return;
-          }
+          key = lowerLine;
+          value = "";
         }
         
         if (key === "nome") data.name = value;
@@ -74,7 +175,7 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
         }
         if (key === "raca") data.race = value;
         if (key === "alinhamento") data.alignment = value;
-        if (key === "nd" || key === "cr") data.cr = value;
+        if (key === "nd" || key === "cr" || key === "nd/cr") data.cr = value;
         if (key.includes("pv") || key.includes("hp")) {
           const val = parseInt(value) || 0;
           data.hpMax = val;
@@ -90,16 +191,9 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
         if (key === "int") data.int = parseInt(value) || 10;
         if (key === "sab" || key === "wis") data.wis = parseInt(value) || 10;
         if (key === "car" || key === "cha") data.cha = parseInt(value) || 10;
-        if (key === "ataque principal" || key.includes("ataque")) data.mainAttack = value;
         if (key === "resistencias" || key.includes("resistencia")) data.res = value;
         if (key === "imunidades" || key.includes("imunidade")) data.imm = value;
-        if (key.includes("acoes") || key.includes("acao")) data.actions = value;
-        if (key === "motivacoes" || key === "motivacao") data.mot = value;
-        if (key === "segredos" || key === "segredo") data.sec = value;
         if (key === "tracos" || key === "traco") data.traits = value;
-        if (key.includes("visiveis") || key.includes("visivel")) data.itemsVis = value;
-        if (key.includes("ocultos") || key.includes("oculto") || key.includes("escondidos")) data.itemsHid = value;
-        if (key.includes("notas") || key.includes("extras")) data.notes = value;
         if (key.includes("salvaguardas") || key === "saves") {
           data.saves = value.split(",").map((s: string) => s.trim().toUpperCase()).filter(Boolean);
         }
@@ -109,7 +203,7 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
         if (key.includes("pericias") || key.includes("skills")) {
           data.skills = value.split(",").map((s: string) => s.trim()).filter(Boolean);
         }
-        if (key === "ataques") {
+        if (key.includes("ataques")) {
           data.attacks = value.split("|").map((atk: string) => {
             const nomeMatch = atk.match(/Nome\[([^\]]+)\]/i);
             const bonusMatch = atk.match(/B[oô]nus\[([^\]]+)\]/i);
@@ -133,6 +227,14 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
           });
         }
       });
+
+      const multiLineFields = ["mainAttack", "actions", "mot", "sec", "itemsVis", "itemsHid", "notes"];
+      multiLineFields.forEach(f => {
+         if (data[f]) {
+            data[f] = data[f].trim();
+         }
+      });
+
       const event = new CustomEvent('npcImported', { 
         detail: { 
           data, 
@@ -144,6 +246,7 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
       setModals((prev: any) => ({ ...prev, npcForm: true }));
       showAlert({ title: "Sucesso", message: "Ficha pré-preenchida com sucesso!", type: "success" });
     } catch (e) {
+      console.error(e);
       showAlert({ title: "Erro", message: "Não foi possível processar o texto.", type: "danger" });
     }
   };

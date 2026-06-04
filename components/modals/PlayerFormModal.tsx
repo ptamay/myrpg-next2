@@ -9,6 +9,11 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapPlayerToDB } from "@/lib/supabase/mappers";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
+import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel } from "@/lib/constants/dnd5eClasses";
+import SpellsSection from "../ui/SpellsSection";
+import ClassResourcesSection from "../ui/ClassResourcesSection";
+import LevelUpModal from "./LevelUpModal";
+import { SpellEntry, ClassResource } from "@/lib/gameData";
 
 interface PlayerFormModalProps {
   isOpen: boolean;
@@ -34,7 +39,14 @@ const initialFormState = {
   hdTotal: "",
   inspiration: false,
   minSleepReq: "8",
-  profBonus: "2"
+  profBonus: "2",
+  customClass: "",
+  hasSpells: false,
+  spellcastingAbility: "int",
+  spellSlotType: "standard",
+  spellSlots: {} as Record<number, number>,
+  spellsKnown: [] as SpellEntry[],
+  classResources: [] as ClassResource[]
 };
 
 
@@ -57,7 +69,14 @@ const dataToFormState = (data: any) => ({
   hdTotal: data?.hdTotal || "",
   inspiration: data?.inspiration || false,
   minSleepReq: data?.minSleepReq?.toString() || "8",
-  profBonus: data?.profBonus?.toString().replace('+', '') || "2"
+  profBonus: data?.profBonus?.toString().replace('+', '') || "2",
+  customClass: data?.customClass || "",
+  hasSpells: data?.hasSpells || false,
+  spellcastingAbility: data?.spellcastingAbility || "int",
+  spellSlotType: data?.spellSlotType || "standard",
+  spellSlots: data?.spellSlots || {},
+  spellsKnown: data?.spellsKnown || [],
+  classResources: data?.classResources || []
 });
 
 const dataToAttacks = (data: any) => {
@@ -75,6 +94,7 @@ const dataToAttacks = (data: any) => {
 
 const dataToSaves = (data: any) => Array.isArray(data?.saves) ? data.saves : (typeof data?.saves === 'string' && data.saves ? data.saves.split(',').map((s:string) => s.trim()) : []);
 const dataToSkills = (data: any) => Array.isArray(data?.skills) ? data.skills : (typeof data?.skills === 'string' && data.skills ? data.skills.split(',').map((s:string) => s.trim()) : []);
+const dataToExpertise = (data: any) => Array.isArray(data?.expertiseSkills) ? data.expertiseSkills : [];
 
 export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProps) {
   const { dadosGlobais, setDadosGlobais, salvarEstadoLocal, activeData } = useApp();
@@ -97,6 +117,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
   const [attacksState, setAttacksState] = useState<any[]>([]);
   const [selectedSaves, setSelectedSaves] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [expertiseSkills, setExpertiseSkills] = useState<string[]>([]);
 
   // Transformation States
   const [hasTransformation, setHasTransformation] = useState(false);
@@ -106,9 +127,11 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
   const [transAttacksState, setTransAttacksState] = useState<any[]>([]);
   const [transSelectedSaves, setTransSelectedSaves] = useState<string[]>([]);
   const [transSelectedSkills, setTransSelectedSkills] = useState<string[]>([]);
+  const [transExpertiseSkills, setTransExpertiseSkills] = useState<string[]>([]);
 
-  // Crop Modal
+  // Crop Modal & Level Up Modal
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isLevelUpModalOpen, setIsLevelUpModalOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +150,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
           setAttacksState(dataToAttacks(activeData));
           setSelectedSaves(dataToSaves(activeData));
           setSelectedSkills(dataToSkills(activeData));
+          setExpertiseSkills(dataToExpertise(activeData));
 
           if (activeData.transformation) {
             setHasTransformation(true);
@@ -135,6 +159,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
             setTransAttacksState(dataToAttacks(activeData.transformation));
             setTransSelectedSaves(dataToSaves(activeData.transformation));
             setTransSelectedSkills(dataToSkills(activeData.transformation));
+            setTransExpertiseSkills(dataToExpertise(activeData.transformation));
           } else {
             setHasTransformation(false);
             setTransFormState(dataToFormState({ name: activeData.name + " (Transformado)" }));
@@ -142,6 +167,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
             setTransAttacksState(dataToAttacks({}));
             setTransSelectedSaves([]);
             setTransSelectedSkills([]);
+            setTransExpertiseSkills([]);
           }
         }
       } else {
@@ -151,6 +177,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
           setAttacksState(dataToAttacks({}));
           setSelectedSaves([]);
           setSelectedSkills([]);
+          setExpertiseSkills([]);
 
           setHasTransformation(false);
           setTransFormState(initialFormState);
@@ -158,6 +185,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
           setTransAttacksState(dataToAttacks({}));
           setTransSelectedSaves([]);
           setTransSelectedSkills([]);
+          setTransExpertiseSkills([]);
         }
       }
       
@@ -196,10 +224,36 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const finalValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    
+    let updates: any = { [name]: finalValue };
+    
+    if (name === 'playerClass' && value !== 'custom' && value !== '') {
+      const cls = DND5E_CLASSES.find(c => c.id === value);
+      if (cls) {
+        const level = isEditingTransformation ? transFormState.playerLevel : formState.playerLevel;
+        updates.hdTotal = `${level}d${cls.hitDie}`;
+        updates.profBonus = getProficiencyBonus(parseInt(level)).toString();
+        
+        if (isCaster(value)) {
+          updates.hasSpells = true;
+          updates.spellcastingAbility = cls.spellAbility || 'int';
+          updates.spellSlotType = getCasterType(value) === 'pact' ? 'pact' : 'standard';
+          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level));
+        } else {
+          updates.hasSpells = false;
+        }
+      }
+    }
+
+    if (name === 'playerLevel') {
+      // NOTE: We no longer auto-update here, to prevent destroying custom user values
+      // (like custom spell slots or ki). Level up should be done via the Level Up button.
+    }
+
     if (isEditingTransformation) {
-      setTransFormState(prev => ({ ...prev, [name]: finalValue }));
+      setTransFormState(prev => ({ ...prev, ...updates }));
     } else {
-      setFormState(prev => ({ ...prev, [name]: finalValue }));
+      setFormState(prev => ({ ...prev, ...updates }));
     }
   };
 
@@ -236,10 +290,26 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
   const handleSkillsChange = (skill: string, checked: boolean) => {
     if (isEditingTransformation) {
       if (checked) setTransSelectedSkills([...transSelectedSkills, skill]);
-      else setTransSelectedSkills(transSelectedSkills.filter(s => s !== skill));
+      else {
+        setTransSelectedSkills(transSelectedSkills.filter(s => s !== skill));
+        setTransExpertiseSkills(transExpertiseSkills.filter(s => s !== skill)); // Remove expertise se perder proficiência
+      }
     } else {
       if (checked) setSelectedSkills([...selectedSkills, skill]);
-      else setSelectedSkills(selectedSkills.filter(s => s !== skill));
+      else {
+        setSelectedSkills(selectedSkills.filter(s => s !== skill));
+        setExpertiseSkills(expertiseSkills.filter(s => s !== skill)); // Remove expertise se perder proficiência
+      }
+    }
+  };
+
+  const handleExpertiseChange = (skill: string, checked: boolean) => {
+    if (isEditingTransformation) {
+      if (checked) setTransExpertiseSkills([...transExpertiseSkills, skill]);
+      else setTransExpertiseSkills(transExpertiseSkills.filter(s => s !== skill));
+    } else {
+      if (checked) setExpertiseSkills([...expertiseSkills, skill]);
+      else setExpertiseSkills(expertiseSkills.filter(s => s !== skill));
     }
   };
 
@@ -321,12 +391,16 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
         setTransFormState(prev => ({...prev, ...newState}));
         if (data.saves && Array.isArray(data.saves)) setTransSelectedSaves(data.saves);
         if (data.skills && Array.isArray(data.skills)) setTransSelectedSkills(data.skills);
+        if (data.expertiseSkills && Array.isArray(data.expertiseSkills)) setTransExpertiseSkills(data.expertiseSkills);
         if (data.attacks && Array.isArray(data.attacks)) setTransAttacksState(dataToAttacks(data));
+        if (data.classResources && Array.isArray(data.classResources)) setTransFormState(prev => ({...prev, classResources: data.classResources}));
       } else {
         setFormState(prev => ({...prev, ...newState}));
         if (data.saves && Array.isArray(data.saves)) setSelectedSaves(data.saves);
         if (data.skills && Array.isArray(data.skills)) setSelectedSkills(data.skills);
+        if (data.expertiseSkills && Array.isArray(data.expertiseSkills)) setExpertiseSkills(data.expertiseSkills);
         if (data.attacks && Array.isArray(data.attacks)) setAttacksState(dataToAttacks(data));
+        if (data.classResources && Array.isArray(data.classResources)) setFormState(prev => ({...prev, classResources: data.classResources}));
       }
       
       await showAlert({ title: "Importação Concluída", message: "Ficha importada com sucesso!", type: "success" });
@@ -338,12 +412,18 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     }
   };
 
-  const constructPlayerObject = (state: typeof initialFormState, attacksList: any[], savesList: string[], skillsList: string[], imgBase: string | null, prevData: any) => {
+  const constructPlayerObject = (state: typeof initialFormState, attacksList: any[], savesList: string[], skillsList: string[], expertiseList: string[], imgBase: string | null, prevData: any) => {
     const hpMax = parseInt(state.hpMax) || 0;
     const cleanAttacks = attacksList.filter(a => a.name || a.bonus || a.dmg);
+    
+    // Calcula features baseado na classe selecionada
+    const classData = DND5E_CLASSES.find(c => c.id === state.playerClass);
+    const classFeatures = classData?.features || [];
+
     return {
       name: state.name || "",
       playerClass: state.playerClass || "",
+      customClass: state.playerClass === "custom" ? (state.customClass || "") : undefined,
       classLevel: state.playerClass || "",
       playerLevel: parseInt(state.playerLevel) || 1,
       race: state.race || "",
@@ -366,12 +446,21 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       isDead: prevData?.isDead || false,
       saves: savesList,
       skills: skillsList,
+      expertiseSkills: expertiseList,
+      classFeatures,
       profBonus: state.profBonus,
       minSleepReq: parseInt(state.minSleepReq) || 8,
       inventory: prevData?.inventory || [],
       notes: prevData?.notes || "",
       background: prevData?.background || "",
-      personalGoals: prevData?.personalGoals || ""
+      personalGoals: prevData?.personalGoals || "",
+      hasSpells: state.hasSpells,
+      spellcastingAbility: state.spellcastingAbility,
+      spellSlotType: state.spellSlotType,
+      spellSlots: state.spellSlots,
+      spellSlotsUsed: prevData?.spellSlotsUsed || {},
+      spellsKnown: state.spellsKnown,
+      classResources: state.classResources
     };
   };
 
@@ -388,19 +477,23 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     const playerData: any = {
       id,
       playerName: resolvedPlayerName,
-      ...constructPlayerObject(formState, attacksState, selectedSaves, selectedSkills, avatarBase64, activeData),
+      ...constructPlayerObject(formState, attacksState, selectedSaves, selectedSkills, expertiseSkills, avatarBase64, activeData),
       transformation: undefined,
       isTransformed: hasTransformation ? isEditingTransformation : false
     };
 
     if (hasTransformation) {
-      playerData.transformation = constructPlayerObject(transFormState, transAttacksState, transSelectedSaves, transSelectedSkills, transAvatarBase64, activeData?.transformation);
+      playerData.transformation = constructPlayerObject(transFormState, transAttacksState, transSelectedSaves, transSelectedSkills, transExpertiseSkills, transAvatarBase64, activeData?.transformation);
     }
 
     const newPlayers = [...(dadosGlobais.players || [])];
-    if (activeData) {
-      const idx = newPlayers.findIndex(p => p.id === id);
-      if (idx !== -1) newPlayers[idx] = { ...newPlayers[idx], ...playerData };
+    if (activeData?.id) {
+      const idx = newPlayers.findIndex(p => p.id === activeData.id);
+      if (idx !== -1) {
+        newPlayers[idx] = { ...newPlayers[idx], ...playerData };
+      } else {
+        newPlayers.push(playerData);
+      }
     } else {
       newPlayers.push(playerData);
     }
@@ -448,6 +541,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
 
     // 3. Update global context
     setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+    window.dispatchEvent(new CustomEvent('sync_entity_to_combat', { detail: { entity: playerData, type: 'player' } }));
     salvarEstadoLocal();
     onClose();
   };
@@ -560,10 +654,24 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
               <div className="form-row mt-2">
                 <div className="form-group flex-2">
                   <label>Classe</label>
-                  <input type="text" name="playerClass" className="journey-input" value={activeState.playerClass} onChange={handleChange} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select name="playerClass" className="journey-input" value={activeState.playerClass} onChange={handleChange}>
+                      <option value="">Selecione...</option>
+                      {DND5E_CLASSES.map(c => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                      <option value="custom">Outra (Personalizada)</option>
+                    </select>
+                    {activeState.playerClass === "custom" && (
+                      <input type="text" name="customClass" className="journey-input" placeholder="Nome da classe" value={activeState.customClass} onChange={handleChange} />
+                    )}
+                  </div>
                 </div>
                 <div className="form-group flex-1">
-                  <label>Nível</label>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Nível</span>
+                    <button type="button" onClick={() => setIsLevelUpModalOpen(true)} className="btn success-btn small-btn" style={{ padding: "0 6px", fontSize: "0.65rem", height: "18px" }}>⭐ Subir</button>
+                  </label>
                   <input type="number" name="playerLevel" className="journey-input" value={activeState.playerLevel} min="1" onChange={handleChange} />
                 </div>
                 <div className="form-group flex-2">
@@ -642,14 +750,64 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
                 <div className="form-group flex-1">
                   <label>Perícias com Proficiência</label>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "10px", background: "rgba(0,0,0,0.2)", padding: "15px", borderRadius: "8px", border: "1px solid var(--border-subtle)" }}>
-                    {SKILLS_LIST.map(skill => (
-                      <label key={skill} className="custom-checkbox-container" style={{ fontSize: "0.85rem", display: "flex", alignItems: "center" }}>
-                        <input type="checkbox" checked={activeSkills.includes(skill)} onChange={(e) => handleSkillsChange(skill, e.target.checked)} /> {skill}
-                      </label>
-                    ))}
+                    {SKILLS_LIST.map(skill => {
+                      const isProficient = activeSkills.includes(skill);
+                      const isExpert = isEditingTransformation ? transExpertiseSkills.includes(skill) : expertiseSkills.includes(skill);
+                      // Mostra opção de expertise se classe for Ladino ou Bardo e for proficiente
+                      const canHaveExpertise = (activeState.playerClass === 'ladino' || activeState.playerClass === 'bardo') && isProficient;
+                      
+                      return (
+                        <div key={skill} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                          <label className="custom-checkbox-container" style={{ fontSize: "0.85rem", display: "flex", alignItems: "center" }}>
+                            <input type="checkbox" checked={isProficient} onChange={(e) => handleSkillsChange(skill, e.target.checked)} /> {skill}
+                          </label>
+                          {canHaveExpertise && (
+                            <label className="custom-checkbox-container" style={{ fontSize: "0.7rem", display: "flex", alignItems: "center", marginLeft: "20px", color: "var(--accent-primary)" }}>
+                              <input type="checkbox" checked={isExpert} onChange={(e) => handleExpertiseChange(skill, e.target.checked)} /> Expertise (2x)
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
+
+              <ClassResourcesSection 
+                resources={activeState.classResources}
+                onChange={(resources) => {
+                  if (isEditingTransformation) setTransFormState(prev => ({ ...prev, classResources: resources }));
+                  else setFormState(prev => ({ ...prev, classResources: resources }));
+                }}
+                playerClass={activeState.playerClass}
+                playerLevel={parseInt(activeState.playerLevel) || 1}
+              />
+
+              {(activeState.hasSpells || activeState.playerClass === 'custom' || isCaster(activeState.playerClass)) && (
+                <>
+                  <h4 className="form-section-title mt-4">Magias</h4>
+                  <SpellsSection
+                    hasSpells={activeState.hasSpells}
+                    onHasSpellsChange={(val) => handleChange({ target: { name: 'hasSpells', value: val, checked: val, type: 'checkbox' } } as any)}
+                    spellcastingAbility={activeState.spellcastingAbility}
+                    onAbilityChange={(val) => handleChange({ target: { name: 'spellcastingAbility', value: val } } as any)}
+                    spellSlotType={activeState.spellSlotType}
+                    onSlotTypeChange={(val) => handleChange({ target: { name: 'spellSlotType', value: val } } as any)}
+                    spellSlots={activeState.spellSlots}
+                    onSpellSlotsChange={(slots) => {
+                      if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellSlots: slots }));
+                      else setFormState(prev => ({ ...prev, spellSlots: slots }));
+                    }}
+                    spellsKnown={activeState.spellsKnown}
+                    onSpellsKnownChange={(spells) => {
+                      if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellsKnown: spells }));
+                      else setFormState(prev => ({ ...prev, spellsKnown: spells }));
+                    }}
+                    playerClass={activeState.playerClass}
+                    playerLevel={parseInt(activeState.playerLevel) || 1}
+                  />
+                </>
+              )}
             </div>
           </div>
         </form>
@@ -673,6 +831,24 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
         onClose={() => setIsCropModalOpen(false)} 
         imageUrl={cropImageSrc} 
         onCrop={handleCropComplete} 
+      />
+      <LevelUpModal
+        isOpen={isLevelUpModalOpen}
+        onClose={() => setIsLevelUpModalOpen(false)}
+        onConfirm={(updates) => {
+          if (isEditingTransformation) {
+            setTransFormState(prev => ({ ...prev, ...updates }));
+          } else {
+            setFormState(prev => ({ ...prev, ...updates }));
+          }
+        }}
+        currentLevel={parseInt(activeState.playerLevel) || 1}
+        playerClass={activeState.playerClass}
+        conModifier={Math.floor(((parseInt(activeState.con) || 10) - 10) / 2)}
+        currentProfBonus={activeState.profBonus}
+        currentHdTotal={activeState.hdTotal}
+        currentSpellSlots={activeState.spellSlots}
+        currentHpMax={parseInt(activeState.hpMax) || 0}
       />
     </Modal>
   );

@@ -8,6 +8,7 @@ import HpInlineEditor from "../ui/HpInlineEditor";
 import BuffPanel from "../ui/BuffPanel";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
+import { DND5E_CLASSES } from "@/lib/constants/dnd5eClasses";
 
 interface PlayerCardProps {
   player: any;
@@ -19,6 +20,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
   const { isGM, session } = useUserSession();
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [attacksExpanded, setAttacksExpanded] = useState(false);
+  const [spellsExpanded, setSpellsExpanded] = useState(false);
 
   const activePlayer = player.isTransformed && player.transformation ? player.transformation : player;
 
@@ -121,6 +123,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
 
   const parsedSaves = Array.isArray(activePlayer.saves) ? activePlayer.saves : (typeof activePlayer.saves === 'string' && activePlayer.saves ? activePlayer.saves.split(',').map((s: string) => s.trim()) : []);
   const parsedSkills = Array.isArray(activePlayer.skills) ? activePlayer.skills : (typeof activePlayer.skills === 'string' && activePlayer.skills ? activePlayer.skills.split(',').map((s: string) => s.trim()) : []);
+  const parsedExpertise = Array.isArray(activePlayer.expertiseSkills) ? activePlayer.expertiseSkills : (typeof activePlayer.expertiseSkills === 'string' && activePlayer.expertiseSkills ? activePlayer.expertiseSkills.split(',').map((s: string) => s.trim()) : []);
 
   let totalSleepMinutes = 0;
   const dayData = jornadaPorDia[diaAtual];
@@ -181,7 +184,10 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
             )}
           </div>
           <div className="npc-card-title">
-            {activePlayer.playerClass || activePlayer.classLevel || 'Sem classe'} {activePlayer.playerLevel ? `Nv. ${activePlayer.playerLevel}` : ''}
+            {activePlayer.playerClass && activePlayer.playerClass !== "custom" 
+              ? (DND5E_CLASSES.find(c => c.id === activePlayer.playerClass)?.label || activePlayer.playerClass)
+              : (activePlayer.customClass || activePlayer.playerClass || activePlayer.classLevel || 'Sem classe')} {activePlayer.playerLevel ? `Nv. ${activePlayer.playerLevel}` : ''}
+            {activePlayer.hasSpells && <span title="Conjurador" style={{ marginLeft: "4px" }}>🔮</span>}
             <span style={{ margin: "0 6px", opacity: 0.5 }}>•</span>
             <span style={{ color: hpColor, fontWeight: 700 }}>{hpStatusText}</span>
           </div>
@@ -283,6 +289,103 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
           isGM={isGM} 
         />
 
+        {activePlayer.classResources && activePlayer.classResources.length > 0 && (
+          <div style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px", padding: "12px", marginBottom: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {activePlayer.classResources.map((res: any, idx: number) => (
+                <div key={res.id || idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem", padding: "6px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "4px", border: "1px solid rgba(255,255,255,0.02)" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span style={{ fontWeight: 700, color: "#fff" }}>{res.name}</span>
+                    <span style={{ fontSize: "0.65rem", color: "var(--text-secondary)" }}>Reseta em: {res.resetOn === 'short' ? 'Descanso Curto' : res.resetOn === 'long' ? 'Descanso Longo' : 'Outro'}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem", minWidth: "30px", textAlign: "right" }}>{res.current}/{res.max}</span>
+                    {canViewDetails && (
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const newResources = [...activePlayer.classResources];
+                            newResources[idx].current = Math.max(0, newResources[idx].current - 1);
+                            handleActiveUpdate({ classResources: newResources });
+                          }}
+                          style={{ background: 'var(--danger-color)', color: '#fff', border: 'none', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        >-</button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const newResources = [...activePlayer.classResources];
+                            newResources[idx].current = Math.min(newResources[idx].max, newResources[idx].current + 1);
+                            handleActiveUpdate({ classResources: newResources });
+                          }}
+                          style={{ background: 'var(--success-color)', color: '#fff', border: 'none', borderRadius: '4px', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        >+</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activePlayer.hasSpells && activePlayer.spellSlots && Object.keys(activePlayer.spellSlots).length > 0 && (
+          <>
+            <div className={`player-skills-trigger ${spellsExpanded ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setSpellsExpanded(!spellsExpanded); }}>
+              <span>Espaços de Magia</span>
+              <svg className="chevron-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: spellsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            
+            <div className={`player-skills-collapse ${spellsExpanded ? "active" : ""}`} onClick={(e) => e.stopPropagation()} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px", padding: spellsExpanded ? "12px" : "0 12px", marginBottom: spellsExpanded ? "12px" : 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(lvl => {
+                  const maxSlots = activePlayer.spellSlots[lvl];
+                  if (!maxSlots || maxSlots <= 0) return null;
+                  const usedSlots = (activePlayer.spellSlotsUsed && activePlayer.spellSlotsUsed[lvl]) || 0;
+                  
+                  return (
+                    <div key={lvl} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem", padding: "6px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "4px", border: "1px solid rgba(255,255,255,0.02)" }}>
+                      <span style={{ fontWeight: 700, color: "#fff" }}>{lvl}º Círculo</span>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem", minWidth: "30px", textAlign: "right" }}>{maxSlots - usedSlots}/{maxSlots}</span>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {Array.from({ length: maxSlots }).map((_, i) => (
+                            <div 
+                              key={i}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!canViewDetails) return;
+                                const newUsed = { ...(activePlayer.spellSlotsUsed || {}) };
+                                if (i < usedSlots) {
+                                  newUsed[lvl] = usedSlots - 1;
+                                } else {
+                                  newUsed[lvl] = usedSlots + 1;
+                                }
+                                handleActiveUpdate({ spellSlotsUsed: newUsed });
+                              }}
+                              style={{
+                                width: "16px",
+                                height: "16px",
+                                borderRadius: "4px",
+                                cursor: canViewDetails ? "pointer" : "default",
+                                border: "1.5px solid var(--accent-primary)",
+                                background: i < usedSlots ? "transparent" : "var(--accent-primary)",
+                                transition: "all 0.2s",
+                                boxShadow: i < usedSlots ? "inset 0 0 4px rgba(0,0,0,0.5)" : "0 0 4px rgba(var(--accent-primary-rgb), 0.5)"
+                              }}
+                              title={i < usedSlots ? "Slot Usado (Clique para recuperar)" : "Slot Disponível (Clique para gastar)"}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
         {activePlayer.attacks && activePlayer.attacks.length > 0 && (
           <>
             <div className={`player-skills-trigger ${attacksExpanded ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setAttacksExpanded(!attacksExpanded); }}>
@@ -355,7 +458,8 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
                 const baseVal = parseInt((activePlayer[sk.attr] || 10).toString());
                 const mod = Math.floor((baseVal - 10) / 2);
                 const isProf = parsedSkills.some((s: string) => s.toLowerCase().trim() === sk.label.toLowerCase().trim() || s.toLowerCase().trim() === sk.name.toLowerCase().trim());
-                const total = mod + (isProf ? parseInt(profBonus) : 0);
+                const isExpert = parsedExpertise.some((s: string) => s.toLowerCase().trim() === sk.label.toLowerCase().trim() || s.toLowerCase().trim() === sk.name.toLowerCase().trim());
+                const total = mod + (isProf ? parseInt(profBonus) : 0) + (isExpert ? parseInt(profBonus) : 0);
                 const totalStr = total >= 0 ? `+${total}` : `${total}`;
                 
                 const attrIndex = sk.label.indexOf(" (");
@@ -380,6 +484,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
                       fontWeight: isProf ? 700 : 500 
                     }}>
                       <strong style={{ fontWeight: isProf ? 800 : 600, color: isProf ? "#fff" : "inherit" }}>{displayName}</strong>
+                      {isExpert && <span title="Expertise" style={{ color: "#e2b43b", fontSize: "0.7rem", marginLeft: "3px" }}>⭐</span>}
                       {" "}
                       <span style={{ color: "#71717a", fontSize: "0.65rem", fontWeight: 400 }}>{displayAttr}</span>
                     </span>

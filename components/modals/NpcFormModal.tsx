@@ -5,8 +5,9 @@ import Modal from "../ui/Modal";
 import CropModal from "./CropModal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
-import { Npc } from "@/lib/gameData";
+import { Npc, SpellEntry } from "@/lib/gameData";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
+import SpellsSection from "../ui/SpellsSection";
 
 interface NpcFormModalProps {
   isOpen: boolean;
@@ -43,18 +44,30 @@ const initialFormState = {
   notes: "",
   isDead: false,
   isHidden: false,
-  s1: "0",
-  s2: "0",
-  s3: "0",
-  s4: "0",
-  s5: "0",
-  s6: "0",
-  s7: "0",
-  s8: "0",
-  s9: "0",
   profBonus: "",
   saves: [] as string[],
   skills: [] as string[],
+  hasSpells: false,
+  spellcastingAbility: 'int' as "str" | "dex" | "con" | "int" | "wis" | "cha",
+  spellSlotType: 'standard' as "pact" | "standard",
+  spellSlots: {} as Record<number, number>,
+  spellsKnown: [] as SpellEntry[],
+  playerClass: "",
+  playerLevel: "1",
+  customClass: ""
+};
+
+const dataToAttacks = (data: any) => {
+  if (data?.attacks && data.attacks.length > 0) {
+    const currentAttacks = [...data.attacks];
+    while (currentAttacks.length < 3) currentAttacks.push({ name: "", bonus: "", dmg: "" });
+    return currentAttacks;
+  }
+  return [
+    { name: "", bonus: "", dmg: "" },
+    { name: "", bonus: "", dmg: "" },
+    { name: "", bonus: "", dmg: "" }
+  ];
 };
 
 const dataToFormState = (data: any) => ({
@@ -87,18 +100,17 @@ const dataToFormState = (data: any) => ({
   notes: data?.notes || "",
   isDead: data?.isDead || false,
   isHidden: data?.isHidden || false,
-  s1: data?.spellSlots?.[1]?.toString() || "0",
-  s2: data?.spellSlots?.[2]?.toString() || "0",
-  s3: data?.spellSlots?.[3]?.toString() || "0",
-  s4: data?.spellSlots?.[4]?.toString() || "0",
-  s5: data?.spellSlots?.[5]?.toString() || "0",
-  s6: data?.spellSlots?.[6]?.toString() || "0",
-  s7: data?.spellSlots?.[7]?.toString() || "0",
-  s8: data?.spellSlots?.[8]?.toString() || "0",
-  s9: data?.spellSlots?.[9]?.toString() || "0",
   profBonus: data?.profBonus || "",
   saves: data?.saves || [],
   skills: data?.skills || [],
+  hasSpells: data?.hasSpells || false,
+  spellcastingAbility: (data?.spellcastingAbility || 'int') as "str" | "dex" | "con" | "int" | "wis" | "cha",
+  spellSlotType: (data?.spellSlotType || 'standard') as "pact" | "standard",
+  spellSlots: data?.spellSlots || {},
+  spellsKnown: data?.spellsKnown || [],
+  playerClass: data?.playerClass || "",
+  playerLevel: data?.playerLevel?.toString() || "1",
+  customClass: data?.customClass || ""
 });
 
 export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
@@ -107,15 +119,15 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
   
   // States for Original Form
   const [formState, setFormState] = useState(initialFormState);
-  const [hasSpells, setHasSpells] = useState(false);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
+  const [attacksState, setAttacksState] = useState<any[]>([]);
 
   // States for Transformation Form
   const [hasTransformation, setHasTransformation] = useState(false);
   const [isEditingTransformation, setIsEditingTransformation] = useState(false);
   const [transFormState, setTransFormState] = useState(initialFormState);
-  const [transHasSpells, setTransHasSpells] = useState(false);
   const [transAvatarBase64, setTransAvatarBase64] = useState<string | null>(null);
+  const [transAttacksState, setTransAttacksState] = useState<any[]>([]);
 
   // Stats arrays that aren't strings in formState
   const [selectedSaves, setSelectedSaves] = useState<string[]>([]);
@@ -134,12 +146,12 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       const { data, target } = e.detail;
       if (target === 'transformation') {
          setTransFormState(prev => ({ ...prev, ...dataToFormState(data) }));
-         if (data.hasSpells !== undefined) setTransHasSpells(data.hasSpells);
+         setTransAttacksState(dataToAttacks(data));
          if (data.saves) setTransSelectedSaves(data.saves);
          if (data.skills) setTransSelectedSkills(data.skills);
       } else {
          setFormState(prev => ({ ...prev, ...dataToFormState(data) }));
-         if (data.hasSpells !== undefined) setHasSpells(data.hasSpells);
+         setAttacksState(dataToAttacks(data));
          if (data.saves) setSelectedSaves(data.saves);
          if (data.skills) setSelectedSkills(data.skills);
       }
@@ -154,24 +166,24 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       
       if (activeData) {
         if (justOpened) {
-          setHasSpells(activeData.hasSpells || false);
           setAvatarBase64(activeData.image || null);
           setFormState(dataToFormState(activeData));
+          setAttacksState(dataToAttacks(activeData));
           setSelectedSaves(activeData.saves || []);
           setSelectedSkills(activeData.skills || []);
           
           if (activeData.transformation) {
             setHasTransformation(true);
-            setTransHasSpells(activeData.transformation.hasSpells || false);
             setTransAvatarBase64(activeData.transformation.image || null);
             setTransFormState(dataToFormState(activeData.transformation));
+            setTransAttacksState(dataToAttacks(activeData.transformation));
             setTransSelectedSaves(activeData.transformation.saves || []);
             setTransSelectedSkills(activeData.transformation.skills || []);
           } else {
             setHasTransformation(false);
-            setTransHasSpells(false);
             setTransAvatarBase64(null);
             setTransFormState(dataToFormState({ name: activeData.name + " (Transformado)" }));
+            setTransAttacksState(dataToAttacks({}));
             setTransSelectedSaves([]);
             setTransSelectedSkills([]);
           }
@@ -180,16 +192,16 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
         }
       } else {
         if (justOpened) {
-          setHasSpells(false);
           setAvatarBase64(null);
           setFormState(initialFormState);
+          setAttacksState(dataToAttacks({}));
           setSelectedSaves([]);
           setSelectedSkills([]);
 
           setHasTransformation(false);
-          setTransHasSpells(false);
           setTransAvatarBase64(null);
           setTransFormState(initialFormState);
+          setTransAttacksState(dataToAttacks({}));
           setTransSelectedSaves([]);
           setTransSelectedSkills([]);
           
@@ -205,8 +217,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
 
   // Use the active state depending on tab
   const activeState = isEditingTransformation ? transFormState : formState;
-  const activeHasSpells = isEditingTransformation ? transHasSpells : hasSpells;
   const activeAvatar = isEditingTransformation ? transAvatarBase64 : avatarBase64;
+  const activeAttacks = isEditingTransformation ? transAttacksState : attacksState;
   const activeSaves = isEditingTransformation ? transSelectedSaves : selectedSaves;
   const activeSkills = isEditingTransformation ? transSelectedSkills : selectedSkills;
 
@@ -221,14 +233,6 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       setTransFormState(prev => ({ ...prev, [name]: finalValue }));
     } else {
       setFormState(prev => ({ ...prev, [name]: finalValue }));
-    }
-  };
-
-  const handleHasSpellsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isEditingTransformation) {
-      setTransHasSpells(e.target.checked);
-    } else {
-      setHasSpells(e.target.checked);
     }
   };
 
@@ -272,7 +276,19 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     }
   };
 
-  const constructNpcObject = (state: typeof initialFormState, isSpells: boolean, imgBase: string | null, prevData: any, saves: string[], skills: string[]) => {
+  const handleAttackChange = (index: number, field: string, value: string) => {
+    if (isEditingTransformation) {
+      const newAttacks = [...transAttacksState];
+      newAttacks[index] = { ...newAttacks[index], [field]: value };
+      setTransAttacksState(newAttacks);
+    } else {
+      const newAttacks = [...attacksState];
+      newAttacks[index] = { ...newAttacks[index], [field]: value };
+      setAttacksState(newAttacks);
+    }
+  };
+
+  const constructNpcObject = (state: typeof initialFormState, imgBase: string | null, prevData: any, savesList: string[], skillsList: string[], attacksList: any[]) => {
     const hpMax = parseInt(state.hpMax) || 0;
     return {
       name: state.name,
@@ -296,7 +312,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       init: state.init,
       speed: state.speed,
       perc: state.perc || "",
-      mainAttack: state.mainAttack,
+      attacks: attacksList.filter(a => a.name || a.bonus || a.dmg),
+      mainAttack: state.mainAttack || (attacksList.filter(a => a.name || a.bonus || a.dmg).length > 0 ? attacksList.filter(a => a.name || a.bonus || a.dmg)[0].name : ""),
       res: state.res,
       imm: state.imm,
       actions: state.actions,
@@ -306,22 +323,18 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       itemsVis: state.itemsVis,
       itemsHid: state.itemsHid,
       notes: state.notes,
-      hasSpells: isSpells,
-      spellSlots: isSpells ? {
-        1: parseInt(state.s1) || 0,
-        2: parseInt(state.s2) || 0,
-        3: parseInt(state.s3) || 0,
-        4: parseInt(state.s4) || 0,
-        5: parseInt(state.s5) || 0,
-        6: parseInt(state.s6) || 0,
-        7: parseInt(state.s7) || 0,
-        8: parseInt(state.s8) || 0,
-        9: parseInt(state.s9) || 0,
-      } : undefined,
+      saves: savesList,
+      skills: skillsList,
+      hasSpells: state.hasSpells,
+      spellcastingAbility: state.spellcastingAbility,
+      spellSlotType: state.spellSlotType,
+      spellSlots: state.spellSlots,
       spellSlotsUsed: prevData?.spellSlotsUsed || {},
-      saves,
-      skills,
-      profBonus: state.profBonus || ""
+      spellsKnown: state.spellsKnown,
+      profBonus: state.profBonus || "",
+      playerClass: state.playerClass,
+      playerLevel: parseInt(state.playerLevel) || 1,
+      customClass: state.customClass
     };
   };
 
@@ -333,25 +346,30 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     // Original Form Data
     const npcData: Npc = {
       id,
-      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData, selectedSaves, selectedSkills),
+      ...constructNpcObject(formState, avatarBase64, activeData, selectedSaves, selectedSkills, attacksState),
       transformation: undefined,
       isTransformed: hasTransformation ? isEditingTransformation : false,
     } as Npc;
 
     // Transformation Data
     if (hasTransformation) {
-      npcData.transformation = constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills);
+      npcData.transformation = constructNpcObject(transFormState, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills, transAttacksState);
     }
 
     const newNpcs = [...(dadosGlobais.npcs || [])];
     if (activeData?.id) {
-      const idx = newNpcs.findIndex(n => n.id === id);
-      if (idx !== -1) newNpcs[idx] = { ...newNpcs[idx], ...npcData };
+      const idx = newNpcs.findIndex(n => n.id === activeData.id);
+      if (idx !== -1) {
+        newNpcs[idx] = { ...newNpcs[idx], ...npcData };
+      } else {
+        newNpcs.push(npcData);
+      }
     } else {
       newNpcs.push(npcData);
     }
 
     setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
+    window.dispatchEvent(new CustomEvent('sync_entity_to_combat', { detail: { entity: npcData, type: 'npc' } }));
     setTimeout(salvarEstadoLocal, 100);
     onClose();
     setTimeout(() => showAlert({ title: "Sucesso", message: "Alterações Salvas", type: "success" }), 200);
@@ -362,8 +380,8 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
     const currentActiveData = {
       id,
-      ...constructNpcObject(formState, hasSpells, avatarBase64, activeData, selectedSaves, selectedSkills),
-      transformation: hasTransformation ? constructNpcObject(transFormState, transHasSpells, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills) : undefined,
+      ...constructNpcObject(formState, avatarBase64, activeData, selectedSaves, selectedSkills, attacksState),
+      transformation: hasTransformation ? constructNpcObject(transFormState, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills, transAttacksState) : undefined,
       importTarget: isEditingTransformation ? 'transformation' : 'original'
     };
     setActiveData(currentActiveData);
@@ -463,9 +481,19 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                   <label>Alinhamento</label>
                   <input type="text" name="alignment" className="journey-input" value={activeState.alignment} onChange={handleChange} />
                 </div>
+              </div>
+              <div className="form-row mt-2">
                 <div className="form-group flex-1">
                   <label>ND / CR</label>
                   <input type="text" name="cr" className="journey-input" placeholder="Ex: 3" value={activeState.cr} onChange={handleChange} />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Nível (Oculto / Engine)</label>
+                  <input type="number" name="playerLevel" className="journey-input" value={activeState.playerLevel} onChange={handleChange} min="1" />
+                </div>
+                <div className="form-group flex-2">
+                  <label>Classe Base (Oculto / Engine)</label>
+                  <input type="text" name="playerClass" className="journey-input" placeholder="Ex: Fighter, Mage..." value={activeState.playerClass} onChange={handleChange} />
                 </div>
               </div>
 
@@ -487,19 +515,27 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                 <div className="form-group flex-1"><label>Deslocamento</label><input type="text" name="speed" className="journey-input" placeholder="Ex: 30 ft" value={activeState.speed} onChange={handleChange} /></div>
                 <div className="form-group flex-1"><label>Percepção</label><input type="text" name="perc" className="journey-input" placeholder="Ex: 14" value={activeState.perc} onChange={handleChange} /></div>
               </div>
+              
+              <h4 className="form-section-title mt-4">Ações e Ataques</h4>
               <div className="form-group mt-2">
-                <label>Ataque Principal (Resumo)</label>
+                <label>Ataques (Motor de Combate Automático)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  {activeAttacks.map((atk, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '10px' }}>
+                      <input type="text" className="journey-input" placeholder="Nome da Arma/Ataque" style={{ flex: 2 }} value={atk.name} onChange={(e) => handleAttackChange(i, 'name', e.target.value)} />
+                      <input type="text" className="journey-input" placeholder="Acerto (+5)" style={{ flex: 1 }} value={atk.bonus} onChange={(e) => handleAttackChange(i, 'bonus', e.target.value)} />
+                      <input type="text" className="journey-input" placeholder="Dano (1d8+3)" style={{ flex: 1 }} value={atk.dmg} onChange={(e) => handleAttackChange(i, 'dmg', e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group mt-3">
+                <label>Ataque Principal (Resumo / Texto Secundário)</label>
                 <input type="text" name="mainAttack" className="journey-input" placeholder="Ex: Punhal: +5 acerto, 1d4+3 perfurante" value={activeState.mainAttack} onChange={handleChange} />
               </div>
               
               <div className="form-row mt-4">
-                <div className="form-group flex-1">
-                  <label className="custom-checkbox">
-                    <input type="checkbox" checked={activeHasSpells} onChange={handleHasSpellsChange} />
-                    <span className="checkmark"></span>
-                    <span>Este NPC possui Espaços de Magia?</span>
-                  </label>
-                </div>
                 <div className="form-group flex-1">
                   <label className="custom-checkbox">
                     <input type="checkbox" name="isDead" checked={activeState.isDead} onChange={handleChange} />
@@ -515,20 +551,6 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                   </label>
                 </div>
               </div>
-              
-              {activeHasSpells && (
-                <div className="spell-slots-inputs mt-2">
-                  <div className="slot-field"><label>1º</label><input type="number" name="s1" min="0" value={activeState.s1} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>2º</label><input type="number" name="s2" min="0" value={activeState.s2} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>3º</label><input type="number" name="s3" min="0" value={activeState.s3} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>4º</label><input type="number" name="s4" min="0" value={activeState.s4} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>5º</label><input type="number" name="s5" min="0" value={activeState.s5} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>6º</label><input type="number" name="s6" min="0" value={activeState.s6} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>7º</label><input type="number" name="s7" min="0" value={activeState.s7} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>8º</label><input type="number" name="s8" min="0" value={activeState.s8} onChange={handleChange} /></div>
-                  <div className="slot-field"><label>9º</label><input type="number" name="s9" min="0" value={activeState.s9} onChange={handleChange} /></div>
-                </div>
-              )}
 
               <h4 className="form-section-title mt-4">Detalhes de Combate</h4>
               <div className="form-row">
@@ -588,6 +610,26 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                 <div className="form-group flex-1"><label>Itens Escondidos</label><textarea name="itemsHid" className="journey-input form-textarea" value={activeState.itemsHid} onChange={handleChange}></textarea></div>
               </div>
               <div className="form-group mt-2"><label>Notas do Mestre</label><textarea name="notes" className="journey-input form-textarea" style={{ minHeight: "120px" }} value={activeState.notes} onChange={handleChange}></textarea></div>
+
+              <h4 className="form-section-title mt-4">Magias</h4>
+              <SpellsSection
+                hasSpells={activeState.hasSpells}
+                onHasSpellsChange={(val) => handleChange({ target: { name: 'hasSpells', value: val, checked: val, type: 'checkbox' } } as any)}
+                spellcastingAbility={activeState.spellcastingAbility}
+                onAbilityChange={(val) => handleChange({ target: { name: 'spellcastingAbility', value: val } } as any)}
+                spellSlotType={activeState.spellSlotType}
+                onSlotTypeChange={(val) => handleChange({ target: { name: 'spellSlotType', value: val } } as any)}
+                spellSlots={activeState.spellSlots}
+                onSpellSlotsChange={(slots) => {
+                  if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellSlots: slots }));
+                  else setFormState(prev => ({ ...prev, spellSlots: slots }));
+                }}
+                spellsKnown={activeState.spellsKnown}
+                onSpellsKnownChange={(spells) => {
+                  if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellsKnown: spells }));
+                  else setFormState(prev => ({ ...prev, spellsKnown: spells }));
+                }}
+              />
             </div>
           </div>
         </form>

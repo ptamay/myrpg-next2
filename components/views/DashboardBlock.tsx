@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { blocosDeTempo } from "@/lib/gameData";
 import CelestialIcon from "../ui/CelestialIcon";
 import { useRouter } from "next/navigation";
+import RestModal from "../modals/RestModal";
 
 export default function DashboardBlock({ 
   diaAtual, 
@@ -23,6 +24,7 @@ export default function DashboardBlock({
   // error remived
   const router = useRouter();
   const [expandedPlayers, setExpandedPlayers] = useState<Record<string, boolean>>({});
+  const [restModalData, setRestModalData] = useState<{ player: any; totalSleepHours: number } | null>(null);
 
   const dadosGlobais = { players, npcs };
   const setDadosGlobais = (newObj: any) => {
@@ -66,26 +68,51 @@ export default function DashboardBlock({
 
   const bData = dayData.blocos[indiceBlocoAtivo];
 
-  const handleConcluirAcao = (e: React.MouseEvent, playerId: string, acaoId: number, isSleeping: boolean) => {
+  const handleConcluirAcao = (e: React.MouseEvent, playerId: string, acaoId: number, isSleepingFallback: boolean) => {
     e.stopPropagation();
-    if (!isGM) return; // Jogadores não podem concluir ações por enquanto (ou só do próprio char)
+    if (!isGM) return; 
     
     const newJornada = structuredClone(jornadaPorDia);
     const pSession = newJornada[diaAtual].blocos[indiceBlocoAtivo].playerSessions[playerId];
+    let isActionSleep = isSleepingFallback;
+    
     if (pSession && pSession.acoes) {
       const idx = pSession.acoes.findIndex((a: any) => typeof a === 'object' && a.id === acaoId);
       if (idx !== -1) {
          pSession.acoes[idx].concluida = true;
+         if (pSession.acoes[idx].type === 'Dormindo / Descanso' || pSession.acoes[idx].isSleep) {
+           isActionSleep = true;
+         }
       }
     }
     setJornadaPorDia(newJornada);
     
-    if (isSleeping) {
+    if (isActionSleep) {
        const newPlayers = [...dadosGlobais.players];
        const idx = newPlayers.findIndex(p => p.id === playerId);
        if(idx !== -1) {
          newPlayers[idx].isSleepingAction = false;
          setDadosGlobais({...dadosGlobais, players: newPlayers});
+
+         // Calculate new total sleep hours for this player
+         let totalSleepMinutes = 0;
+         if (newJornada[diaAtual] && newJornada[diaAtual].blocos) {
+           newJornada[diaAtual].blocos.forEach((b: any) => {
+             if (b.playerSessions && b.playerSessions[playerId]) {
+               (b.playerSessions[playerId].acoes || []).forEach((a: any) => {
+                 if (a && typeof a === 'object' && a.concluida) {
+                   if (a.type === 'Dormindo / Descanso' || a.isSleep === true) {
+                     totalSleepMinutes += (a.timeCost || 0);
+                   }
+                 }
+               });
+             }
+           });
+         }
+         const totalSleepHours = totalSleepMinutes / 60;
+         if (totalSleepHours >= 4) {
+           setRestModalData({ player: newPlayers[idx], totalSleepHours });
+         }
        }
     }
   };
@@ -879,6 +906,30 @@ export default function DashboardBlock({
           </>
         )}
       </div>
+      
+      {restModalData && (
+        <RestModal 
+          isOpen={true} 
+          onClose={() => setRestModalData(null)} 
+          player={restModalData.player} 
+          totalSleepHours={restModalData.totalSleepHours} 
+          onApplyRest={(updates) => {
+            const newPlayers = [...dadosGlobais.players];
+            const idx = newPlayers.findIndex(p => p.id === restModalData.player.id);
+            if (idx !== -1) {
+              newPlayers[idx] = { ...newPlayers[idx] };
+              if (updates.hpCurrent !== undefined) newPlayers[idx].hpCurrent = updates.hpCurrent;
+              if (updates.exhaustionLevel !== undefined) newPlayers[idx].exhaustionLevel = updates.exhaustionLevel;
+              if (updates.hdSpent !== undefined) newPlayers[idx].hdSpent = updates.hdSpent;
+              if (updates.spellSlotsUsed !== undefined) newPlayers[idx].spellSlotsUsed = updates.spellSlotsUsed;
+              if (updates.classResources !== undefined) newPlayers[idx].classResources = updates.classResources;
+              if (updates.shortRestTakenToday !== undefined) newPlayers[idx].shortRestTakenToday = updates.shortRestTakenToday;
+              
+              setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+            }
+          }} 
+        />
+      )}
     </div>
   );
 }

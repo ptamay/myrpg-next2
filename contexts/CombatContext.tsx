@@ -7,6 +7,7 @@ import { parseAC, parseSpeed, parseProfBonus } from '@/lib/dice/dnd5e';
 const generateId = () => Math.random().toString(36).substring(2, 15);
 import { useGameSync, SyncEvent } from '@/hooks/useGameSync';
 import { useUserSession } from '@/contexts/UserSessionContext';
+import { rollExpression, parseDiceExpression } from '@/lib/dice/rollParser';
 
 export interface CombatParticipant {
   type: 'player' | 'npc';
@@ -15,6 +16,7 @@ export interface CombatParticipant {
   image?: string;
   isTransformed: boolean;  
   originalName?: string;   
+  initMod: number;
   initiative: number;      
   hpCurrent: number;
   hpMax: number;
@@ -30,14 +32,42 @@ export interface CombatParticipant {
   str: number; dex: number; con: number;
   int: number; wis: number; cha: number;
   attacks: { name: string; bonus: string; dmg: string }[];
+  
+  // F4: Action Economy Tracker
+  actionSpent: boolean;
+  bonusActionSpent: boolean;
+  reactionSpent: boolean;
+  movementSpent: boolean;
+  
+  // F5: Extra Attack Tracking
+  attacksMade: number;
+  playerLevel?: number;
+  playerClass?: string;
+  cr?: string;         // ND do NPC (para cálculo de multiataque por CR)
+  flurryUsed: boolean; // Monge: Chuva de Golpes usada neste turno
 }
+
+export type LogEntryType = 'attack' | 'damage' | 'critical' | 'crit_fail' | 'initiative' | 'system' | 'heal';
 
 export interface CombatLogEntry {
   id: string;
   round: number;
   actorName: string;
-  action: string;         
+  action: string;
+  type?: LogEntryType;
   timestamp: string;
+}
+
+export interface RollFeedbackEvent {
+  id: string;
+  type: 'attack' | 'damage' | 'check';
+  result: number;
+  total: number;
+  isCritical: boolean;
+  isCritFail: boolean;
+  actorName: string;
+  formula: string;
+  timestamp: number;
 }
 
 export interface CombatSession {
@@ -47,6 +77,8 @@ export interface CombatSession {
   currentTurnIndex: number;
   participants: CombatParticipant[];
   log: CombatLogEntry[];
+  latestRollEvent?: RollFeedbackEvent;
+  selectedTargetId?: string | null;
 }
 
 export interface CombatContextValue {
@@ -60,8 +92,11 @@ export interface CombatContextValue {
   removeCondition: (participantId: string, condition: string) => void;
   setInitiative: (participantId: string, value: number) => void;
   broadcastCombatState: () => void;
-  addToLog: (action: string, actorName?: string) => void;
+  addToLog: (action: string, actorName?: string, type?: LogEntryType) => void;
   updateParticipant: (participantId: string, updates: Partial<CombatParticipant>) => void;
+  triggerRollEvent: (event: Omit<RollFeedbackEvent, 'id' | 'timestamp'>) => void;
+  setTarget: (participantId: string | null) => void;
+  clearLog: () => void;
 }
 
 const CombatContext = createContext<CombatContextValue | undefined>(undefined);
@@ -88,6 +123,7 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     image: activeForm.image,
     isTransformed: entity.isTransformed || false,
     originalName: entity.isTransformed ? entity.name : undefined,
+    initMod: parseInt((entity.init || "0").replace(/\+/g, ''), 10) || 0,
     initiative: 0, 
     hpCurrent: activeForm.hpCurrent ?? activeForm.hpMax ?? 0,
     hpMax: activeForm.hpMax ?? 0,
@@ -107,35 +143,106 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     con: parseInt(activeForm.con as any) || 10, int: parseInt(activeForm.int as any) || 10,
     wis: parseInt(activeForm.wis as any) || 10, cha: parseInt(activeForm.cha as any) || 10,
     attacks: Array.isArray((activeForm as Player).attacks) ? (activeForm as Player).attacks : [],
+    actionSpent: false,
+    bonusActionSpent: false,
+    reactionSpent: false,
+    movementSpent: false,
+    attacksMade: 0,
+    playerLevel: (entity as Player).playerLevel ?? (entity as Npc).playerLevel,
+    playerClass: (entity as Player).playerClass || (entity as Player).classLevel?.split(' ')[0] || (entity as Npc).playerClass,
+    cr: type === 'npc' ? (entity as Npc).cr : undefined,
+    flurryUsed: false,
   };
 }
 
 export function CombatProvider({ children }: { children: React.ReactNode }) {
   const [combat, setCombat] = useState<CombatSession | null>(null);
-  const { isGM } = useUserSession();
-
-  useEffect(() => {
-    const handleSync = (e: any) => {
-      setCombat(e.detail as CombatSession);
-    };
-    window.addEventListener('sync_combat_update', handleSync);
-    return () => window.removeEventListener('sync_combat_update', handleSync);
-  }, []);
+  const { isGM, profile } = useUserSession();
 
   const broadcastCombatState = async (newState: CombatSession | null = combat) => {
-    if (!isGM) return; // Only GM broadcasts combat state
     window.dispatchEvent(new CustomEvent('send_broadcast', { 
       detail: { type: 'combat_update', payload: newState } 
     }));
   };
 
+  useEffect(() => {
+    const handleSync = (e: any) => {
+      setCombat(e.detail as CombatSession);
+    };
+    
+    const handleSyncEntity = (e: any) => {
+      const { entity, type } = e.detail;
+      setCombat(prev => {
+        if (!prev) return prev;
+        const pIndex = prev.participants.findIndex(p => p.refId === entity.id);
+        if (pIndex === -1) return prev;
+        
+        const newBase = toCombatParticipant(entity, type);
+        const oldP = prev.participants[pIndex];
+        
+        const newParticipants = [...prev.participants];
+        newParticipants[pIndex] = {
+          ...newBase,
+          hpCurrent: oldP.hpCurrent,
+          initiative: oldP.initiative,
+          actionSpent: oldP.actionSpent,
+          bonusActionSpent: oldP.bonusActionSpent,
+          reactionSpent: oldP.reactionSpent,
+          movementSpent: oldP.movementSpent,
+          attacksMade: oldP.attacksMade,
+          flurryUsed: oldP.flurryUsed,
+          isDead: oldP.isDead
+        };
+        
+        const newCombat = { ...prev, participants: newParticipants };
+        broadcastCombatState(newCombat);
+        return newCombat;
+      });
+    };
+
+    window.addEventListener('sync_combat_update', handleSync);
+    window.addEventListener('sync_entity_to_combat', handleSyncEntity);
+    return () => {
+      window.removeEventListener('sync_combat_update', handleSync);
+      window.removeEventListener('sync_entity_to_combat', handleSyncEntity);
+    };
+  }, []);
+
   const startCombat = (players: Player[], npcs: Npc[]) => {
     try {
       if (!isGM) return;
-      const participants = [
+      const baseParticipants = [
         ...players.map(p => toCombatParticipant(p, 'player')),
         ...npcs.map(n => toCombatParticipant(n, 'npc'))
       ];
+
+      const initialLog: CombatLogEntry[] = [];
+
+      const participants = baseParticipants.map(p => {
+        // Init modifier is DEX mod + any custom parseable init from the entity
+        // p.init doesn't exist directly on CombatParticipant, we need the original entity.
+        // Wait, toCombatParticipant maps it to initiative: 0. 
+        // Let's calculate the dex modifier:
+        const dexMod = Math.floor((p.dex - 10) / 2);
+        
+        // roll 1d20 + dexMod + custom initMod
+        const totalMod = dexMod + p.initMod;
+        const rollResult = rollExpression(`1d20+${totalMod}`);
+        p.initiative = rollResult.total;
+
+        initialLog.push({
+          id: generateId(),
+          round: 1,
+          actorName: 'Sistema',
+          action: `🎲 ${p.name} rolou iniciativa ${p.initiative} (d20: ${rollResult.rolls[0]} | Mod: ${totalMod >= 0 ? '+' : ''}${totalMod})`,
+          timestamp: new Date().toISOString()
+        });
+
+        return p;
+      });
+
+      // Sort by initiative descending
+      participants.sort((a, b) => b.initiative - a.initiative);
 
       const newCombat: CombatSession = {
         id: generateId(),
@@ -143,13 +250,16 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         round: 1,
         currentTurnIndex: 0,
         participants,
-        log: [{
-          id: generateId(),
-          round: 1,
-          actorName: 'Sistema',
-          action: 'O combate começou!',
-          timestamp: new Date().toISOString()
-        }]
+        log: [
+          {
+            id: generateId(),
+            round: 1,
+            actorName: 'Sistema',
+            action: 'O combate começou!',
+            timestamp: new Date().toISOString()
+          },
+          ...initialLog
+        ]
       };
       
       setCombat(newCombat);
@@ -173,7 +283,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const nextTurn = () => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     let nextIndex = combat.currentTurnIndex + 1;
     let nextRound = combat.round;
     if (nextIndex >= combat.participants.length) {
@@ -181,23 +291,33 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       nextRound += 1;
     }
     
-    const newCombat = { ...combat, currentTurnIndex: nextIndex, round: nextRound };
+    // F4: Reset action economy for the incoming participant
+    const incomingParticipantId = combat.participants[nextIndex].refId;
+    const newParticipants = combat.participants.map(p => 
+      p.refId === incomingParticipantId 
+        ? { ...p, actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: false, attacksMade: 0, flurryUsed: false } 
+        : p
+    );
+    
+    const newCombat = { ...combat, currentTurnIndex: nextIndex, round: nextRound, participants: newParticipants };
     setCombat(newCombat);
     broadcastCombatState(newCombat);
   };
 
   const updateParticipant = (participantId: string, updates: Partial<CombatParticipant>) => {
-    if (!combat || !isGM) return;
-    const newParticipants = combat.participants.map(p => 
-      p.refId === participantId ? { ...p, ...updates } : p
-    );
-    const newCombat = { ...combat, participants: newParticipants };
-    setCombat(newCombat);
-    broadcastCombatState(newCombat);
+    setCombat(prev => {
+      if (!prev) return prev;
+      const newParticipants = prev.participants.map(p => 
+        p.refId === participantId ? { ...p, ...updates } : p
+      );
+      const newCombat = { ...prev, participants: newParticipants };
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
   };
 
   const applyDamage = (participantId: string, amount: number) => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
 
@@ -217,7 +337,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const applyHeal = (participantId: string, amount: number) => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
 
@@ -226,7 +346,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addCondition = (participantId: string, condition: string) => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
     if (!p.conditions.includes(condition)) {
@@ -235,7 +355,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeCondition = (participantId: string, condition: string) => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
     updateParticipant(participantId, { conditions: p.conditions.filter(c => c !== condition) });
@@ -252,18 +372,63 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     broadcastCombatState(newCombat);
   };
 
-  const addToLog = (action: string, actorName: string = 'Sistema') => {
+  const addToLog = (action: string, actorName: string = 'Sistema', type: 'attack'|'damage'|'critical'|'crit_fail'|'initiative'|'system'|'heal' = 'system') => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const newEntry: CombatLogEntry = {
+        id: generateId(),
+        round: prev.round,
+        actorName,
+        action,
+        type,
+        timestamp: new Date().toISOString()
+      };
+      const newCombat = { ...prev, log: [newEntry, ...prev.log] };
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
+  };
+
+  const triggerRollEvent = (event: Omit<RollFeedbackEvent, 'id' | 'timestamp'>) => {
     if (!combat || !isGM) return;
-    const entry: CombatLogEntry = {
+    const newEvent: RollFeedbackEvent = {
+      ...event,
       id: generateId(),
-      round: combat.round,
-      actorName,
-      action,
-      timestamp: new Date().toISOString()
+      timestamp: Date.now()
     };
-    const newCombat = { ...combat, log: [entry, ...combat.log].slice(0, 50) };
+    const newCombat = { ...combat, latestRollEvent: newEvent };
     setCombat(newCombat);
     broadcastCombatState(newCombat);
+  };
+
+  const setTarget = (participantId: string | null) => {
+    if (!combat) return;
+
+    if (!isGM) {
+      const activeParticipant = combat.participants[combat.currentTurnIndex];
+      const isMyTurn = activeParticipant && activeParticipant.type === 'player' && activeParticipant.refId === profile?.player_id;
+      if (!isMyTurn) {
+        console.warn("Targeting locked: It is not your turn.");
+        return; // Only GM can target outside of their turn
+      }
+    }
+
+    const newCombat = { ...combat, selectedTargetId: participantId };
+    setCombat(newCombat);
+    
+    // We send a broadcast so everyone sees the target lock.
+    window.dispatchEvent(new CustomEvent('send_broadcast', { 
+      detail: { type: 'combat_update', payload: newCombat } 
+    }));
+  };
+
+  const clearLog = () => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const newCombat = { ...prev, log: [] };
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
   };
 
   return (
@@ -279,7 +444,10 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       setInitiative,
       broadcastCombatState,
       addToLog,
-      updateParticipant
+      updateParticipant,
+      triggerRollEvent,
+      setTarget,
+      clearLog
     }}>
       {children}
     </CombatContext.Provider>

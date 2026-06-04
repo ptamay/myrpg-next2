@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import GlobalScripts from '@/components/GlobalScripts'
 import './styles/globals.css'
+import './styles/combat.css'
 import './styles/base.css'
 import './styles/components.css'
 import './styles/dashboard.css'
@@ -13,6 +14,7 @@ import './styles/modals.css'
 import './styles/blocks.css'
 import './styles/quests-weather.css'
 import './styles/sidebar.css'
+import './styles/dicewidget.css'
 
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800'] })
 export const metadata: Metadata = { title: 'MyRPG' }

@@ -6,7 +6,7 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "@/components/ui/HpInlineEditor";
 
 export default function CombatTracker() {
-  const { combat, nextTurn, endCombat, applyDamage, applyHeal, setInitiative, addCondition, removeCondition, addToLog, updateParticipant } = useCombat();
+  const { combat, nextTurn, endCombat, applyDamage, applyHeal, setInitiative, addCondition, removeCondition, addToLog, updateParticipant, clearLog } = useCombat();
   const { isGM } = useUserSession();
   
   const [initInputs, setInitInputs] = useState<Record<string, string>>({});
@@ -181,8 +181,18 @@ export default function CombatTracker() {
 
         {/* Sidebar: Combat Log */}
         <div className="glass-panel" style={{ width: "350px", borderLeft: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "1rem", borderBottom: "1px solid rgba(255,255,255,0.1)", fontWeight: "bold" }}>
-            Registro de Combate
+          <div style={{ padding: "1rem", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: "bold" }}>Registro de Combate</span>
+            {isGM && (
+              <button 
+                className="btn secondary-btn" 
+                style={{ fontSize: "0.7rem", padding: "4px 8px" }}
+                onClick={clearLog}
+                title="Limpar Histórico"
+              >
+                🧹 Limpar
+              </button>
+            )}
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {(combat.log || []).map(entry => (

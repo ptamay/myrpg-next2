@@ -5,11 +5,17 @@ export interface ActiveBuff {
   effects: {
     acBonus?: number;
     speedBonus?: number;
+    attackBonus?: number;
+    damageBonus?: number;
+    savingThrowBonus?: number;
     darkvision?: number;
-    advantage?: string[];    // ex: ['STR_save', 'DEX_check']
+    advantage?: string[];
+    disadvantage?: string[];
     resistance?: string[];
+    immunity?: string[];
     custom?: string;
   };
   duration: 'combat' | 'short_rest' | 'long_rest' | 'permanent' | number;
+  durationRounds?: number;
   appliedAt?: string;
 }

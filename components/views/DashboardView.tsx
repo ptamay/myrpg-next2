@@ -88,8 +88,8 @@ export default function DashboardView() {
   };
 
   const totalDays = useMemo(() => {
-    const maxDayInJornada = Object.keys(jornadaPorDia).length > 0 ? Math.max(...Object.keys(jornadaPorDia).map(Number)) : 0;
-    return Math.max(6, diaAtual, maxDayInJornada);
+    const maxDayInJornada = Object.keys(jornadaPorDia).length > 0 ? Math.max(...Object.keys(jornadaPorDia).map(Number)) : 1;
+    return Math.max(diaAtual, maxDayInJornada);
   }, [jornadaPorDia, diaAtual]);
 
   const daysArray = useMemo(() => {
@@ -116,6 +116,25 @@ export default function DashboardView() {
     });
   };
 
+  const handleRemoveDay = async () => {
+    if (totalDays <= 5) {
+      await showAlert({ title: "Remover Dia", message: "É necessário manter pelo menos 5 dias na campanha.", type: "warning" });
+      return;
+    }
+    
+    if (await showConfirm({ title: "Remover Último Dia", message: `Tem certeza que deseja remover o Dia ${totalDays}? Todos os dados deste dia serão perdidos permanentemente.`, type: "danger" })) {
+      setJornadaPorDia((prev: any) => {
+        const updated = { ...prev };
+        delete updated[totalDays];
+        return updated;
+      });
+      if (diaAtual === totalDays) {
+        setDiaAtual(totalDays - 1);
+        setIndiceBlocoAtivo(0);
+      }
+    }
+  };
+
   const hasData = Object.keys(jornadaPorDia).length > 0;
   const isFirstLoad = (campLoading || npcsLoading || playersLoading) && !hasData;
 
@@ -140,15 +159,40 @@ export default function DashboardView() {
                 <button
                   key={d}
                   className={`day-btn ${d === diaAtual ? "active" : ""} ${!isGM ? "disabled" : ""}`}
-                  onClick={() => isGM && setDiaAtual(d)}
+                  onClick={() => {
+                    if (isGM) {
+                      setJornadaPorDia((prev: any) => {
+                        const updated = { ...prev };
+                        if (!updated[d]) {
+                          const initial = getInitialJornada();
+                          updated[d] = initial[1];
+                          const lastKnownWeather = prev[d - 1]?.blocos?.[0]?.weatherEffect || "clear";
+                          if (updated[d].blocos) {
+                            updated[d].blocos.forEach((b: any) => {
+                              b.weatherEffect = lastKnownWeather;
+                            });
+                          }
+                        }
+                        return updated;
+                      });
+                      setDiaAtual(d);
+                    }
+                  }}
                 >
                   {d}
                 </button>
               ))}
               {isGM && (
-                <button className="day-btn add-day-btn" onClick={handleAddDay} title="Adicionar Dia Extra">
-                  +
-                </button>
+                <>
+                  {totalDays > 5 && (
+                    <button className="day-btn add-day-btn" onClick={handleRemoveDay} title="Remover Último Dia">
+                      -
+                    </button>
+                  )}
+                  <button className="day-btn add-day-btn" onClick={handleAddDay} title="Adicionar Dia Extra">
+                    +
+                  </button>
+                </>
               )}
             </div>
           </div>

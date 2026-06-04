@@ -42,6 +42,15 @@ export function mapNpcToDB(npc: Npc, campaignId: string) {
     image_url: npc.image || null,
     transformation: npc.transformation || null,
     is_transformed: npc.isTransformed || false,
+    spellcasting_ability: npc.spellcastingAbility || 'int',
+    spell_slot_type: npc.spellSlotType || 'standard',
+    spells_known: npc.spellsKnown || [],
+    class_resources: npc.classResources || [],
+    attacks: npc.attacks || [],
+    player_class: npc.playerClass || '',
+    player_level: npc.playerLevel || 1,
+    custom_class: npc.customClass || '',
+    expertise_skills: npc.expertiseSkills || [],
     temp_hp: npc.tempHp || 0,
     temp_ac: npc.tempAc || 0,
     temp_res: npc.tempRes || [],
@@ -86,6 +95,15 @@ export function mapDBToNpc(row: any): Npc {
     hasSpells: row.has_spells,
     spellSlots: row.spell_slots || {},
     spellSlotsUsed: row.spell_slots_used || {},
+    spellcastingAbility: row.spellcasting_ability || 'int',
+    spellSlotType: row.spell_slot_type || 'standard',
+    spellsKnown: row.spells_known || [],
+    classResources: row.class_resources || [],
+    attacks: row.attacks || [],
+    playerClass: row.player_class || '',
+    playerLevel: row.player_level || 1,
+    customClass: row.custom_class || '',
+    expertiseSkills: row.expertise_skills || [],
     isDead: row.is_dead,
     isHidden: row.is_hidden,
     image: row.image_url,
@@ -144,7 +162,17 @@ export function mapPlayerToDB(player: Player, campaignId: string) {
     temp_hp: player.tempHp || 0,
     conditions: player.conditions || [],
     active_buffs: player.activeBuffs || [],
-    sleep_hours_today: player.sleepHoursToday || 0
+    sleep_hours_today: player.sleepHoursToday || 0,
+    has_spells: player.hasSpells || false,
+    spellcasting_ability: player.spellcastingAbility || 'int',
+    spell_slot_type: player.spellSlotType || 'standard',
+    spell_slots: player.spellSlots || {},
+    spell_slots_used: player.spellSlotsUsed || {},
+    spells_known: player.spellsKnown || [],
+    class_resources: player.classResources || [],
+    expertise_skills: player.expertiseSkills || [],
+    custom_class: player.customClass || '',
+    short_rest_taken_today: player.shortRestTakenToday || false
   };
 }
 
@@ -189,6 +217,16 @@ export function mapDBToPlayer(row: any): Player {
     tempHp: row.temp_hp || 0,
     conditions: row.conditions || [],
     activeBuffs: row.active_buffs || [],
-    sleepHoursToday: row.sleep_hours_today || 0
+    sleepHoursToday: row.sleep_hours_today || 0,
+    hasSpells: row.has_spells || false,
+    spellcastingAbility: row.spellcasting_ability || 'int',
+    spellSlotType: row.spell_slot_type || 'standard',
+    spellSlots: row.spell_slots || {},
+    spellSlotsUsed: row.spell_slots_used || {},
+    spellsKnown: row.spells_known || [],
+    classResources: row.class_resources || [],
+    expertiseSkills: row.expertise_skills || [],
+    customClass: row.custom_class || '',
+    shortRestTakenToday: row.short_rest_taken_today || false
   };
 }

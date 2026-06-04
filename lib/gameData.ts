@@ -1,4 +1,32 @@
 import { ActiveBuff } from "./types/buffs";
+import { ClassFeature } from "./constants/dnd5eClasses";
+
+export interface SpellEntry {
+  id: string;
+  name: string;
+  level: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  school: string;
+  castingTime: string;
+  range: string;
+  components: string;
+  duration: string;
+  isConcentration: boolean;
+  isRitual: boolean;
+  description: string;
+  damageDice?: string;
+  damageType?: string;
+  savingThrow?: string;
+  spellAttack?: boolean;
+  higherLevel?: string;
+}
+
+export interface ClassResource {
+  id: string;
+  name: string;
+  current: number;
+  max: number;
+  resetOn: 'short' | 'long' | 'other';
+}
 
 export const personagens = ['Kronodyr', 'Alric', 'Marop', 'Vynik'];
 
@@ -52,6 +80,18 @@ export interface Player {
   inventory?: string;
   transformation?: Partial<Player>;
   isTransformed?: boolean;
+  expertiseSkills?: string[];
+  classFeatures?: ClassFeature[];
+  customClass?: string;
+  hasSpells?: boolean;
+  spellcastingAbility?: 'str'|'dex'|'con'|'int'|'wis'|'cha';
+  spellSlotType?: 'standard' | 'pact';
+  spellSlots?: Record<number, number>;
+  spellSlotsUsed?: Record<number, number>;
+  spellsKnown?: SpellEntry[];
+  classResources?: ClassResource[];
+  shortRestTakenToday?: boolean;
+  hdSpent?: number;
 }
 
 export interface Npc {
@@ -99,6 +139,18 @@ export interface Npc {
   image?: string;
   transformation?: Partial<Npc>;
   isTransformed?: boolean;
+  spellcastingAbility?: 'str'|'dex'|'con'|'int'|'wis'|'cha';
+  spellSlotType?: 'standard' | 'pact';
+  spellsKnown?: SpellEntry[];
+  classResources?: ClassResource[];
+  
+  // Phase 5.7: Unificação com Player
+  playerClass?: string;
+  playerLevel?: number;
+  attacks?: { name: string; bonus: string; dmg: string }[];
+  expertiseSkills?: string[];
+  classFeatures?: ClassFeature[];
+  customClass?: string;
 }
 
 export interface GlobalData {

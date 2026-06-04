@@ -1,49 +1,167 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
-import { useGameSync } from "@/hooks/useGameSync";
-import { useCombat } from "@/contexts/CombatContext";
 import {
   rollDie,
   rollWithAdvantage,
   rollWithDisadvantage,
   RollResult,
+  parseProfBonus
 } from "@/lib/dice/dnd5e";
+import { SKILLS_MAP, SAVES_MAP } from "@/lib/constants/dnd5e";
+
 const generateId = () => Math.random().toString(36).substring(2, 15);
+
+function CustomSelect({ value, onChange, options, disabled = false, className = "", placeholder = "Selecione..." }: any) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getLabel = (val: string) => {
+    for (const opt of options) {
+      if (opt.group) {
+        const found = opt.items.find((i: any) => i.value === val);
+        if (found) return found.label;
+      } else {
+        if (opt.value === val) return opt.label;
+      }
+    }
+    return placeholder;
+  };
+
+  return (
+    <div ref={ref} className={`custom-select-wrapper ${className}`} style={{ position: "relative", width: "100%", opacity: disabled ? 0.7 : 1, pointerEvents: disabled ? "none" : "auto" }}>
+      <div 
+        onClick={() => setOpen(!open)}
+        style={{ 
+          background: "rgba(0,0,0,0.4)", 
+          border: "1px solid rgba(255,255,255,0.1)", 
+          borderRadius: "6px", 
+          padding: "8px 12px", 
+          cursor: "pointer", 
+          color: "white", 
+          fontSize: "0.8rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          userSelect: "none"
+        }}
+      >
+          <span style={{ 
+            overflow: "hidden", 
+            textOverflow: "ellipsis", 
+            whiteSpace: "nowrap",
+            fontWeight: getLabel(value) !== placeholder ? "bold" : "normal",
+            color: getLabel(value) !== placeholder ? "#ffffff" : "var(--accent-primary)",
+            textTransform: getLabel(value) === placeholder ? "uppercase" : "none",
+            letterSpacing: getLabel(value) === placeholder ? "1px" : "normal"
+          }}>
+            {getLabel(value)}
+          </span>
+          <span style={{ fontSize: "0.6rem", opacity: 0.5, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>▼</span>
+      </div>
+      
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          right: 0,
+          marginTop: "4px",
+          background: "rgba(20, 20, 30, 0.95)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "6px",
+          maxHeight: "220px",
+          overflowY: "auto",
+          zIndex: 9999,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.8)"
+        }}>
+          {options.map((opt: any, i: number) => {
+            if (opt.group) {
+              return (
+                <div key={i}>
+                  <div style={{ padding: "6px 12px", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--accent-primary)", fontWeight: "bold", background: "rgba(0,0,0,0.3)" }}>
+                    {opt.group}
+                  </div>
+                  {opt.items.map((item: any) => (
+                    <div 
+                      key={item.value}
+                      onClick={() => { onChange(item.value); setOpen(false); }}
+                      style={{ padding: "8px 16px", fontSize: "0.8rem", cursor: "pointer", color: value === item.value ? "white" : "var(--text-muted)", background: value === item.value ? "rgba(255,255,255,0.1)" : "transparent" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = value === item.value ? "rgba(255,255,255,0.1)" : "transparent"}
+                    >
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+            return (
+              <div 
+                key={opt.value}
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                style={{ padding: "8px 12px", fontSize: "0.8rem", cursor: "pointer", color: value === opt.value ? "white" : "var(--text-muted)", background: value === opt.value ? "rgba(255,255,255,0.1)" : "transparent" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = value === opt.value ? "rgba(255,255,255,0.1)" : "transparent"}
+              >
+                {opt.label}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type DiceType = "d4" | "d6" | "d8" | "d10" | "d12" | "d20" | "d100";
 type AdvantageType = "normal" | "advantage" | "disadvantage";
-type RollCategory = "attack" | "damage" | "ability" | "save" | "initiative" | "custom";
-type VisibilityType = "public" | "private" | "gm";
+type SkinType = "fire" | "arcane" | "minimal";
+type AnimState = "idle" | "spinning" | "scrambling" | "revealing";
+
+import { useApp } from "@/contexts/AppContext";
 
 export default function DiceWidget() {
   const { session, isGM } = useUserSession();
   const { dadosGlobais } = useApp();
-  const { combat, applyDamage, addToLog } = useCombat();
-
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Refs for Dragging (no re-renders on move)
+  const [isGhost, setIsGhost] = useState(false);
+  const [skin, setSkin] = useState<SkinType>("fire");
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  // Dragging State
   const widgetRef = useRef<HTMLDivElement>(null);
   const pos = useRef({ x: 20, y: 80 });
   const isDragging = useRef(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
 
   // Roll State
   const [selectedDie, setSelectedDie] = useState<DiceType>("d20");
   const [advantage, setAdvantage] = useState<AdvantageType>("normal");
-  const [rollCategory, setRollCategory] = useState<RollCategory>("custom");
   const [customModifier, setCustomModifier] = useState<string>("0");
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string>("");
-  const [targetId, setTargetId] = useState<string>("");
-  const [visibility, setVisibility] = useState<VisibilityType>("public");
+  const [animState, setAnimState] = useState<AnimState>("idle");
+  const [displayNumber, setDisplayNumber] = useState<string | number>("");
+
+  const [selectedCharId, setSelectedCharId] = useState<string>("custom");
+  const [selectedSkill, setSelectedSkill] = useState<string>("custom");
 
   const [lastRoll, setLastRoll] = useState<RollResult | null>(null);
   const [rollHistory, setRollHistory] = useState<RollResult[]>([]);
-  const [isRolling, setIsRolling] = useState(false);
+  const [showCritModal, setShowCritModal] = useState(false);
+  const [showFailModal, setShowFailModal] = useState(false);
 
+  // Initialize from LocalStorage / SessionStorage
   useEffect(() => {
     const savedPos = localStorage.getItem("dice-widget-pos");
     if (savedPos) {
@@ -55,6 +173,9 @@ export default function DiceWidget() {
 
     const savedState = localStorage.getItem("dice-widget-state");
     if (savedState === "open") setIsOpen(true);
+
+    const savedSkin = localStorage.getItem("dice-widget-skin") as SkinType;
+    if (savedSkin) setSkin(savedSkin);
     
     const savedHistory = sessionStorage.getItem("dice-roll-history");
     if (savedHistory) {
@@ -64,10 +185,19 @@ export default function DiceWidget() {
     }
   }, []);
 
-  const clearHistory = () => {
-    setRollHistory([]);
-    sessionStorage.removeItem("dice-roll-history");
-  };
+  // Lock Character for Players
+  useEffect(() => {
+    if (!isGM && session?.playerId) {
+      setSelectedCharId(session.playerId);
+    }
+  }, [isGM, session?.playerId]);
+
+  // Update position CSS variable when opened
+  useEffect(() => {
+    if (isOpen && widgetRef.current) {
+      widgetRef.current.style.transform = `translate(${pos.current.x}px, ${pos.current.y}px)`;
+    }
+  }, [isOpen]);
 
   const toggleWidget = () => {
     const nextState = !isOpen;
@@ -75,31 +205,60 @@ export default function DiceWidget() {
     localStorage.setItem("dice-widget-state", nextState ? "open" : "closed");
   };
 
+  const changeSkin = (newSkin: SkinType) => {
+    setSkin(newSkin);
+    localStorage.setItem("dice-widget-skin", newSkin);
+  };
+
+  const clearHistory = () => {
+    setRollHistory([]);
+    sessionStorage.removeItem("dice-roll-history");
+  };
+
+  // --- Drag Logic ---
   const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest("button, select, input")) return;
+    if ((e.target as HTMLElement).closest("button, input, select, .no-drag")) return;
     isDragging.current = true;
-    dragStartPos.current = { x: e.clientX - pos.current.x, y: e.clientY - pos.current.y };
+    hasDragged.current = false;
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleWidgetClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (hasDragged.current) return;
+    toggleWidget();
   };
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging.current || !widgetRef.current) return;
       
-      const newX = e.clientX - dragStartPos.current.x;
-      const newY = e.clientY - dragStartPos.current.y;
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
       
-      // Keep within bounds
-      const boundedX = Math.max(0, Math.min(newX, window.innerWidth - 300));
-      const boundedY = Math.max(0, Math.min(newY, window.innerHeight - 50));
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasDragged.current = true;
+      }
       
-      pos.current = { x: boundedX, y: boundedY };
+      const newX = pos.current.x + dx;
+      const newY = pos.current.y + dy;
+      
+      const boundedX = Math.max(0, Math.min(newX, window.innerWidth - (isOpen ? 280 : 60)));
+      const boundedY = Math.max(0, Math.min(newY, window.innerHeight - (isOpen ? 400 : 60)));
+      
       widgetRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px)`;
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = (e: MouseEvent) => {
       if (isDragging.current) {
         isDragging.current = false;
-        localStorage.setItem("dice-widget-pos", JSON.stringify(pos.current));
+        if (hasDragged.current && widgetRef.current) {
+          const match = widgetRef.current.style.transform.match(/translate\(([^p]+)px,\s*([^p]+)px\)/);
+          if (match) {
+            pos.current = { x: parseFloat(match[1]), y: parseFloat(match[2]) };
+            localStorage.setItem("dice-widget-pos", JSON.stringify(pos.current));
+          }
+        }
       }
     };
 
@@ -109,356 +268,403 @@ export default function DiceWidget() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
-  }, []);
+  }, [isOpen]);
 
-  // Context Selection options
-  const characters = [
-    ...(dadosGlobais.players || []).map((p: any) => ({ id: p.id, name: p.name, type: 'player' })),
-    ...(dadosGlobais.npcs || []).map((n: any) => ({ id: n.id, name: n.name, type: 'npc' }))
-  ];
-
-  const activeCharacter = characters.find(c => c.id === selectedCharacterId) || 
-                          characters.find(c => c.id === session?.playerId);
-
-  const getActiveCharacterName = () => {
-    if (activeCharacter) return activeCharacter.name;
-    if (isGM) return "Mestre";
-    return (session as any)?.playerName || "Jogador";
-  };
-
-  const handleRoll = async () => {
-    if (isRolling) return;
-    setIsRolling(true);
+  // --- Roll Logic ---
+  const handleRoll = () => {
+    if (animState !== "idle") return;
+    setAnimState("spinning");
+    setDisplayNumber("");
+    setShowCritModal(false);
+    setShowFailModal(false);
 
     const sides = parseInt(selectedDie.replace("d", ""));
     const mod = parseInt(customModifier) || 0;
 
-    setTimeout(async () => {
-      let result = 0;
-    let rolls: number[] = [];
+    // FASE 1: Spin (600ms)
+    setTimeout(() => {
+      setAnimState("scrambling");
 
-    if (advantage === "advantage") {
-      const advRoll = rollWithAdvantage(sides);
-      result = advRoll.result;
-      rolls = advRoll.rolls;
-    } else if (advantage === "disadvantage") {
-      const disRoll = rollWithDisadvantage(sides);
-      result = disRoll.result;
-      rolls = disRoll.rolls;
-    } else {
-      const r = rollDie(sides);
-      result = r;
-      rolls = [r];
-    }
+      let scrambleInterval = setInterval(() => {
+        setDisplayNumber(Math.floor(Math.random() * sides) + 1);
+      }, 50);
 
-    const isCritical = selectedDie === "d20" && result === 20;
-    const isCritFail = selectedDie === "d20" && result === 1;
+      // FASE 2: Scramble (600ms)
+      setTimeout(() => {
+        clearInterval(scrambleInterval);
+        
+        // Execute real roll
+        let result = 0;
+        let rolls: number[] = [];
 
-    const rollData: RollResult = {
-      id: generateId(),
-      rolledBy: session?.playerId || "system",
-      characterName: getActiveCharacterName(),
-      diceType: selectedDie,
-      modifier: mod,
-      rolls,
-      result,
-      total: result + mod,
-      rollType: rollCategory,
-      timestamp: new Date().toISOString(),
-      advantage,
-      isCritical,
-      isCritFail,
-      visibility
-    };
-
-    setLastRoll(rollData);
-    setRollHistory(prev => {
-      const newHistory = [rollData, ...prev].slice(0, 50);
-      sessionStorage.setItem("dice-roll-history", JSON.stringify(newHistory));
-      return newHistory;
-    });
-
-    // Integration with Combat
-    if (combat?.isActive) {
-      if (targetId) {
-        const target = combat.participants.find(p => p.refId === targetId);
-        if (target) {
-          if (rollCategory === "attack") {
-            const hit = result + mod >= target.ac;
-            addToLog(`${rollData.characterName} atacou ${target.name} com ${result + mod} vs CA ${target.ac} -> ${hit ? 'ACERTO!' : 'ERRO!'}`, "Sistema");
-          } else if (rollCategory === "damage") {
-            const finalDmg = isCritical ? (result + mod) * 2 : result + mod;
-            applyDamage(targetId, finalDmg);
-            addToLog(`${rollData.characterName} causou ${finalDmg} de dano em ${target.name}`, "Sistema");
-          }
+        if (advantage === "advantage") {
+          const r = rollWithAdvantage(sides);
+          result = r.result;
+          rolls = r.rolls;
+        } else if (advantage === "disadvantage") {
+          const r = rollWithDisadvantage(sides);
+          result = r.result;
+          rolls = r.rolls;
+        } else {
+          result = rollDie(sides);
+          rolls = [result];
         }
-      } else {
-        // Se rolou no combate sem alvo, loga a rolagem genericamente se for public ou gm
-        if (visibility === 'public' || (visibility === 'gm' && isGM)) {
-          let logStr = `${rollData.characterName} rolou ${selectedDie} (${rollCategory}): ${result + mod}`;
-          if (isCritical) logStr += ' [CRÍTICO]';
-          if (isCritFail) logStr += ' [FALHA CRÍTICA]';
-          addToLog(logStr, "Sistema");
-        }
-      }
-    }
 
-      // Broadcast
-      window.dispatchEvent(new CustomEvent('send_broadcast', { 
-        detail: { type: 'dice_roll', payload: rollData } 
-      }));
-      setIsRolling(false);
-    }, 800);
+        const isCritical = selectedDie === "d20" && result === 20;
+        const isCritFail = selectedDie === "d20" && result === 1;
+
+        let charName = (session as any)?.playerName || "Jogador";
+        if (selectedCharId !== "custom" && selectedCharId !== "") {
+          const npcs = dadosGlobais?.npcs || [];
+          const players = dadosGlobais?.players || [];
+          const found = npcs.find((n: any) => n.id === selectedCharId) || players.find((p: any) => p.id === selectedCharId);
+          if (found) charName = found.name;
+        }
+
+        const skillLabel = selectedSkill === "custom" 
+          ? "Rolagem Livre" 
+          : selectedSkill.startsWith("attr_") ? `Atributo (${selectedSkill.replace("attr_", "").toUpperCase()})`
+          : selectedSkill.startsWith("save_") ? `Salvaguarda (${selectedSkill.replace("save_", "").toUpperCase()})`
+          : selectedSkill.startsWith("skill_") ? `Perícia (${SKILLS_MAP.find(s => s.name === selectedSkill.replace("skill_", ""))?.label || selectedSkill})`
+          : "Rolagem Livre";
+
+        const rollData: RollResult = {
+          id: generateId(),
+          rolledBy: session?.playerId || "system",
+          characterName: charName,
+          diceType: selectedDie,
+          modifier: mod,
+          rolls,
+          result,
+          total: result + mod,
+          rollType: "custom",
+          ability: skillLabel,
+          timestamp: new Date().toISOString(),
+          advantage,
+          isCritical,
+          isCritFail,
+          visibility: "public"
+        };
+
+        setLastRoll(rollData);
+        setRollHistory(prev => {
+          const newHistory = [rollData, ...prev].slice(0, 50);
+          sessionStorage.setItem("dice-roll-history", JSON.stringify(newHistory));
+          return newHistory;
+        });
+
+        // Broadcast Roll
+        window.dispatchEvent(new CustomEvent('send_broadcast', { 
+          detail: { type: 'dice_roll', payload: rollData } 
+        }));
+
+        // FASE 3: Reveal
+        setDisplayNumber(result);
+        setAnimState("revealing");
+
+        if (isCritical) {
+          setTimeout(() => { setShowCritModal(true); setAnimState("idle"); }, 300);
+        } else if (isCritFail) {
+          setTimeout(() => { setShowFailModal(true); setAnimState("idle"); }, 300);
+        } else {
+          setTimeout(() => setAnimState("idle"), 300);
+        }
+
+      }, 600);
+    }, 600);
   };
 
+  // Ghost Mode (Right Click)
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsGhost(!isGhost);
+  };
+
+  // --- SVG d20 Icon ---
+  const getD20SVG = () => (
+    <svg className="roll-d20-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ overflow: "visible" }}>
+      <path d="M12 2L2 9l10 13 10-13-10-7z" />
+      <path d="M12 2v20" />
+      <path d="M12 22l-6.5-11.5L12 6l6.5 4.5z" />
+      <path d="M2 9h20" />
+    </svg>
+  );
+
+  // COLLAPSED WIDGET
   if (!isOpen) {
     return (
-      <button 
-        className="dice-widget-toggle"
-        onClick={toggleWidget}
+      <div 
+        ref={widgetRef}
+        onMouseDown={onMouseDown}
+        onContextMenu={handleContextMenu}
+        className={`skin-${skin}`}
         style={{
           position: "fixed",
-          right: "20px",
-          bottom: "20px",
           zIndex: 100,
-          background: "var(--accent-primary)",
-          color: "white",
-          border: "none",
+          width: "60px",
+          height: "60px",
+          cursor: "grab",
           borderRadius: "50%",
-          width: "56px",
-          height: "56px",
-          fontSize: "24px",
-          cursor: "pointer",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+          background: "rgba(10, 10, 15, 0.9)",
+          border: "2px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 4px 15px rgba(0,0,0,0.8)",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          padding: "10px",
+          transform: `translate(${pos.current.x}px, ${pos.current.y}px)`,
+          opacity: isGhost ? 0.3 : 1,
+          transition: "opacity 0.2s"
         }}
       >
-        🎲
-      </button>
+        <div style={{ width: "100%", height: "100%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={handleWidgetClick}>
+          {getD20SVG()}
+        </div>
+      </div>
     );
   }
 
+  const handleChangeSkill = (skill: string) => {
+    setSelectedSkill(skill);
+    
+    if (skill !== "custom") {
+      const npcs = dadosGlobais?.npcs || [];
+      const players = dadosGlobais?.players || [];
+      const found: any = npcs.find((n: any) => n.id === selectedCharId) || players.find((p: any) => p.id === selectedCharId);
+      
+      if (found) {
+        let mod = 0;
+        const profBonus = parseProfBonus(found.profBonus, found.cr);
+        
+        if (skill.startsWith("attr_")) {
+          const attr = skill.replace("attr_", "");
+          const score = typeof found[attr] === "number" ? found[attr] : parseInt(found[attr] || "10", 10);
+          if (!isNaN(score)) mod = Math.floor((score - 10) / 2);
+        } 
+        else if (skill.startsWith("save_")) {
+          const attr = skill.replace("save_", "");
+          const score = typeof found[attr] === "number" ? found[attr] : parseInt(found[attr] || "10", 10);
+          if (!isNaN(score)) mod = Math.floor((score - 10) / 2);
+          
+          const saves = found.saves || [];
+          if (saves.includes(attr)) mod += profBonus;
+        }
+        else if (skill.startsWith("skill_")) {
+          const skillName = skill.replace("skill_", "");
+          const skillObj = SKILLS_MAP.find(s => s.name === skillName);
+          if (skillObj) {
+            const attr = skillObj.attr;
+            const score = typeof found[attr] === "number" ? found[attr] : parseInt(found[attr] || "10", 10);
+            if (!isNaN(score)) mod = Math.floor((score - 10) / 2);
+            
+            const skills = found.skills || [];
+            const expertiseSkills = found.expertiseSkills || [];
+            
+            if (expertiseSkills.includes(skillName)) {
+              mod += profBonus * 2;
+            } else if (skills.includes(skillName)) {
+              mod += profBonus;
+            }
+          }
+        }
+        setCustomModifier(mod.toString());
+      }
+    }
+  };
+
+  // EXPANDED WIDGET
   return (
     <div 
-      className="dice-widget-container"
+      className={`dice-roller-container skin-${skin}`}
       ref={widgetRef}
       style={{
         position: "fixed",
         top: 0,
         left: 0,
-        transform: `translate(${pos.current.x}px, ${pos.current.y}px)`,
-        width: "300px",
         zIndex: 100,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
         display: "flex",
-        flexDirection: "column",
-        border: "1px solid rgba(255,255,255,0.1)",
-        background: "#09090b"
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: "16px",
+        transform: `translate(${pos.current.x}px, ${pos.current.y}px)`
       }}
     >
-      <div 
-        className="dice-widget-header" 
-        onMouseDown={onMouseDown}
-        style={{
-          padding: "10px",
-          background: "rgba(255,255,255,0.05)",
-          borderBottom: "1px solid rgba(255,255,255,0.1)",
-          cursor: "grab",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}
-      >
+      <div style={{ width: "280px", background: "var(--bg-panel)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)", boxShadow: "0 10px 40px rgba(0,0,0,0.5)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div className="dice-roller-header" onMouseDown={onMouseDown}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "1.2rem" }}>🎲</span>
-          <span style={{ fontWeight: "bold", fontSize: "0.9rem" }}>Rolagem D&D 5e</span>
+          <div style={{ width: "20px", height: "20px" }}>{getD20SVG()}</div>
+          <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: "1px" }}>Rolador de Dados</span>
         </div>
-        <button 
-          onClick={toggleWidget}
-          style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
-        >
-          ×
-        </button>
+        <div className="no-drag" style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => changeSkin(skin === 'fire' ? 'arcane' : skin === 'arcane' ? 'minimal' : 'fire')} title="Trocar Tema" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>🎨</button>
+          <button onClick={toggleWidget} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
+        </div>
       </div>
 
-      <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
         
-        {isGM && (
-          <div className="dice-context-selector">
-            <select 
-              className="journey-input" 
-              style={{ width: "100%", padding: "6px" }}
-              value={selectedCharacterId}
-              onChange={(e) => setSelectedCharacterId(e.target.value)}
-            >
-              <option value="">(Mestre) Rolagem Livre</option>
-              {characters.map(c => (
-                <option key={c.id} value={c.id}>{c.type === 'npc' ? '👹' : '🧑'} {c.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {/* Character Selector */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <CustomSelect
+            className="no-drag"
+            disabled={!isGM}
+            value={selectedCharId}
+            onChange={(val: string) => setSelectedCharId(val)}
+            options={[
+              { value: "custom", label: "Rolagem Livre" },
+              ...(isGM ? (dadosGlobais?.npcs || []).map((n: any) => ({ value: n.id, label: `${n.name} (NPC)` })) : []),
+              ...(!isGM ? (dadosGlobais?.players || []).filter((p: any) => p.id === session?.playerId).map((p: any) => ({ value: p.id, label: p.name })) : [])
+            ]}
+          />
+          {selectedCharId !== "custom" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <CustomSelect
+                className="no-drag"
+                value={selectedSkill.startsWith("attr_") ? selectedSkill : ""}
+                placeholder="Atributos"
+                onChange={handleChangeSkill}
+                options={[
+                  { value: "attr_str", label: "Força" },
+                  { value: "attr_dex", label: "Destreza" },
+                  { value: "attr_con", label: "Constituição" },
+                  { value: "attr_int", label: "Inteligência" },
+                  { value: "attr_wis", label: "Sabedoria" },
+                  { value: "attr_cha", label: "Carisma" }
+                ]}
+              />
+              <CustomSelect
+                className="no-drag"
+                value={selectedSkill.startsWith("save_") ? selectedSkill : ""}
+                placeholder="Salvaguardas"
+                onChange={handleChangeSkill}
+                options={SAVES_MAP.map(s => ({ value: `save_${s.attr}`, label: `Salva de ${s.key}` }))}
+              />
+              <CustomSelect
+                className="no-drag"
+                value={selectedSkill.startsWith("skill_") ? selectedSkill : ""}
+                placeholder="Perícias"
+                onChange={handleChangeSkill}
+                options={SKILLS_MAP.map(s => ({ value: `skill_${s.name}`, label: s.label }))}
+              />
+            </div>
+          )}
+        </div>
 
-        <div className="dice-selector" style={{ display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center" }}>
-          {(["d4", "d6", "d8", "d10", "d12", "d20", "d100"] as DiceType[]).map(d => (
+        {/* Hexagon Dice Selector */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "10px" }}>
+          {(["d4", "d6", "d8", "d10", "d12", "d20"] as DiceType[]).map(d => (
             <button
               key={d}
+              className={`hex-btn ${selectedDie === d ? 'active' : ''}`}
               onClick={() => setSelectedDie(d)}
-              style={{
-                padding: "6px 10px",
-                borderRadius: "4px",
-                border: "1px solid rgba(255,255,255,0.2)",
-                background: selectedDie === d ? "var(--accent-primary)" : "rgba(0,0,0,0.3)",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: "bold",
-                fontSize: "0.8rem",
-                flex: "1 0 calc(25% - 6px)",
-                transition: "all 0.2s"
-              }}
             >
               {d}
             </button>
           ))}
         </div>
 
-        <div className="dice-options" style={{ display: "flex", gap: "8px" }}>
-          <select 
-            className="journey-input" 
-            value={rollCategory} 
-            onChange={(e) => setRollCategory(e.target.value as RollCategory)}
-            style={{ flex: 1, padding: "6px" }}
-          >
-            <option value="custom">Livre</option>
-            <option value="attack">Ataque</option>
-            <option value="damage">Dano</option>
-            <option value="ability">Habilidade</option>
-            <option value="save">Salvaguarda</option>
-            <option value="initiative">Iniciativa</option>
-          </select>
-          
-          {combat?.isActive && (rollCategory === "attack" || rollCategory === "damage") && (
-            <select 
-              className="journey-input" 
-              value={targetId} 
-              onChange={(e) => setTargetId(e.target.value)}
-              style={{ flex: 1, padding: "6px" }}
-            >
-              <option value="">Alvo Livre</option>
-              {combat.participants.filter(p => !p.isDead).map(p => (
-                <option key={p.refId} value={p.refId}>Alvo: {p.name}</option>
-              ))}
-            </select>
-          )}
-
-          <select 
-            className="journey-input" 
-            value={advantage} 
-            onChange={(e) => setAdvantage(e.target.value as AdvantageType)}
-            style={{ flex: 1, padding: "6px" }}
-            disabled={selectedDie !== "d20"}
-          >
-            <option value="normal">Normal</option>
-            <option value="advantage">Vantagem</option>
-            <option value="disadvantage">Desvantagem</option>
-          </select>
+        {/* Advantage Toggles */}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-muted)", marginBottom: "4px", fontWeight: "bold" }}>Vantagem</div>
+          <div className="adv-toggle-group">
+            <button className={`adv-btn ${advantage === "disadvantage" ? "active" : ""}`} onClick={() => setAdvantage("disadvantage")} disabled={selectedDie !== "d20"}>DESV</button>
+            <button className={`adv-btn ${advantage === "normal" ? "active" : ""}`} onClick={() => setAdvantage("normal")} disabled={selectedDie !== "d20"}>NORMAL</button>
+            <button className={`adv-btn ${advantage === "advantage" ? "active" : ""}`} onClick={() => setAdvantage("advantage")} disabled={selectedDie !== "d20"}>VANT</button>
+          </div>
         </div>
 
-        <div className="dice-visibility" style={{ display: "flex", gap: "8px" }}>
-          <select 
-            className="journey-input" 
-            value={visibility} 
-            onChange={(e) => setVisibility(e.target.value as VisibilityType)}
-            style={{ flex: 1, padding: "6px", color: visibility === 'private' ? 'var(--warning)' : 'inherit' }}
-          >
-            <option value="public">Público (Todos)</option>
-            <option value="gm">Mestre (Eu e Mestre)</option>
-            <option value="private">Privado (Só Eu)</option>
-          </select>
-        </div>
-
-        <div className="dice-modifier" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Bônus:</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: "bold", color: "var(--text-muted)", textTransform: "uppercase" }}>Modificador:</span>
           <input 
             type="number" 
-            className="journey-input" 
             value={customModifier} 
             onChange={(e) => setCustomModifier(e.target.value)}
-            style={{ width: "60px", padding: "6px", textAlign: "center" }}
+            style={{ width: "50px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "white", padding: "6px", textAlign: "center", fontWeight: "bold" }}
           />
         </div>
 
-        <button 
+        {/* Central Roll Button / Animation Area */}
+        <div 
+          className="roll-btn-container"
           onClick={handleRoll}
-          style={{
-            width: "100%",
-            padding: "12px",
-            background: "var(--accent-primary)",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            fontWeight: "bold",
-            fontSize: "1.1rem",
-            cursor: "pointer",
-            marginTop: "4px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
-          }}
         >
-          {isRolling ? "🎲 ROLANDO..." : "🎲 ROLAR"}
-        </button>
-
-        {lastRoll && (
-          <div className="dice-result-area" style={{ 
-            marginTop: "8px", 
-            padding: "12px", 
-            background: "rgba(0,0,0,0.4)", 
-            borderRadius: "8px",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "4px" }}>
-              {lastRoll.advantage !== "normal" && (
-                <span style={{ color: lastRoll.advantage === "advantage" ? "#4ade80" : "#f87171" }}>
-                  {lastRoll.advantage === "advantage" ? "Vantagem " : "Desvantagem "}
-                </span>
-              )}
-              ({lastRoll.diceType} = {lastRoll.result} {lastRoll.modifier !== 0 ? `${lastRoll.modifier >= 0 ? '+' : ''}${lastRoll.modifier}` : ''})
+          <div className={animState === "spinning" ? "anim-spinning" : animState === "revealing" ? "anim-revealing" : ""} style={{ width: "100%", height: "100%", opacity: (animState === "scrambling" && !displayNumber) ? 0.3 : 1 }}>
+            {getD20SVG()}
+          </div>
+          {(displayNumber || animState !== "idle") && (
+            <div className="dice-result-text">
+              {displayNumber}
             </div>
-            
-            <div style={{ 
-              fontSize: "2.5rem", 
-              fontWeight: 900, 
-              color: lastRoll.isCritical ? "#4ade80" : lastRoll.isCritFail ? "#f87171" : "white",
-              textShadow: "0 2px 10px rgba(0,0,0,0.5)"
-            }}>
-              {lastRoll.total}
-            </div>
+          )}
+        </div>
 
-            {lastRoll.isCritical && <div style={{ color: "#4ade80", fontSize: "0.85rem", fontWeight: "bold", marginTop: "4px" }}>CRÍTICO!</div>}
-            {lastRoll.isCritFail && <div style={{ color: "#f87171", fontSize: "0.85rem", fontWeight: "bold", marginTop: "4px" }}>FALHA CRÍTICA!</div>}
+        {/* Result Breakdown */}
+        {animState === "idle" && lastRoll && (
+          <div style={{ textAlign: "center", background: "rgba(0,0,0,0.2)", borderRadius: "8px", padding: "8px" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+              {lastRoll.advantage !== "normal" && <span style={{ color: lastRoll.advantage === "advantage" ? "#4ade80" : "#f87171" }}>{lastRoll.advantage === "advantage" ? "Vantagem " : "Desvantagem "}</span>}
+              {lastRoll.ability && lastRoll.ability !== "Rolagem Livre" && <span style={{ color: "#a8b1ff", marginRight: "6px" }}>[{lastRoll.ability}]</span>}
+              {lastRoll.diceType} {lastRoll.modifier !== 0 ? (lastRoll.modifier > 0 ? `+${lastRoll.modifier}` : lastRoll.modifier) : ""}
+            </div>
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: lastRoll.isCritical ? "#ffd700" : lastRoll.isCritFail ? "#ff4444" : "white" }}>
+              Resultado: {lastRoll.total}
+            </div>
           </div>
         )}
+        {/* History Toggle */}
+        <div style={{ marginTop: "16px", display: "flex", flexDirection: "column" }}>
+          <button 
+            onClick={() => setHistoryExpanded(!historyExpanded)}
+            style={{ width: "100%", padding: "8px", background: "rgba(255,255,255,0.05)", border: "none", borderRadius: "8px", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}
+          >
+            {historyExpanded ? "▼ Ocultar Histórico" : "▶ Mostrar Histórico"}
+          </button>
+        </div>
+      </div>
       </div>
 
-      {rollHistory.length > 1 && (
-        <div style={{ display: "flex", flexDirection: "column", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "rgba(0,0,0,0.2)" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "bold" }}>Histórico ({rollHistory.length})</span>
-            <button onClick={clearHistory} style={{ background: "transparent", border: "none", color: "var(--danger)", fontSize: "0.7rem", cursor: "pointer", fontWeight: "bold" }}>Limpar</button>
+      {/* Lateral History Panel */}
+      {historyExpanded && (
+        <div style={{ display: "flex", flexDirection: "column", width: "200px", background: "var(--bg-panel)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)", boxShadow: "0 10px 40px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.2)" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "bold" }}>Histórico</span>
+            <button onClick={clearHistory} style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: "0.7rem" }}>Limpar</button>
           </div>
-          <div style={{ padding: "0 10px 10px", maxHeight: "150px", overflowY: "auto" }}>
-            {rollHistory.slice(1).map(r => (
-              <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", padding: "4px 0", color: "var(--text-secondary)", borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
-                <span>
-                  {r.characterName}: {r.rollType} 
-                  {r.visibility === 'private' && <span style={{ color: 'var(--warning)', marginLeft: '4px' }}>(P)</span>}
-                  {r.visibility === 'gm' && <span style={{ color: 'var(--accent-primary)', marginLeft: '4px' }}>(M)</span>}
-                </span>
-                <span style={{ fontWeight: "bold", color: r.isCritical ? "#4ade80" : r.isCritFail ? "#f87171" : "white" }}>{r.total}</span>
+          <div style={{ padding: "8px", overflowY: "auto", maxHeight: "400px", minHeight: "100px" }}>
+            {rollHistory.length === 0 ? (
+              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "center", padding: "20px" }}>Nenhuma rolagem ainda.</div>
+            ) : rollHistory.map((r, i) => (
+              <div key={r.id || i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 4px", fontSize: "0.75rem", borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <span style={{ color: "var(--text-secondary)" }}>{r.diceType} {r.modifier !== 0 ? (r.modifier > 0 ? `+${r.modifier}` : r.modifier) : ""}</span>
+                  {r.ability && r.ability !== "Rolagem Livre" && <span style={{ color: "#a8b1ff", fontSize: "0.65rem" }}>{r.ability}</span>}
+                </div>
+                <span style={{ fontWeight: "bold", fontSize: "1.1rem", alignSelf: "center", color: r.isCritical ? "#ffd700" : r.isCritFail ? "#ff4444" : "white" }}>{r.total}</span>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+    {/* CRIT MODALS */}
+      {showCritModal && (
+        <div className="dice-modal-overlay crit-modal" onClick={() => setShowCritModal(false)}>
+          <div className="particles"></div>
+          <div className="anim-revealing" style={{ width: "150px", height: "150px", color: "#ffd700" }}>
+            {getD20SVG()}
+          </div>
+          <div className="dice-result-text" style={{ fontSize: "3.5rem", color: "white" }}>20</div>
+          <div className="crit-text">CRÍTICO!!</div>
+        </div>
+      )}
+
+      {showFailModal && (
+        <div className="dice-modal-overlay fail-modal" onClick={() => setShowFailModal(false)}>
+          <div className="anim-revealing" style={{ width: "150px", height: "150px", color: "#ff4444" }}>
+            {getD20SVG()}
+          </div>
+          <div className="dice-result-text" style={{ fontSize: "3.5rem", color: "white" }}>1</div>
+          <div className="fail-text">FALHA CRÍTICA</div>
         </div>
       )}
     </div>
