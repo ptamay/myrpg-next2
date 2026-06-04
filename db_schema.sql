@@ -267,7 +267,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ==========================================
 
 -- PROFILES
-CREATE POLICY "Leitura global de perfis"       ON profiles FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Leitura de perfis (proprio e GM)" ON profiles FOR SELECT USING (id = auth.uid() OR public.is_gm());
 CREATE POLICY "Auth insere perfil"             ON profiles FOR INSERT WITH CHECK (id = auth.uid());
 CREATE POLICY "Jogador atualiza proprio perfil" ON profiles FOR UPDATE USING (id = auth.uid());
 CREATE POLICY "GM gerencia perfis"             ON profiles FOR ALL    USING (public.is_gm());
@@ -388,6 +388,16 @@ BEGIN
 
   INSERT INTO public.journey_days (campaign_id, day_number, weather, events)
     SELECT id, 1, 'Ensolarado', 'O início da jornada.' FROM public.campaign LIMIT 1;
+
+  -- 3. Trilha de Auditoria (Audit Log)
+  INSERT INTO public.audit_logs (actor_id, actor_email, action, target_id, details)
+  VALUES (
+    auth.uid(),
+    current_setting('request.jwt.claims', true)::json->>'email',
+    'RESET_CAMPAIGN',
+    'ALL',
+    '{"reason": "Manual reset by GM via Dashboard"}'::jsonb
+  );
 END;
 $$;
 

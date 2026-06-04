@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Pasta legada — ignorar para não poluir o lint
+    "myrpgbroken_ref/**",
   ]),
 ]);
 

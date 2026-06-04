@@ -1,0 +1,4 @@
+2026-06-03 22:50:28,363 - semgrep.rpc - ERROR - RPC subprocess exited with code 3236495362
+2026-06-03 22:50:28,363 - semgrep.rule_lang - WARNING - semgrep-core rule validation failed (SemgrepError)
+2026-06-03 22:50:28,648 - semgrep.core_runner - ERROR - semgrep-core exited with 3236495362!
+2026-06-03 22:50:28,754 - semgrep.rpc - ERROR - RPC subprocess exited with code 3236495362

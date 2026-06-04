@@ -49,19 +49,26 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
 
     setSessionLoading(true)
     try {
-      // 1. Busca profile
+      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL
+
+      // 1. Busca o próprio profile (toda policy permite id = auth.uid())
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
-      const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+      if (profileError) {
+        const errorDetails = profileError.message || JSON.stringify(profileError, null, 2)
+        console.error('[UserSessionContext] Erro real do Supabase:', errorDetails, profileError)
+        setSessionLoading(false)
+        return
+      }
 
-      if (profileError && profileError.code === 'PGRST116') {
-        const defaultRole = user.email && user.email === adminEmail ? 'gm' : 'player';
-        // Profile não existe ainda — cria (fallback caso trigger falhe)
-        const { data: newProfile } = await supabase
+      // Perfil não existe ainda — cria via fallback (caso trigger não tenha rodado)
+      if (!profileData) {
+        const defaultRole: 'gm' | 'player' = user.email === adminEmail ? 'gm' : 'player'
+        const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
           .insert({
             id: user.id,
@@ -71,26 +78,53 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
             player_id: null,
           })
           .select()
-          .single()
-        const mappedProfile = {
+          .maybeSingle()
+
+        if (insertError || !newProfile) {
+          console.error('[UserSessionContext] Erro ao criar profile:', insertError)
+          setSessionLoading(false)
+          return
+        }
+
+        setProfile({
           ...newProfile,
           role: defaultRole,
           playerId: newProfile.player_id,
-          name: newProfile.display_name || newProfile.email
-        }
-        setProfile(mappedProfile)
-      } else {
-        const mappedProfile = {
-          ...profileData,
-          role: profileData.email && profileData.email === adminEmail ? 'gm' : profileData.role,
-          playerId: profileData.player_id,
-          name: profileData.display_name || profileData.email
-        }
-        setProfile(mappedProfile)
+          name: newProfile.display_name || newProfile.email,
+        })
+        setSessionLoading(false)
+        return
       }
 
-      // 2. Se tem player_id, busca o personagem
-      if (profileData?.player_id) {
+      // 2. Garante que o admin tenha role 'gm' no banco caso esteja desatualizado
+      let resolvedRole: 'gm' | 'player' = profileData.role
+      if (adminEmail && profileData.email === adminEmail && profileData.role !== 'gm') {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ role: 'gm' })
+          .eq('id', user.id)
+        if (!updateError) resolvedRole = 'gm'
+        else console.warn('[UserSessionContext] Não foi possível atualizar role do admin:', updateError)
+      }
+
+      setProfile({
+        ...profileData,
+        role: resolvedRole,
+        playerId: profileData.player_id,
+        name: profileData.display_name || profileData.email,
+      })
+
+      console.log('[UserSessionContext] ✅ Profile carregado:', {
+        id: profileData.id,
+        email: profileData.email,
+        roleNoBanco: profileData.role,
+        roleResolvida: resolvedRole,
+        isGM: resolvedRole === 'gm',
+        player_id: profileData.player_id,
+      })
+
+      // 3. Se é jogador com personagem vinculado, carrega o personagem
+      if (profileData.player_id) {
         const { data: playerData } = await supabase
           .from('players')
           .select('*')
@@ -101,7 +135,7 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
         setPlayerCharacter(null)
       }
     } catch (err) {
-      console.error('[UserSessionContext] Erro ao buscar profile:', err)
+      console.error('[UserSessionContext] Erro inesperado:', err)
     } finally {
       setSessionLoading(false)
     }

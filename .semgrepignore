@@ -1,0 +1,8 @@
+# Ignore local utility and scratch scripts
+fix_imports.js
+fix_throws.js
+test-db.js
+test-upsert.js
+scratch/
+*.ps1
+*.sql

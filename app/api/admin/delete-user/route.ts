@@ -6,7 +6,7 @@ import { rateLimitCheck, getClientIp } from '@/lib/rateLimit';
 export async function POST(request: Request) {
   // Rate limiting
   const ip = getClientIp(request);
-  const rl = rateLimitCheck(ip, 'reset-password');
+  const rl = rateLimitCheck(ip, 'delete-user');
   if (!rl.allowed) {
     return NextResponse.json(
       { error: `Muitas tentativas. Tente novamente em ${Math.ceil(rl.retryAfterMs / 1000)} segundos.` },
@@ -15,7 +15,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { userId, newPassword } = await request.json();
+    const { targetUserId } = await request.json();
+    
+    if (!targetUserId) {
+      return NextResponse.json({ error: 'ID de usuário alvo não fornecido' }, { status: 400 });
+    }
     
     // 1. Validar autorização server-side
     const supabaseServer = await createSupabaseServerClient();
@@ -41,10 +45,10 @@ export async function POST(request: Request) {
     }
 
     if (!isAdmin && !isGM) {
-      return NextResponse.json({ error: 'Acesso negado. Apenas o GM pode resetar senhas.' }, { status: 403 });
+      return NextResponse.json({ error: 'Acesso negado. Apenas o GM/Admin pode excluir usuários.' }, { status: 403 });
     }
     
-    // 2. Realizar reset de senha com Service Role
+    // 2. Realizar deleção com Service Role
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
       }
     });
     
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword });
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
     
     if (error) throw error;
     
@@ -67,14 +71,15 @@ export async function POST(request: Request) {
     await supabaseAdmin.from('audit_logs').insert({
       actor_id: user.id,
       actor_email: user.email,
-      action: 'RESET_PASSWORD',
-      target_id: userId,
+      action: 'DELETE_USER',
+      target_id: targetUserId,
       details: { role: isAdmin ? 'admin' : 'gm' }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: 'Usuário deletado com sucesso do Auth e Profiles.' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
+    console.error('Erro na deleção de usuário:', err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

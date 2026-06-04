@@ -1,0 +1,8 @@
+rules:
+  - id: smoke-console-error
+    message: Console error call found
+    severity: INFO
+    languages:
+      - typescript
+      - javascript
+    pattern: console.error(...)

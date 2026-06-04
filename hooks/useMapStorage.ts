@@ -8,8 +8,19 @@ export async function saveMapToDB(id: string, name: string, base64Data: string):
   const fetchResponse = await fetch(base64Data);
   const blob = await fetchResponse.blob();
   
-  // Determinar extensão
+  // Validação 1: Tamanho máximo (5MB)
+  const MAX_SIZE = 5 * 1024 * 1024;
+  if (blob.size > MAX_SIZE) {
+    throw new Error("A imagem é muito grande. O tamanho máximo permitido é 5MB.");
+  }
+  
+  // Validação 2: Tipo de arquivo (MIME type estrito)
   const mimeType = blob.type;
+  const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowedTypes.includes(mimeType)) {
+    throw new Error("Formato de imagem não suportado. Use apenas PNG, JPG ou WEBP.");
+  }
+
   const ext = mimeType === "image/png" ? "png" : mimeType === "image/jpeg" ? "jpg" : "webp";
   const path = `${id}.${ext}`;
   

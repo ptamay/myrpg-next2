@@ -1,14 +1,40 @@
 import { NextResponse } from "next/server";
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 // Timeout maior para dar tempo à IA de processar as imagens
 export const maxDuration = 60; 
 
+// Allowlist de MIME types
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAX_IMAGES = 6;
+// Limite em base64: ~8MB em bytes binários dá uns ~10.6MB em base64. Vamos botar ~10MB total de payload
+const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; 
+
 export async function POST(req: Request) {
   try {
-    const { images } = await req.json();
+    // 1. Validação de Autenticação
+    const supabaseServer = await createSupabaseServerClient();
+    const { data: { user } } = await supabaseServer.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: 'Acesso negado. Apenas usuários logados podem importar fichas.' }, { status: 401 });
+    }
+
+    // 2. Extração e Limitação de Tamanho
+    const reqText = await req.text();
+    if (reqText.length > MAX_PAYLOAD_SIZE) {
+      return NextResponse.json({ error: "O tamanho total das imagens excede o limite de 8MB." }, { status: 413 });
+    }
+
+    const { images } = JSON.parse(reqText);
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return NextResponse.json({ error: "Nenhuma imagem recebida." }, { status: 400 });
+    }
+
+    // 3. Limite de Quantidade
+    if (images.length > MAX_IMAGES) {
+      return NextResponse.json({ error: `Máximo de ${MAX_IMAGES} imagens permitido por vez.` }, { status: 400 });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -16,21 +42,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Chave da API do Gemini (GEMINI_API_KEY) não está configurada no servidor." }, { status: 500 });
     }
 
-    // Preparar as partes para envio ao Gemini
+    // 4. Validação e Preparação (MIME types permitidos)
     const parts: any[] = images.map((base64Url: string) => {
-      // Remover o prefixo base64 como "data:image/jpeg;base64," ou "data:application/pdf;base64,"
       const match = base64Url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9\-+.]+);base64,(.+)$/);
       if (!match) return null;
+      
+      const mimeType = match[1];
+      if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+         return null; // Será filtrado
+      }
+
       return {
         inlineData: {
-          mimeType: match[1],
+          mimeType: mimeType,
           data: match[2]
         }
       };
     }).filter(Boolean);
 
-    if (parts.length === 0) {
-      return NextResponse.json({ error: "As imagens enviadas não são válidas." }, { status: 400 });
+    if (parts.length === 0 || parts.length !== images.length) {
+      return NextResponse.json({ error: "Algumas imagens/documentos enviados não são válidos ou possuem formato não suportado (apenas JPG, PNG, WEBP e PDF são permitidos)." }, { status: 400 });
     }
 
     parts.unshift({
@@ -74,6 +105,10 @@ Retorne APENAS JSON válido com esta estrutura:
 }`
     });
 
+    // 5. AbortController para timeout (40s)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 40000);
+
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -83,8 +118,11 @@ Retorne APENAS JSON válido com esta estrutura:
           responseMimeType: "application/json",
           temperature: 0.1
         }
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -116,6 +154,10 @@ Retorne APENAS JSON válido com esta estrutura:
     }
 
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error("Timeout na API Gemini.");
+      return NextResponse.json({ error: "A requisição para o Gemini demorou muito e foi cancelada (Timeout de 40s)." }, { status: 504 });
+    }
     console.error("Erro interno no endpoint import-player:", error);
     return NextResponse.json({ error: "Erro interno no servidor ao processar a requisição." }, { status: 500 });
   }

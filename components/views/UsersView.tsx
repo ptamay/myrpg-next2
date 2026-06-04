@@ -177,15 +177,18 @@ export default function UsersView() {
     setUpdating("saving-all");
     try {
       if (numDeletes > 0) {
-        const { data: deletedData, error: deleteError } = await supabase
-          .from('profiles')
-          .delete()
-          .in('id', Array.from(deletedUserIds))
-          .select();
-
-        if (deleteError) throw new Error(deleteError?.message || JSON.stringify(deleteError));
-        if (!deletedData || deletedData.length === 0) {
-          throw new Error("Nenhum usuário pôde ser excluído. Verifique as políticas de segurança (RLS).");
+        // Fazer chamadas individuais para a API de admin para garantir a deleção na tabela auth.users
+        for (const targetUserId of Array.from(deletedUserIds)) {
+          const res = await fetch('/api/admin/delete-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId })
+          });
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(`Falha ao deletar usuário ${targetUserId}: ${data.error || 'Erro desconhecido'}`);
+          }
         }
       }
 
