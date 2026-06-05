@@ -136,8 +136,17 @@ export default function SummaryCardModal({ isOpen, onClose }: { isOpen: boolean;
 
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <h3 className={isDead ? "dead-modal-content" : ""} style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-0.02em" }}>{activeData.name}</h3>
-              <div className={isDead ? "dead-modal-content" : ""} style={{ fontSize: "0.85rem", fontWeight: 700, color: magentaColor }}>
+              <div className={isDead ? "dead-modal-content" : ""} style={{ fontSize: "0.85rem", fontWeight: 700, color: magentaColor, display: "flex", alignItems: "center", gap: "8px" }}>
                 {activeData.title || (isPlayer ? (activeData.playerClass || activeData.classLevel) : activeData.classLevel) || (isPlayer ? "Sem classe" : "Sem título")}{isPlayer && activeData.playerLevel ? ` Nv. ${activeData.playerLevel}` : ""}
+                
+                {isTransformed && (
+                  <span style={{ 
+                    background: "rgba(var(--accent-primary-rgb), 0.15)", border: "1px solid rgba(var(--accent-primary-rgb), 0.3)", color: "var(--accent-primary)",
+                    fontSize: "0.55rem", fontWeight: 900, padding: "2px 8px", borderRadius: "12px", letterSpacing: "0.08em", textTransform: "uppercase" 
+                  }}>
+                    Transformado
+                  </span>
+                )}
               </div>
               <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginTop: "4px" }}>
                 {activeData.race || "Raça não definida"}
@@ -158,14 +167,6 @@ export default function SummaryCardModal({ isOpen, onClose }: { isOpen: boolean;
                     fontSize: "0.55rem", fontWeight: 800, padding: "3px 8px", borderRadius: "4px", letterSpacing: "0.05em" 
                   }}>
                     MORTO
-                  </span>
-                )}
-                {isTransformed && (
-                  <span style={{ 
-                    background: "rgba(217, 70, 239, 0.15)", color: "#d946ef", border: "1px solid rgba(217, 70, 239, 0.3)",
-                    fontSize: "0.55rem", fontWeight: 800, padding: "3px 8px", borderRadius: "4px", letterSpacing: "0.05em" 
-                  }}>
-                    TRANSFORMADO
                   </span>
                 )}
               </div>

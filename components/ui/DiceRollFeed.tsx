@@ -87,6 +87,11 @@ export default function DiceRollFeed() {
                 {roll.total}
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                {roll.advantage !== "normal" && roll.rolls?.length === 2 && (
+                  <span style={{ color: roll.advantage === "advantage" ? "#4ade80" : "#f87171", marginRight: "4px" }}>
+                    [{roll.rolls[0]}, {roll.rolls[1]}] → 
+                  </span>
+                )}
                 {roll.diceType} = {roll.result} {roll.modifier !== 0 ? `(${roll.modifier >= 0 ? '+' : ''}${roll.modifier})` : ''}
               </div>
             </div>

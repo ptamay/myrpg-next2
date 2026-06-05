@@ -177,6 +177,9 @@ export default function DiceWidget() {
     const savedSkin = localStorage.getItem("dice-widget-skin") as SkinType;
     if (savedSkin) setSkin(savedSkin);
     
+    const savedGhost = localStorage.getItem("dice-widget-ghost");
+    if (savedGhost === "true") setIsGhost(true);
+    
     const savedHistory = sessionStorage.getItem("dice-roll-history");
     if (savedHistory) {
       try {
@@ -377,7 +380,9 @@ export default function DiceWidget() {
   // Ghost Mode (Right Click)
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsGhost(!isGhost);
+    const nextGhost = !isGhost;
+    setIsGhost(nextGhost);
+    localStorage.setItem("dice-widget-ghost", nextGhost ? "true" : "false");
   };
 
   // --- SVG d20 Icon ---
@@ -606,7 +611,15 @@ export default function DiceWidget() {
               {lastRoll.ability && lastRoll.ability !== "Rolagem Livre" && <span style={{ color: "#a8b1ff", marginRight: "6px" }}>[{lastRoll.ability}]</span>}
               {lastRoll.diceType} {lastRoll.modifier !== 0 ? (lastRoll.modifier > 0 ? `+${lastRoll.modifier}` : lastRoll.modifier) : ""}
             </div>
-            <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: lastRoll.isCritical ? "#ffd700" : lastRoll.isCritFail ? "#ff4444" : "white" }}>
+            {lastRoll.advantage !== "normal" && lastRoll.rolls?.length === 2 && (
+              <div style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.6)", marginTop: "4px" }}>
+                Dados puros: [{lastRoll.rolls[0]}, {lastRoll.rolls[1]}] 
+                <span style={{ marginLeft: "6px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  (Manteve: {lastRoll.result})
+                </span>
+              </div>
+            )}
+            <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: lastRoll.isCritical ? "#ffd700" : lastRoll.isCritFail ? "#ff4444" : "white", marginTop: "4px" }}>
               Resultado: {lastRoll.total}
             </div>
           </div>
@@ -636,8 +649,20 @@ export default function DiceWidget() {
             ) : rollHistory.map((r, i) => (
               <div key={r.id || i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 4px", fontSize: "0.75rem", borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span style={{ color: "var(--text-secondary)" }}>{r.diceType} {r.modifier !== 0 ? (r.modifier > 0 ? `+${r.modifier}` : r.modifier) : ""}</span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {r.diceType} {r.modifier !== 0 ? (r.modifier > 0 ? `+${r.modifier}` : r.modifier) : ""}
+                    {r.advantage !== "normal" && (
+                      <span style={{ color: r.advantage === "advantage" ? "#4ade80" : "#f87171", marginLeft: "4px" }}>
+                        ({r.advantage === "advantage" ? "Vant" : "Desv"})
+                      </span>
+                    )}
+                  </span>
                   {r.ability && r.ability !== "Rolagem Livre" && <span style={{ color: "#a8b1ff", fontSize: "0.65rem" }}>{r.ability}</span>}
+                  {r.advantage !== "normal" && r.rolls?.length === 2 && (
+                    <span style={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.4)" }}>
+                      [{r.rolls[0]}, {r.rolls[1]}] → {r.result}
+                    </span>
+                  )}
                 </div>
                 <span style={{ fontWeight: "bold", fontSize: "1.1rem", alignSelf: "center", color: r.isCritical ? "#ffd700" : r.isCritFail ? "#ff4444" : "white" }}>{r.total}</span>
               </div>

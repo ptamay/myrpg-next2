@@ -74,24 +74,39 @@ export default function CombatSetupModal({ isOpen, onClose }: { isOpen: boolean;
               <div>
                 <h3 style={{ marginBottom: "0.5rem", color: "var(--primary-color)" }}>Jogadores</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  {(dadosGlobais.players || []).map((p: any) => (
-                    <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.05)", padding: "8px", borderRadius: "8px", cursor: "pointer", opacity: p.isDead ? 0.5 : 1 }}>
+                  {(dadosGlobais.players || [])
+                    .filter((p: any) => !p.isDead) // Filtra mortos
+                    .map((p: any) => (
+                    <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.05)", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>
                       <input type="checkbox" checked={selectedPlayers.has(p.id)} onChange={() => togglePlayer(p.id)} />
-                      <span>{p.name} {p.isDead && "(Morto)"}</span>
+                      <span>{p.name}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div>
-                <h3 style={{ marginBottom: "0.5rem", color: "var(--danger)" }}>NPCs / Monstros</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  {(dadosGlobais.npcs || []).filter((n: any) => !n.isHidden).map((n: any) => (
-                    <label key={n.id} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.05)", padding: "8px", borderRadius: "8px", cursor: "pointer", opacity: n.isDead ? 0.5 : 1 }}>
-                      <input type="checkbox" checked={selectedNpcs.has(n.id)} onChange={() => toggleNpc(n.id)} />
-                      <span>{n.name} {n.isDead && "(Morto)"}</span>
-                    </label>
-                  ))}
+                <h3 style={{ marginBottom: '0.5rem', color: 'var(--danger)' }}>NPCs / Monstros</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  {(dadosGlobais.npcs || [])
+                    .filter((n: any) => !n.isHidden && !n.isDead) // Filtra ocultos E mortos
+                    .map((n: any) => {
+                    const faction = (n.faction || 'enemy').toLowerCase();
+                    const factionLabel = faction === 'ally' || faction === 'aliado'
+                      ? { icon: '🟢', label: 'Aliado', color: '#22c55e' }
+                      : faction === 'neutral' || faction === 'neutro'
+                      ? { icon: '⚪', label: 'Neutro', color: '#9ca3af' }
+                      : { icon: '🔴', label: 'Inimigo', color: '#ef4444' };
+                    return (
+                      <label key={n.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selectedNpcs.has(n.id)} onChange={() => toggleNpc(n.id)} />
+                        <span style={{ flex: 1 }}>{n.name}</span>
+                        <span title={factionLabel.label} style={{ fontSize: '0.65rem', color: factionLabel.color, fontWeight: 'bold' }}>
+                          {factionLabel.icon}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             </div>

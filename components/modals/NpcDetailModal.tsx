@@ -97,11 +97,18 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
               <button 
                 className={`btn ${isViewingTransformation ? 'primary-btn' : 'secondary-btn'} small-btn`} 
                 onClick={() => setIsViewingTransformation(!isViewingTransformation)}
-                style={{ transition: 'all 0.3s' }}
+                style={{ transition: 'all 0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" style={{ marginRight: "4px" }}>
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
+                {isViewingTransformation ? (
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+                  </svg>
+                )}
                 {isViewingTransformation ? "Ver Original" : "Transformar!"}
               </button>
             )}
@@ -136,12 +143,29 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
               <div className="npc-detail-placeholder" style={{ border: isViewingTransformation ? "2px solid var(--accent-primary)" : "none" }}>?</div>
             )}
             <div className="npc-detail-title-area">
-              <h1 className="det-name" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <h1 className="det-name" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "4px" }}>
                 <span style={{ color: isViewingTransformation ? "var(--accent-primary)" : "inherit" }}>{activeNpc.name}</span>
-                {isViewingTransformation && <span style={{fontSize: "0.65rem", backgroundColor: "var(--accent-primary)", padding: "2px 6px", borderRadius: "8px", color: "#fff", fontWeight: "bold", letterSpacing: "0.05em", textTransform: "uppercase"}}>Transformado</span>}
                 {activeNpc.isHidden && <span className="badge-hidden">Oculto</span>}
               </h1>
-              <p className="det-title">{activeNpc.title || "---"}</p>
+              <p className="det-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {activeNpc.title || "---"}
+                {isViewingTransformation && (
+                  <span style={{
+                    fontSize: "0.6rem", 
+                    background: "rgba(var(--accent-primary-rgb), 0.15)", 
+                    border: "1px solid rgba(var(--accent-primary-rgb), 0.3)",
+                    padding: "2px 8px", 
+                    borderRadius: "12px", 
+                    color: "var(--accent-primary)", 
+                    fontWeight: "900", 
+                    letterSpacing: "0.08em", 
+                    textTransform: "uppercase",
+                    boxShadow: "0 0 10px rgba(var(--accent-primary-rgb), 0.1)"
+                  }}>
+                    Transformado
+                  </span>
+                )}
+              </p>
               <p className="det-meta">
                 <span>{activeNpc.race || "---"}</span> • <span>{activeNpc.alignment || "---"}</span> • ND <span>{activeNpc.cr || "---"}</span>
               </p>

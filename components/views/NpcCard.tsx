@@ -124,48 +124,51 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
     <div className={`npc-card glass-panel ${combatMode ? "combat-expanded" : ""} ${activeNpc.isDead ? "is-dead" : ""} ${factionBorder}`} style={npc.isHidden ? { opacity: 0.5 } : {}}>
       {activeNpc.isDead && <div className="status-dead-overlay">💀</div>}
       
-      <button className="btn-quick-hide" title={npc.isHidden ? 'Mostrar NPC' : 'Ocultar NPC'} onClick={toggleHide}>
-        {npc.isHidden ? (
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-            <line x1="1" y1="1" x2="23" y2="23"></line>
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7-10.5-7-10.5-7z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-          </svg>
+      <div style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px', zIndex: 15 }}>
+        {npc.transformation && combatMode && isGM && (
+          <button 
+            className="btn-quick-transform"
+            title={npc.isTransformed ? 'Reverter Forma' : 'Transformar'} 
+            onClick={(e) => { e.stopPropagation(); toggleTransform(e); }}
+            style={{
+              background: npc.isTransformed ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${npc.isTransformed ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)'}`,
+              color: '#fff',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '14px',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(4px)',
+              boxShadow: npc.isTransformed ? '0 0 10px var(--accent-glow)' : '0 4px 10px rgba(0, 0, 0, 0.4)'
+            }}
+          >
+            ⚡
+          </button>
         )}
-      </button>
-
-      {npc.transformation && combatMode && isGM && (
         <button 
-          className="btn-quick-transform"
-          title={npc.isTransformed ? 'Reverter Forma' : 'Transformar'} 
-          onClick={(e) => { e.stopPropagation(); toggleTransform(e); }}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '40px',
-            background: npc.isTransformed ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            color: npc.isTransformed ? '#fff' : 'var(--text-muted)',
-            width: '28px',
-            height: '28px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            fontSize: '14px',
-            transition: 'all 0.2s',
-            zIndex: 10,
-            backdropFilter: 'blur(4px)'
-          }}
+          className="btn-quick-hide" 
+          title={npc.isHidden ? 'Mostrar NPC' : 'Ocultar NPC'} 
+          onClick={toggleHide}
+          style={{ position: 'relative', top: 0, right: 0 }}
         >
-          ⚡
+          {npc.isHidden ? (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1.5 12s3.5-7 10.5-7 10.5 7 10.5 7-3.5 7-10.5 7-10.5-7-10.5-7z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          )}
         </button>
-      )}
+      </div>
 
 
       <div className="npc-card-header" onClick={openDetail}>

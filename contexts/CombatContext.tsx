@@ -9,8 +9,16 @@ import { useGameSync, SyncEvent } from '@/hooks/useGameSync';
 import { useUserSession } from '@/contexts/UserSessionContext';
 import { rollExpression, parseDiceExpression } from '@/lib/dice/rollParser';
 
+export interface CombatClassResource {
+  id: string;
+  name: string;
+  current: number;
+  max: number;
+}
+
 export interface CombatParticipant {
   type: 'player' | 'npc';
+  faction: 'player' | 'ally' | 'enemy' | 'neutral';
   refId: string;           
   name: string;
   image?: string;
@@ -43,9 +51,27 @@ export interface CombatParticipant {
   attacksMade: number;
   playerLevel?: number;
   playerClass?: string;
-  cr?: string;         // ND do NPC (para cálculo de multiataque por CR)
+  cr?: string;         // ND do NPC
   flurryUsed: boolean; // Monge: Chuva de Golpes usada neste turno
+
+  // Spell Slots
+  spellSlots?: Record<number, number>;
+  spellSlotsUsed?: Record<number, number>;
+
+  // Class Resources (Ki, Fúria, etc.)
+  classResources?: CombatClassResource[];
+
+  // Special States
+  isRaging?: boolean;           // Bárbaro em Fúria
+  isConcentrating?: boolean;    // Concentrando em uma magia
+  concentrationSpell?: string;  // Nome da magia em concentração
 }
+
+export type PendingAttack = {
+  name: string;     // "Machado Grande"
+  bonus: string;    // "+5"
+  dmg: string;      // "1d12+3 cortante"
+};
 
 export type LogEntryType = 'attack' | 'damage' | 'critical' | 'crit_fail' | 'initiative' | 'system' | 'heal';
 
@@ -78,7 +104,7 @@ export interface CombatSession {
   participants: CombatParticipant[];
   log: CombatLogEntry[];
   latestRollEvent?: RollFeedbackEvent;
-  selectedTargetId?: string | null;
+  selectedTargetIds: string[]; // Múltiplos alvos selecionados
 }
 
 export interface CombatContextValue {
@@ -91,12 +117,14 @@ export interface CombatContextValue {
   addCondition: (participantId: string, condition: string) => void;
   removeCondition: (participantId: string, condition: string) => void;
   setInitiative: (participantId: string, value: number) => void;
-  broadcastCombatState: () => void;
+  broadcastCombatState: (newState?: CombatSession | null) => void;
   addToLog: (action: string, actorName?: string, type?: LogEntryType) => void;
   updateParticipant: (participantId: string, updates: Partial<CombatParticipant>) => void;
+  removeParticipant: (participantId: string) => void;
   triggerRollEvent: (event: Omit<RollFeedbackEvent, 'id' | 'timestamp'>) => void;
-  setTarget: (participantId: string | null) => void;
   clearLog: () => void;
+  toggleTarget: (participantId: string) => void;
+  clearTargets: () => void;
 }
 
 const CombatContext = createContext<CombatContextValue | undefined>(undefined);
@@ -116,8 +144,29 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     ? { ...entity, ...entity.transformation }
     : entity;
 
+  // Determinar facção
+  let faction: CombatParticipant['faction'];
+  if (type === 'player') {
+    faction = 'player';
+  } else {
+    const npcFaction = (entity as Npc).faction?.toLowerCase() || 'enemy';
+    if (npcFaction === 'ally' || npcFaction === 'aliado') faction = 'ally';
+    else if (npcFaction === 'neutral' || npcFaction === 'neutro') faction = 'neutral';
+    else faction = 'enemy';
+  }
+
+  // Mapear classResources
+  const rawResources = activeForm.classResources || [];
+  const classResources: CombatClassResource[] = rawResources.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    current: r.current ?? r.max ?? 0,
+    max: r.max ?? 0,
+  }));
+
   return {
     type,
+    faction,
     refId: entity.id,
     name: activeForm.name,
     image: activeForm.image,
@@ -152,6 +201,12 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     playerClass: (entity as Player).playerClass || (entity as Player).classLevel?.split(' ')[0] || (entity as Npc).playerClass,
     cr: type === 'npc' ? (entity as Npc).cr : undefined,
     flurryUsed: false,
+    spellSlots: activeForm.spellSlots ? { ...activeForm.spellSlots } : undefined,
+    spellSlotsUsed: activeForm.spellSlotsUsed ? { ...activeForm.spellSlotsUsed } : {},
+    classResources,
+    isRaging: false,
+    isConcentrating: false,
+    concentrationSpell: undefined,
   };
 }
 
@@ -250,6 +305,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         round: 1,
         currentTurnIndex: 0,
         participants,
+        selectedTargetIds: [],
         log: [
           {
             id: generateId(),
@@ -390,7 +446,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const triggerRollEvent = (event: Omit<RollFeedbackEvent, 'id' | 'timestamp'>) => {
-    if (!combat || !isGM) return;
+    if (!combat) return;
     const newEvent: RollFeedbackEvent = {
       ...event,
       id: generateId(),
@@ -401,31 +457,67 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     broadcastCombatState(newCombat);
   };
 
-  const setTarget = (participantId: string | null) => {
-    if (!combat) return;
-
-    if (!isGM) {
-      const activeParticipant = combat.participants[combat.currentTurnIndex];
-      const isMyTurn = activeParticipant && activeParticipant.type === 'player' && activeParticipant.refId === profile?.player_id;
-      if (!isMyTurn) {
-        console.warn("Targeting locked: It is not your turn.");
-        return; // Only GM can target outside of their turn
-      }
-    }
-
-    const newCombat = { ...combat, selectedTargetId: participantId };
-    setCombat(newCombat);
-    
-    // We send a broadcast so everyone sees the target lock.
-    window.dispatchEvent(new CustomEvent('send_broadcast', { 
-      detail: { type: 'combat_update', payload: newCombat } 
-    }));
-  };
-
   const clearLog = () => {
     setCombat(prev => {
       if (!prev) return prev;
       const newCombat = { ...prev, log: [] };
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
+  };
+
+  const removeParticipant = (participantId: string) => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      let newTurnIndex = prev.currentTurnIndex;
+      const indexToRemove = prev.participants.findIndex(p => p.refId === participantId);
+      
+      if (indexToRemove === -1) return prev;
+
+      // Se o removido for antes do atual, recua o index
+      if (indexToRemove < newTurnIndex) {
+        newTurnIndex--;
+      }
+      
+      const newParticipants = prev.participants.filter(p => p.refId !== participantId);
+      const newSelectedTargets = prev.selectedTargetIds.filter(id => id !== participantId);
+      
+      // Ajuste caso o index estoure o array (ex: era o último da lista)
+      if (newTurnIndex >= newParticipants.length) {
+        newTurnIndex = 0; // Volta pro topo se acabou a rodada
+      }
+
+      const newCombat = { 
+        ...prev, 
+        participants: newParticipants, 
+        currentTurnIndex: newTurnIndex,
+        selectedTargetIds: newSelectedTargets
+      };
+      
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
+  };
+
+  const toggleTarget = (participantId: string) => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const current = prev.selectedTargetIds || [];
+      const isSelected = current.includes(participantId);
+      const newTargets = isSelected 
+        ? current.filter(id => id !== participantId) 
+        : [...current, participantId];
+      
+      const newCombat = { ...prev, selectedTargetIds: newTargets };
+      broadcastCombatState(newCombat);
+      return newCombat;
+    });
+  };
+
+  const clearTargets = () => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const newCombat = { ...prev, selectedTargetIds: [] };
       broadcastCombatState(newCombat);
       return newCombat;
     });
@@ -445,9 +537,11 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       broadcastCombatState,
       addToLog,
       updateParticipant,
+      removeParticipant,
       triggerRollEvent,
-      setTarget,
-      clearLog
+      clearLog,
+      toggleTarget,
+      clearTargets
     }}>
       {children}
     </CombatContext.Provider>

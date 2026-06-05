@@ -172,6 +172,7 @@ export function useCampaignInfo() {
 // ─────────────────────────────────────────────────────────────
 export function useNpcs() {
   const [npcs, setNpcs] = useState<Npc[]>([]);
+  const npcsRef = useRef<Npc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -182,7 +183,9 @@ export function useNpcs() {
   const fetchNpcs = useCallback(async () => {
     try {
       const { data } = await supabase.from("npcs").select("*");
-      setNpcs((data || []).map(mapDBToNpc));
+      const mapped = (data || []).map(mapDBToNpc);
+      npcsRef.current = mapped;
+      setNpcs(mapped);
     } catch (err) {
       console.error(err);
       setError("Erro ao carregar NPCs.");
@@ -200,22 +203,22 @@ export function useNpcs() {
 
   const saveNpcs = useCallback(async (val: Npc[] | ((prev: Npc[]) => Npc[])) => {
     if (role !== 'gm') return;
-    const next = typeof val === 'function' ? val(npcs) : val;
+    // NOTE: We capture the current npcs via a ref-like pattern to avoid stale closure.
+    // We always upsert the full `next` list to guarantee the write is never silently skipped.
+    const currentNpcs = npcsRef.current;
+    const next = typeof val === 'function' ? val(currentNpcs) : val;
+    npcsRef.current = next;
     setNpcs(next);
 
     try {
       const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
       if (!campaign) return;
-      
-      const changed = next.filter(n => {
-        const p = npcs.find(x => x.id === n.id);
-        return !p || JSON.stringify(p) !== JSON.stringify(n);
-      });
-      if (changed.length > 0) {
-        const { error } = await supabase.from("npcs").upsert(changed.map(n => mapNpcToDB(n, campaign.id)));
+
+      if (next.length > 0) {
+        const { error } = await supabase.from("npcs").upsert(next.map(n => mapNpcToDB(n, campaign.id)));
         if (error) throw new Error(error.message || JSON.stringify(error));
       }
-      const prevIds = npcs.map(n => n.id);
+      const prevIds = currentNpcs.map(n => n.id);
       const nextIds = new Set(next.map(n => n.id));
       const deletedIds = prevIds.filter(id => !nextIds.has(id));
       if (deletedIds.length > 0) {
@@ -226,7 +229,7 @@ export function useNpcs() {
     } catch (err) {
       console.error("Erro ao salvar NPCs", err);
     }
-  }, [npcs, role, supabase]);
+  }, [role, supabase]);
 
   return { npcs, setNpcs: saveNpcs, loading, error };
 }
@@ -236,6 +239,7 @@ export function useNpcs() {
 // ─────────────────────────────────────────────────────────────
 export function usePlayers() {
   const [players, setPlayers] = useState<Player[]>([]);
+  const playersRef = useRef<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -249,7 +253,9 @@ export function usePlayers() {
   const fetchPlayers = useCallback(async () => {
     try {
       const { data } = await supabase.from("players").select("*");
-      setPlayers((data || []).map(mapDBToPlayer));
+      const mapped = (data || []).map(mapDBToPlayer);
+      playersRef.current = mapped;
+      setPlayers(mapped);
     } catch (err) {
       console.error(err);
       setError("Erro ao carregar Jogadores.");
@@ -266,7 +272,11 @@ export function usePlayers() {
   }, [fetchPlayers]);
 
   const savePlayers = useCallback((val: Player[] | ((prev: Player[]) => Player[])) => {
-    const next = typeof val === 'function' ? val(players) : val;
+    // Use ref to avoid stale closure — the `players` state variable captured in the
+    // callback may not reflect the latest value when the callback runs.
+    const currentPlayers = playersRef.current;
+    const next = typeof val === 'function' ? val(currentPlayers) : val;
+    playersRef.current = next;
     setPlayers(next);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -275,13 +285,9 @@ export function usePlayers() {
         const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
         if (!campaign) return;
 
-        const changed = next.filter(p => {
-          const prevP = players.find(x => x.id === p.id);
-          return !prevP || JSON.stringify(prevP) !== JSON.stringify(p);
-        });
-
-        if (changed.length > 0) {
-          const mapped = changed.map(p => mapPlayerToDB(p, campaign.id));
+        // Always upsert all players — avoid the stale-closure diff bug
+        const mapped = next.map(p => mapPlayerToDB(p, campaign.id));
+        if (mapped.length > 0) {
           if (role === 'gm') {
             const { error } = await supabase.from("players").upsert(mapped);
             if (error) throw new Error(error.message || JSON.stringify(error));
@@ -295,7 +301,7 @@ export function usePlayers() {
         }
 
         if (role === 'gm') {
-          const prevIds = players.map(n => n.id);
+          const prevIds = currentPlayers.map(n => n.id);
           const nextIds = new Set(next.map(n => n.id));
           const deletedIds = prevIds.filter(id => !nextIds.has(id));
           if (deletedIds.length > 0) {
@@ -308,7 +314,7 @@ export function usePlayers() {
         console.error("Erro ao salvar Players", err);
       }
     }, 500);
-  }, [players, role, playerId, supabase]);
+  }, [role, playerId, supabase]);
 
   return { players, setPlayers: savePlayers, loading, error };
 }

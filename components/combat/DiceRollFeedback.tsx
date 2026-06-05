@@ -20,7 +20,17 @@ export default function DiceRollFeedback() {
 
   let containerClass = 'roll-feedback-toast';
   let badgeClass = 'roll-badge';
+  
+  // Extrai o tipo de dado da fórmula (ex: "d6+0" -> "d6", "d20+5" -> "d20")
+  const dieFaceMatch = event.formula.match(/d(\d+)/i);
+  const dieFaceStr = dieFaceMatch ? `d${dieFaceMatch[1]}` : 'd20';
+  
   let text = 'Rolagem de ' + (event.type === 'attack' ? 'Ataque' : event.type === 'damage' ? 'Dano' : 'Teste');
+
+  // Se não for d20, não é bem um ataque, pode ser só um dano ou rolagem genérica.
+  if (dieFaceStr !== 'd20') {
+    text = 'Rolagem de Dano / Efeito';
+  }
 
   if (event.isCritical) {
     containerClass += ' critical-burst';
@@ -43,11 +53,11 @@ export default function DiceRollFeedback() {
       </div>
       <div className="roll-result-container">
         <div className={badgeClass}>
-          d20: {event.result}
+          {dieFaceStr}: {event.result}
         </div>
         <div style={{ fontSize: '1.2rem', margin: '0 10px' }}>+</div>
         <div className="roll-formula">
-          {event.formula.split('+')[1] || 0}
+          {event.formula.split('+')[1] || event.formula.split('-')[1] || 0}
         </div>
         <div style={{ fontSize: '1.2rem', margin: '0 10px' }}>=</div>
         <div className="roll-total">

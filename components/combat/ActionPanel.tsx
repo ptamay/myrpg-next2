@@ -1,447 +1,498 @@
 import React, { useState } from 'react';
-import { useCombat, CombatParticipant } from '@/contexts/CombatContext';
+import { useCombat, CombatParticipant, CombatClassResource, PendingAttack } from '@/contexts/CombatContext';
 import { useUserSession } from '@/contexts/UserSessionContext';
-import HpInlineEditor from '@/components/ui/HpInlineEditor';
-import { rollAttack, rollDamage } from '@/lib/dice/rollParser';
-import { computeExtraDamages, buildDamageLog, isPaladin, rollDivineSmite } from '@/lib/dice/specialDamage';
-import { getMaxAttacks, isMonk } from '@/lib/dice/multiattack';
+import CombatDicePanel, { RollEntry } from './CombatDicePanel';
+import { getMaxAttacks } from '@/lib/dice/multiattack';
 
 interface Props {
   participantId: string | null;
   onClose: () => void;
+  pendingAttack: PendingAttack | null;
+  setPendingAttack: (atk: PendingAttack | null) => void;
 }
 
-export default function ActionPanel({ participantId, onClose }: Props) {
-  const { combat, applyDamage, applyHeal, updateParticipant, addCondition, removeCondition, nextTurn, endCombat, addToLog, triggerRollEvent } = useCombat();
+function LogTypeIcon(type?: string) {
+  switch (type) {
+    case 'critical': return '💥';
+    case 'crit_fail': return '💀';
+    case 'attack':   return '⚔️';
+    case 'damage':   return '🩸';
+    case 'heal':     return '💚';
+    default:         return '🎲';
+  }
+}
+
+function renderLogMarkdown(text: string) {
+  const html = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+export default function ActionPanel({ participantId, onClose, pendingAttack, setPendingAttack }: Props) {
+  const {
+    combat, updateParticipant, addToLog, triggerRollEvent, clearLog, removeParticipant, applyDamage, removeCondition
+  } = useCombat();
   const { isGM, profile } = useUserSession();
-  
-  const [condInput, setCondInput] = useState('');
-  const [advantage, setAdvantage] = useState<'normal' | 'advantage' | 'disadvantage'>('normal');
-  // smiteSlot: undefined = Paladino ainda não decidiu | null = não usa smite | 1-5 = nível do slot
-  const [pendingDamage, setPendingDamage] = useState<{ atk: any, target: any, res: any, advantageType: string, smiteSlot?: number | null } | null>(null);
 
-  const handleRollDamage = () => {
-    if (!pendingDamage || !participant) return;
-    // Se for Paladino e a decisão de smite ainda não foi tomada, aguarda
-    if (isPaladin(participant) && pendingDamage.smiteSlot === undefined) return;
-
-    const { atk, target, res, advantageType, smiteSlot } = pendingDamage;
-
-    // 1. Rola o dano da arma
-    const dmgRes = rollDamage(atk.dmg, res.isCritical);
-
-    // 2. Calcula danos extras automáticos (Furtivo, Fúria, Marca, Hex)
-    const extras = computeExtraDamages(participant, res.isCritical, advantageType);
-
-    // 3. Adiciona Smite Divino se o Paladino escolheu usar
-    if (smiteSlot) {
-      extras.push(rollDivineSmite(smiteSlot, res.isCritical));
-    }
-
-    // 4. Monta log com breakdown completo
-    const { total: totalDmg, message: logMsg } = buildDamageLog(
-      participant.name,
-      target.name,
-      dmgRes.total,
-      dmgRes.rolls,
-      dmgRes.modifier,
-      atk.dmg,
-      extras,
-      res.isCritical
-    );
-
-    applyDamage(target.refId, totalDmg);
-    addToLog(logMsg, participant.name, res.isCritical ? 'critical' : 'damage');
-    setPendingDamage(null);
-  };
+  const [concSpell, setConcSpell] = useState('');
 
   if (!combat) return null;
 
-  const participant = combat.participants.find(p => p.refId === participantId);
-  const canEdit = isGM || profile?.player_id === participant?.refId;
+  const participant = participantId
+    ? combat.participants.find(p => p.refId === participantId) ?? null
+    : null;
+  const activeParticipant = combat.participants[combat.currentTurnIndex] ?? null;
+  const isMyCharacter = participant?.type === 'player' && participant?.refId === profile?.player_id;
+  const canEdit = isGM || isMyCharacter;
+
+  // ──── Handlers de Recursos ────────────────────────────────────────────────
+
+  const updateResource = (participant: CombatParticipant, resId: string, delta: number) => {
+    const updated = (participant.classResources || []).map(r =>
+      r.id === resId
+        ? { ...r, current: Math.max(0, Math.min(r.max, r.current + delta)) }
+        : r
+    );
+    updateParticipant(participant.refId, { classResources: updated });
+  };
+
+  const consumeSpellSlot = (participant: CombatParticipant, level: number) => {
+    const slots = { ...(participant.spellSlots || {}) };
+    const used = { ...(participant.spellSlotsUsed || {}) };
+    const max = slots[level] || 0;
+    const usedCount = used[level] || 0;
+    if (usedCount >= max) return;
+    used[level] = usedCount + 1;
+    updateParticipant(participant.refId, { spellSlotsUsed: used });
+    addToLog(`gastou um slot de magia nível ${level}.`, participant.name, 'system');
+  };
+
+  const restoreSpellSlot = (participant: CombatParticipant, level: number) => {
+    const used = { ...(participant.spellSlotsUsed || {}) };
+    if (!used[level] || used[level] <= 0) return;
+    used[level] = used[level] - 1;
+    updateParticipant(participant.refId, { spellSlotsUsed: used });
+    addToLog(`recuperou um slot de magia nível ${level}.`, participant.name, 'system');
+  };
+
+  const toggleRage = (participant: CombatParticipant) => {
+    if (participant.isRaging) {
+      updateParticipant(participant.refId, { isRaging: false });
+      addToLog('saiu da Fúria.', participant.name, 'system');
+    } else {
+      const fury = (participant.classResources || []).find(r =>
+        r.name.toLowerCase().includes('fúria') || r.name.toLowerCase().includes('furia')
+      );
+      if (fury && fury.current <= 0) {
+        addToLog('tentou entrar em Fúria, mas não tem mais cargas!', participant.name, 'system');
+        return;
+      }
+      if (fury) updateResource(participant, fury.id, -1);
+      updateParticipant(participant.refId, { isRaging: true });
+      addToLog('🔥 entrou em Fúria!', participant.name, 'system');
+    }
+  };
+
+  const toggleConcentration = (participant: CombatParticipant) => {
+    if (participant.isConcentrating) {
+      updateParticipant(participant.refId, { isConcentrating: false, concentrationSpell: undefined });
+      addToLog('quebrou Concentração.', participant.name, 'system');
+    } else if (concSpell.trim()) {
+      updateParticipant(participant.refId, { isConcentrating: true, concentrationSpell: concSpell.trim() });
+      addToLog(`começou a se concentrar em ${concSpell.trim()}.`, participant.name, 'system');
+      setConcSpell('');
+    }
+  };
+
+  // ──── Callback do dado ────────────────────────────────────────────────────
+
+  const handleActionPanelAttack = (atk: { name: string; bonus: string; dmg: string }) => {
+    if (combat.selectedTargetIds.length === 0) {
+      alert("Selecione pelo menos um alvo no tabuleiro primeiro!");
+      return;
+    }
+    setPendingAttack(atk);
+  };
+
+  const handleDiceRoll = (entry: RollEntry) => {
+    const { rollMode, saveAttr, saveDC } = entry;
+    
+    if (rollMode === "save") {
+      if (combat.selectedTargetIds.length === 0) {
+        alert("Selecione pelo menos um alvo no tabuleiro primeiro!");
+        return;
+      }
+      addToLog(`✨ Exigiu Teste de Resistência de **${saveAttr} (CD ${saveDC})**!`, entry.actorName, 'system');
+      
+      combat.selectedTargetIds.forEach(targetId => {
+        const target = combat.participants.find(p => p.refId === targetId);
+        if (target) {
+          let statVal = 10;
+          if (saveAttr === "Força") statVal = target.str;
+          if (saveAttr === "Destreza") statVal = target.dex;
+          if (saveAttr === "Constituição") statVal = target.con;
+          if (saveAttr === "Inteligência") statVal = target.int;
+          if (saveAttr === "Sabedoria") statVal = target.wis;
+          if (saveAttr === "Carisma") statVal = target.cha;
+          
+          let mod = Math.floor((statVal - 10) / 2);
+          if (target.saves?.some(s => s.toLowerCase() === saveAttr!.toLowerCase())) {
+            mod += target.profBonus;
+          }
+          
+          const rollResult = Math.floor(Math.random() * 20) + 1;
+          const total = rollResult + mod;
+          const passed = total >= saveDC!;
+          
+          let resMsg = `Rolou **${total}** (d20: ${rollResult} | Mod: ${mod >= 0 ? '+' : ''}${mod}). `;
+          if (passed) {
+            addToLog(`🛡️ ${target.name}: ${resMsg} **PASSOU** no teste.`, entry.actorName, 'system');
+          } else {
+            addToLog(`💥 ${target.name}: ${resMsg} **FALHOU** no teste!`, entry.actorName, 'crit_fail');
+          }
+        }
+      });
+      return;
+    }
+
+    const type = entry.isCritical ? 'critical' : entry.isCritFail ? 'crit_fail' : 'attack';
+    let msg = `rolou d${entry.dieFaces}${entry.modifier !== 0 ? (entry.modifier > 0 ? '+' : '') + entry.modifier : ''} → **${entry.total}**`;
+    
+    if (entry.isCritical) msg += ' 💥 CRÍTICO!';
+    if (entry.isCritFail) msg += ' 💀 Falha Crítica!';
+
+    if (rollMode === "free") {
+      addToLog(msg, entry.actorName, 'system');
+      return;
+    }
+
+    if (rollMode === "damage") {
+      if (combat.selectedTargetIds.length === 0) {
+        addToLog(`⚠️ ${msg} (nenhum alvo selecionado)`, entry.actorName, 'system');
+        return;
+      }
+      
+      const damagedNames: string[] = [];
+      combat.selectedTargetIds.forEach(targetId => {
+        const target = combat.participants.find(p => p.refId === targetId);
+        if (target) {
+          applyDamage(targetId, entry.total);
+          damagedNames.push(target.name);
+        }
+      });
+      addToLog(`🩸 causou **${entry.total}** de dano em ${damagedNames.join(', ')}!`, entry.actorName, 'damage');
+      return;
+    }
+
+    if (rollMode === "attack") {
+      const atkName = pendingAttack ? pendingAttack.name : 'Arma Indefinida';
+      const atkBonus = pendingAttack ? pendingAttack.bonus : `+${entry.modifier}`;
+      const atkDmg = pendingAttack ? pendingAttack.dmg : '';
+
+      let baseMsg = `atacou com **${atkName}**: total **${entry.total}** (d20: ${entry.dieResult}${entry.modifier !== 0 ? (entry.modifier > 0 ? '+' : '') + entry.modifier : ''})`;
+      if (entry.isCritical) baseMsg += ' 💥 CRÍTICO!';
+      if (entry.isCritFail) baseMsg += ' 💀 Falha Crítica!';
+
+      if (combat.selectedTargetIds.length === 0) {
+        addToLog(`⚔️ ${baseMsg}`, entry.actorName, type);
+      } else {
+        const hitLogs: string[] = [];
+        const hitsToDispatch: any[] = [];
+        
+        combat.selectedTargetIds.forEach(targetId => {
+          const target = combat.participants.find(p => p.refId === targetId);
+          if (target) {
+            if (entry.isCritical || (!entry.isCritFail && entry.total >= target.ac)) {
+              hitLogs.push(`🎯 Acertou ${target.name} (CA ${target.ac})`);
+              hitsToDispatch.push({
+                target,
+                res: { rollResult: entry.dieResult, total: entry.total, isCritical: entry.isCritical, isCritFail: entry.isCritFail },
+                atk: { name: atkName, bonus: atkBonus, dmg: atkDmg },
+                advantageType: entry.advantage
+              });
+            } else {
+              hitLogs.push(`❌ Errou ${target.name} (CA ${target.ac})`);
+            }
+          }
+        });
+        addToLog(`⚔️ ${baseMsg} — ${hitLogs.join(', ')}`, entry.actorName, type);
+        
+        if (hitsToDispatch.length > 0) {
+          window.dispatchEvent(new CustomEvent('action_panel_attack_hit', { detail: hitsToDispatch }));
+        }
+      }
+
+      // Se quem rolou foi o participante ativo, consome ação e tira stealth
+      if (pendingAttack && activeParticipant && entry.actorName === activeParticipant.name) {
+        updateParticipant(activeParticipant.refId, {
+          actionSpent: true,
+          attacksMade: (activeParticipant.attacksMade || 0) + 1
+        });
+        const isFurtivo = activeParticipant.conditions?.some(c => ['furtivo', 'escondido', 'invisível'].includes(c.toLowerCase()));
+        if (isFurtivo) {
+          ['Furtivo', 'Escondido', 'Invisível', 'furtivo', 'escondido', 'invisível'].forEach(sc => {
+            if (activeParticipant.conditions?.includes(sc)) removeCondition(activeParticipant.refId, sc);
+          });
+          addToLog(`revelou sua posição ao atacar.`, activeParticipant.name, 'system');
+        }
+      }
+
+      setPendingAttack(null);
+    }
+
+    triggerRollEvent({
+      type: rollMode === "damage" ? 'damage' : 'attack',
+      result: entry.dieResult,
+      total: entry.total,
+      isCritical: entry.isCritical,
+      isCritFail: entry.isCritFail,
+      actorName: entry.actorName,
+      formula: `d${entry.dieFaces}${entry.modifier >= 0 ? '+' : ''}${entry.modifier}`
+    });
+  };
+
+  // ──── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="action-panel">
-      {/* HEADER LOGIC: NEXT TURN & END COMBAT */}
-      {isGM && (
-        <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="btn primary-btn" style={{ flex: 1 }} onClick={() => {
-            addToLog('O turno foi passado.', 'Mestre');
-            nextTurn();
-          }}>
-            Avançar Turno ⏭️
-          </button>
-          <button className="btn secondary-btn" style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }} onClick={endCombat} title="Encerrar Combate">
-            ✖
-          </button>
-        </div>
-      )}
+    <div className="action-panel" style={{ display: 'flex', flexDirection: 'column', width: '420px', minWidth: '380px', overflowY: 'hidden' }}>
 
-      {participant ? (
-        <div style={{ padding: '1rem', flex: 1, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-            <h3 style={{ margin: 0, color: 'var(--primary-color)' }}>{participant.name}</h3>
-            <button className="btn-close" onClick={onClose}>×</button>
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
-              <span style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{participant.hpCurrent}</span>
-              <span style={{ fontSize: "1rem", color: "var(--text-muted)" }}>/ {participant.hpMax}</span>
-              {participant.tempHp > 0 && <span style={{ fontSize: "0.85rem", color: "#eab308", marginLeft: '8px' }}>+{participant.tempHp} Temp</span>}
-            </div>
-          </div>
-
-          {/* ECONOMY TRACKER */}
-          {canEdit && (
-            <div className="economy-tracker" style={{ margin: '1rem 0', justifyContent: 'flex-start' }}>
-              <div 
-                className={`bubble ${!participant.actionSpent ? 'active-action' : 'spent'}`} 
-                title="Ação Principal (Clique para alternar)"
-                style={{ cursor: 'pointer' }}
-                onClick={() => updateParticipant(participant.refId, { actionSpent: !participant.actionSpent, attacksMade: 0 })}
-              >
-                🟢 Ação
-              </div>
-              <div 
-                className={`bubble ${!participant.bonusActionSpent ? 'active-bonus' : 'spent'}`} 
-                title="Ação Bônus (Clique para alternar)"
-                style={{ cursor: 'pointer' }}
-                onClick={() => updateParticipant(participant.refId, { bonusActionSpent: !participant.bonusActionSpent })}
-              >
-                🟡 Bônus
-              </div>
-              <div 
-                className={`bubble ${!participant.movementSpent ? 'active-move' : 'spent'}`} 
-                title="Movimento (Clique para alternar)"
-                style={{ cursor: 'pointer' }}
-                onClick={() => updateParticipant(participant.refId, { movementSpent: !participant.movementSpent })}
-              >
-                🏃 Movimento
-              </div>
-              <div 
-                className={`bubble ${!participant.reactionSpent ? 'active-reaction' : 'spent'}`} 
-                title="Reação (Clique para alternar)"
-                style={{ cursor: 'pointer' }}
-                onClick={() => updateParticipant(participant.refId, { reactionSpent: !participant.reactionSpent })}
-              >
-                🔵 Reação
-              </div>
-            </div>
-          )}
-
+      {/* ZONA 1 — LOG DE COMBATE (Agora no Topo) */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, background: 'linear-gradient(to bottom, rgba(15,15,20,0.8), rgba(0,0,0,0.9))' }}>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>
+            📋 Registro de Combate
+          </span>
           {isGM && (
-            <div style={{ marginBottom: '1rem' }}>
-              <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Condições</h4>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                {(participant.conditions || []).map(c => (
-                  <div key={c} style={{ background: 'var(--danger)', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ textTransform: 'uppercase' }}>{c}</span>
-                    <button onClick={() => removeCondition(participant.refId, c)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0 }}>×</button>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select 
-                  className="journey-input" 
-                  style={{ flex: 1 }}
-                  value={condInput}
-                  onChange={e => {
-                    if (e.target.value) {
-                      addCondition(participant.refId, e.target.value);
-                      setCondInput('');
-                    }
-                  }}
-                >
-                  <option value="">+ Adicionar Condição...</option>
-                  {/* Condições padrão D&D 5e */}
-                  <option value="Agarrado">Agarrado</option>
-                  <option value="Amedrontado">Amedrontado</option>
-                  <option value="Atordoado">Atordoado</option>
-                  <option value="Caído">Caído</option>
-                  <option value="Cego">Cego</option>
-                  <option value="Enfeitiçado">Enfeitiçado</option>
-                  <option value="Envenenado">Envenenado</option>
-                  <option value="Escondido">Escondido</option>
-                  <option value="Exausto">Exausto</option>
-                  <option value="Furtivo">Furtivo</option>
-                  <option value="Impedido">Impedido</option>
-                  <option value="Incapacitado">Incapacitado</option>
-                  <option value="Invisível">Invisível</option>
-                  <option value="Paralisado">Paralisado</option>
-                  <option value="Petrificado">Petrificado</option>
-                  <option value="Surdo">Surdo</option>
-                  {/* Efeitos de combate (adicionados ao ATACANTE) */}
-                  <optgroup label="── Efeitos de Combate ──">
-                    <option value="Fúria">🔥 Fúria (Bárbaro)</option>
-                    <option value="Marcado">🏹 Marcado — Marca do Caçador</option>
-                    <option value="Hex">💜 Hex (Bruxo)</option>
-                  </optgroup>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {canEdit && (
-            <div style={{ marginTop: '2rem' }}>
-              <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Ataques</h4>
-            
-            {isGM && participant.attacks && participant.attacks.length > 0 && (
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <button 
-                  className={`btn ${advantage === 'disadvantage' ? 'primary-btn' : 'secondary-btn'}`} 
-                  style={{ flex: 1, padding: '0.2rem', fontSize: '0.8rem', background: advantage === 'disadvantage' ? 'var(--danger)' : '' }}
-                  onClick={() => setAdvantage('disadvantage')}
-                >
-                  DESV
-                </button>
-                <button 
-                  className={`btn ${advantage === 'normal' ? 'primary-btn' : 'secondary-btn'}`} 
-                  style={{ flex: 1, padding: '0.2rem', fontSize: '0.8rem' }}
-                  onClick={() => setAdvantage('normal')}
-                >
-                  NORM
-                </button>
-                <button 
-                  className={`btn ${advantage === 'advantage' ? 'primary-btn' : 'secondary-btn'}`} 
-                  style={{ flex: 1, padding: '0.2rem', fontSize: '0.8rem', background: advantage === 'advantage' ? '#22c55e' : '' }}
-                  onClick={() => setAdvantage('advantage')}
-                >
-                  VANT
-                </button>
-              </div>
-            )}
-
-            {pendingDamage ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '1rem', background: 'rgba(0,0,0,0.25)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                <span style={{ color: 'var(--success)', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                  🎯 {pendingDamage.res.isCritical ? '💥 CRÍTICO! ' : ''}Acerto em {pendingDamage.target.name}!
-                </span>
-
-                {/* Preview de bônus automáticos */}
-                {(() => {
-                  const extras = computeExtraDamages(participant, pendingDamage.res.isCritical, pendingDamage.advantageType);
-                  return extras.length > 0 ? (
-                    <div style={{ fontSize: '0.78rem', color: '#a3e635', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
-                      ✨ Bônus automáticos: {extras.map(e => e.label).join(' + ')}
-                    </div>
-                  ) : null;
-                })()}
-
-                {/* Smite Divino — Paladino decide antes de rolar o dano */}
-                {isPaladin(participant) && pendingDamage.smiteSlot === undefined && (
-                  <div style={{ marginTop: '4px' }}>
-                    <div style={{ fontSize: '0.82rem', color: '#fbbf24', marginBottom: '4px', fontWeight: 'bold' }}>⚡ Usar Smite Divino?</div>
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      {[1, 2, 3, 4, 5].map(slot => (
-                        <button key={slot}
-                          className="btn secondary-btn"
-                          style={{ flex: 1, padding: '4px 2px', fontSize: '0.72rem' }}
-                          onClick={() => setPendingDamage({ ...pendingDamage, smiteSlot: slot })}
-                        >
-                          Slot {slot}<br/><span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>({slot + 1}d8)</span>
-                        </button>
-                      ))}
-                      <button className="btn secondary-btn"
-                        style={{ flex: 1, padding: '4px 2px', fontSize: '0.72rem', color: 'var(--text-muted)' }}
-                        onClick={() => setPendingDamage({ ...pendingDamage, smiteSlot: null })}
-                      >
-                        Não
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Botão de rolar dano (espera decisão do Smite se for Paladino) */}
-                {(!isPaladin(participant) || pendingDamage.smiteSlot !== undefined) && (
-                  <button
-                    className="btn primary-btn"
-                    style={{ background: 'var(--danger)', color: 'white', marginTop: '4px' }}
-                    onClick={handleRollDamage}
-                  >
-                    🩸 Rolar Dano ({pendingDamage.atk.dmg}{pendingDamage.smiteSlot ? ` + ${pendingDamage.smiteSlot + 1}d8 Smite` : ''})
-                  </button>
-                )}
-
-                <button className="btn secondary-btn" style={{ fontSize: '0.8rem' }} onClick={() => setPendingDamage(null)}>Cancelar</button>
-              </div>
-            ) : participant.attacks && participant.attacks.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                {participant.attacks.map((atk, i) => {
-                  const maxAttacks = getMaxAttacks(participant);
-                  const currentAttacks = participant.attacksMade || 0;
-                  const isOutOfAttacks = currentAttacks >= maxAttacks;
-                  
-                  return (
-                    <button 
-                      key={i} 
-                      className="btn secondary-btn" 
-                      style={{ justifyContent: 'space-between', padding: '0.5rem', opacity: isOutOfAttacks ? 0.5 : 1 }}
-                      disabled={isOutOfAttacks}
-                      onClick={() => {
-                        if (!isGM) return;
-                        
-                        const targetId = combat.selectedTargetId;
-                        const target = targetId ? combat.participants.find(p => p.refId === targetId) : null;
-                        
-                        // Consume action and increment attacks
-                        const newAttacksMade = (participant.attacksMade || 0) + 1;
-                        updateParticipant(participant.refId, { 
-                          actionSpent: true, 
-                          attacksMade: newAttacksMade 
-                        });
-
-                        const isFurtivo = participant.conditions?.some(c => ['furtivo', 'escondido', 'invisível'].includes(c.toLowerCase()));
-                        const finalAdvantage = isFurtivo ? 'advantage' : advantage;
-
-                        if (isFurtivo) {
-                          ['Furtivo', 'Escondido', 'Invisível', 'furtivo', 'escondido', 'invisível'].forEach(sc => {
-                            if (participant.conditions?.includes(sc)) removeCondition(participant.refId, sc);
-                          });
-                          addToLog(`revelou sua posição ao atacar.`, participant.name, 'system');
-                        }
-
-                        const res = rollAttack(atk.bonus, finalAdvantage);
-                        triggerRollEvent({
-                          type: 'attack',
-                          result: res.rollResult,
-                          total: res.total,
-                          isCritical: res.isCritical,
-                          isCritFail: res.isCritFail,
-                          actorName: participant.name,
-                          formula: `d20${atk.bonus}`
-                        });
-                        
-                        const type = res.isCritical ? 'critical' : res.isCritFail ? 'crit_fail' : 'attack';
-                        
-                        if (target) {
-                          const targetAc = Number(target.ac) || 10;
-                          const isHit = res.isCritical || (!res.isCritFail && res.total >= targetAc);
-                          
-                          if (isHit) {
-                            addToLog(`atacou ${target.name} com ${atk.name} e ACERTOU! (Aguardando dano)`, participant.name, res.isCritical ? 'critical' : 'attack');
-                            setPendingDamage({ atk, target, res, advantageType: finalAdvantage });
-                          } else {
-                            addToLog(`atacou ${target.name} com ${atk.name} mas ERROU.`, participant.name, res.isCritFail ? 'crit_fail' : 'attack');
-                          }
-                        } else {
-                          // Fallback: No target selected, just roll and log
-                          addToLog(`atacou com ${atk.name}: Total ${res.total} (Dado: ${res.rollResult})`, participant.name, type);
-                        }
-                        
-                        setAdvantage('normal'); // reset after roll
-                      }}
-                    >
-                      <span style={{ fontWeight: 'bold' }}>
-                        {atk.name} {participant.actionSpent && !isOutOfAttacks && ("(Extra " + (participant.attacksMade + 1) + "/" + maxAttacks + ")")}
-                      </span>
-                      <span style={{ color: 'var(--text-muted)' }}>{atk.bonus} | {atk.dmg}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Nenhum ataque cadastrado.</div>
-            )}
-            
-            <h4 style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Ações Globais</h4>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {['Disparada', 'Desengajar', 'Esquiva', 'Esconder'].map(act => {
-                  const isRogue = participant.playerClass?.toLowerCase().includes('ladino') || participant.playerClass?.toLowerCase().includes('rogue');
-                  const isMonk = participant.playerClass?.toLowerCase().includes('monge') || participant.playerClass?.toLowerCase().includes('monk');
-                  const isCunningAction = isRogue && ['Disparada', 'Desengajar', 'Esconder'].includes(act);
-                  const isStepOfTheWind = isMonk && ['Disparada', 'Desengajar'].includes(act);
-                  
-                  const isBonus = isCunningAction || isStepOfTheWind;
-                  const canUse = isBonus ? !participant.bonusActionSpent : !participant.actionSpent;
-
-                  return (
-                    <button 
-                      key={act}
-                      className="btn secondary-btn" 
-                      style={{ flex: 1, fontSize: '0.8rem', opacity: canUse ? 1 : 0.5 }} 
-                      disabled={!canUse}
-                      onClick={() => {
-                        if (!isGM) return;
-                        if (isBonus) updateParticipant(participant.refId, { bonusActionSpent: true });
-                        else updateParticipant(participant.refId, { actionSpent: true });
-                        
-                        if (act === 'Esconder') addCondition(participant.refId, 'Escondido');
-                        addToLog(`usou ${act}${isBonus ? ' (Ação Bônus)' : ''}.`, participant.name, 'system');
-                      }}
-                    >
-                      {act === 'Disparada' ? '🏃' : act === 'Desengajar' ? '🛡️' : act === 'Esquiva' ? '🤸' : '🥷'} {act}
-                    </button>
-                  );
-                })}
-                {/* Reaction Button */}
-                <button 
-                  className="btn secondary-btn"
-                  disabled={participant.reactionSpent}
-                  onClick={() => {
-                    if (!isGM) return;
-                    const reaction = prompt("Descreva a Reação usada (ex: Ataque de Oportunidade, Magia Escudo Arcano):", "Ataque de Oportunidade");
-                    if (reaction) {
-                      updateParticipant(participant.refId, { reactionSpent: true });
-                      addToLog(`usou Reação: ${reaction}.`, participant.name, 'system');
-                    }
-                  }}
-                  title="Usar Reação"
-                >
-                  🔵 Usar Reação
-                </button>
-
-                {/* 🌀 Chuva de Golpes — Monge Nv.2+, Ação Bônus */}
-                {isMonk(participant) && (participant.playerLevel || 0) >= 2 && (
-                  <button
-                    className="btn secondary-btn"
-                    style={{
-                      flex: '1 1 100%',
-                      background: participant.flurryUsed ? 'rgba(99,102,241,0.15)' : '',
-                      borderColor: participant.flurryUsed ? '#6366f1' : '',
-                      color: participant.flurryUsed ? '#a5b4fc' : '',
-                      opacity: (!participant.actionSpent || participant.bonusActionSpent || participant.flurryUsed) ? 0.45 : 1,
-                      fontSize: '0.8rem'
-                    }}
-                    disabled={!participant.actionSpent || participant.bonusActionSpent || participant.flurryUsed}
-                    title="Chuva de Golpes: gasta 1 Ponto de Ki, usa Ação Bônus para fazer 2 ataques extras."
-                    onClick={() => {
-                      if (!isGM) return;
-                      updateParticipant(participant.refId, { bonusActionSpent: true, flurryUsed: true });
-                      addToLog('usou Chuva de Golpes! (+2 ataques como Ação Bônus — gasta 1 Ki)', participant.name, 'system');
-                    }}
-                  >
-                    🌀 Chuva de Golpes (+2 ataques / 1 Ki)
-                  </button>
-                )}
-            </div>
-          </div>
+            <button
+              className="btn secondary-btn"
+              style={{ fontSize: '0.75rem', padding: '4px 8px', borderColor: 'var(--text-muted)' }}
+              onClick={clearLog}
+              title="Limpar log"
+            >
+              🧹 Limpar
+            </button>
           )}
         </div>
-      ) : (
-        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <p>Selecione um participante no tabuleiro para ver suas ações e atributos.</p>
-        </div>
-      )}
-
-      {/* COMBAT LOG */}
-      <div style={{ borderTop: '1px solid var(--border-subtle)', height: '30%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.2)', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>
-          Registro de Combate
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {(combat.log || []).map(entry => (
-            <div key={entry.id} style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '0.8rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', marginBottom: '2px', fontSize: '0.7rem' }}>
-                <span>{entry.actorName}</span>
-                <span>R{entry.round}</span>
+            <div key={entry.id} className={`combat-log-entry type-${entry.type || 'system'}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.8rem' }}>
+                <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{entry.actorName}</span>
+                <span>Rodada {entry.round}</span>
               </div>
-              <div style={{ color: 'var(--text-primary)' }}>
-                {entry.action}
+              <div className="log-action" style={{ fontSize: '1.05rem', lineHeight: '1.5' }}>
+                {LogTypeIcon(entry.type)} {renderLogMarkdown(entry.action)}
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ZONA 2 — RECURSOS DO PARTICIPANTE SELECIONADO */}
+      {participant && canEdit && (
+        <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '1rem', flexShrink: 0, overflowY: 'auto', maxHeight: '350px' }}>
+          {/* Header do participante */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '1.2rem' }}>{participant.name}</span>
+              {participant.isTransformed && participant.originalName && (
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '6px' }}>(Forma de {participant.originalName})</span>
+              )}
+            </div>
+            <button className="btn-close" onClick={onClose} style={{ flexShrink: 0, transform: 'scale(1.2)' }}>×</button>
+          </div>
+
+          {/* Ataques (Para NPCs e Monstros facilitar pro mestre) */}
+          {participant.attacks && participant.attacks.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--danger)', marginBottom: '6px' }}>
+                ⚔️ Ataques
+              </div>
+              
+              {pendingAttack ? (
+                <div style={{ padding: '12px', background: 'rgba(255,165,0,0.1)', borderRadius: '8px', border: '1px solid rgba(255,165,0,0.3)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ color: 'orange', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    ⚔️ Ataque Pendente: {pendingAttack.name}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    O modificador <strong>{pendingAttack.bonus}</strong> foi preenchido. Clique no dado d20 abaixo para rolar!
+                  </span>
+                  <button className="btn secondary-btn small-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setPendingAttack(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {participant.attacks.map((atk, idx) => (
+                    <button 
+                      key={idx} 
+                      onClick={() => handleActionPanelAttack(atk)}
+                      className="action-panel-attack-btn"
+                      style={{ 
+                        background: 'rgba(255,255,255,0.05)', 
+                        padding: '8px 12px', 
+                        borderRadius: '6px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        fontSize: '0.85rem',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        color: 'var(--text-primary)',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    >
+                      <span style={{ fontWeight: 'bold' }}>{atk.name}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Atk: {atk.bonus} | Dmg: {atk.dmg}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Spell Slots */}
+          {participant.spellSlots && Object.keys(participant.spellSlots).length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                ✨ Espaços de Magia
+              </div>
+              {Object.entries(participant.spellSlots)
+                .filter(([, max]) => Number(max) > 0)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([lvlStr, max]) => {
+                  const lvl = Number(lvlStr);
+                  const used = participant.spellSlotsUsed?.[lvl] || 0;
+                  const available = Number(max) - used;
+                  return (
+                    <div key={lvl} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', minWidth: '22px' }}>{lvl}°</span>
+                      <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
+                        {Array.from({ length: Number(max) }).map((_, i) => (
+                          <button
+                            key={i}
+                            title={i < available ? `Gastar slot nível ${lvl}` : `Recuperar slot nível ${lvl}`}
+                            onClick={() => i < available ? consumeSpellSlot(participant, lvl) : restoreSpellSlot(participant, lvl)}
+                            style={{
+                              width: '18px', height: '18px', borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+                              background: i < available ? '#a78bfa' : 'rgba(167,139,250,0.15)',
+                              outline: '1px solid rgba(167,139,250,0.4)',
+                              transition: 'all 0.15s'
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{available}/{max}</span>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {/* Class Resources */}
+          {(participant.classResources || []).length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                🎒 Recursos Especiais
+              </div>
+              {(participant.classResources || []).map(res => {
+                const isFury = res.name.toLowerCase().includes('fúria') || res.name.toLowerCase().includes('furia');
+                return (
+                  <div key={res.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.85rem', flex: 1, color: isFury && participant.isRaging ? '#f97316' : 'var(--text-secondary)' }}>
+                      {res.name}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <button
+                        onClick={() => updateResource(participant, res.id, -1)}
+                        disabled={res.current <= 0}
+                        style={{ width: '24px', height: '24px', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.3)', color: 'white', cursor: 'pointer', fontSize: '1rem', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: res.current <= 0 ? 0.3 : 1 }}
+                      >−</button>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 'bold', minWidth: '32px', textAlign: 'center' }}>
+                        {res.current}<span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.75rem' }}>/{res.max}</span>
+                      </span>
+                      <button
+                        onClick={() => updateResource(participant, res.id, 1)}
+                        disabled={res.current >= res.max}
+                        style={{ width: '24px', height: '24px', borderRadius: '4px', border: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.3)', color: 'white', cursor: 'pointer', fontSize: '1rem', lineHeight: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: res.current >= res.max ? 0.3 : 1 }}
+                      >+</button>
+                    </div>
+                    {isFury && (
+                      <button
+                        className={`btn ${participant.isRaging ? 'secondary-btn' : 'primary-btn'}`}
+                        style={{
+                          fontSize: '0.8rem', padding: '4px 8px', marginLeft: '4px',
+                          background: participant.isRaging ? 'rgba(249,115,22,0.2)' : 'rgba(249,115,22,0.8)',
+                          borderColor: '#f97316', color: participant.isRaging ? '#f97316' : 'white'
+                        }}
+                        onClick={() => toggleRage(participant)}
+                        title={participant.isRaging ? 'Sair da Fúria' : 'Entrar em Fúria (gasta 1 carga)'}
+                      >
+                        {participant.isRaging ? '🔥 Sair' : '🔥 Fúria'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>
+                🌀 Concentração
+              </div>
+              {participant.isConcentrating ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.9rem', color: '#a855f7', flex: 1, fontWeight: 'bold' }}>
+                    {participant.concentrationSpell}
+                  </span>
+                  <button
+                    className="btn secondary-btn"
+                    style={{ fontSize: '0.75rem', padding: '4px 8px', borderColor: '#a855f7', color: '#a855f7' }}
+                    onClick={() => toggleConcentration(participant)}
+                  >
+                    Quebrar
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <input
+                    className="journey-input"
+                    style={{ flex: 1, padding: '6px 8px', fontSize: '0.85rem' }}
+                    placeholder="Magia..."
+                    value={concSpell}
+                    onChange={e => setConcSpell(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && toggleConcentration(participant)}
+                  />
+                  <button
+                    className="btn secondary-btn"
+                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                    onClick={() => toggleConcentration(participant)}
+                    disabled={!concSpell.trim()}
+                  >
+                    Concentrar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ZONA 3 — DADO DE COMBATE (Agora na base) */}
+      <div style={{ borderTop: '1px solid var(--border-subtle)', flexShrink: 0, paddingBottom: '1rem', background: 'rgba(0,0,0,0.2)' }}>
+        <div style={{ padding: '0.75rem 1rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary-color)' }}>
+            🎲 Rolagem Livre
+          </span>
+        </div>
+        <CombatDicePanel
+          activeParticipant={activeParticipant}
+          participants={combat.participants.filter(p => !p.isDead)}
+          onRoll={handleDiceRoll}
+          pendingAttack={pendingAttack}
+        />
       </div>
     </div>
   );
