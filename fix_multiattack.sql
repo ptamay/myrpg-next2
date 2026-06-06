@@ -1,0 +1,1 @@
+ALTER TABLE public.npcs ADD COLUMN IF NOT EXISTS multiattack_count INTEGER DEFAULT 1;

@@ -17,10 +17,10 @@ export default function BattleBoard({ onSelectParticipant }: Props) {
   const bottomZone: CombatParticipant[] = [];
 
   combat.participants.forEach((p) => {
-    if (p.faction === 'player' || p.faction === 'ally') {
+    if (p.combatFaction === 'ally') {
       bottomZone.push(p);
     } else {
-      topZone.push(p); // enemy + neutral
+      topZone.push(p); // enemy
     }
   });
 

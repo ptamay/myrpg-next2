@@ -3,6 +3,7 @@ import { useState } from "react";
 import { DiaryEntry } from "@/types/cronicas";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import CropModal from "@/components/modals/CropModal";
+import { uploadBase64Image } from "@/lib/supabase/storage";
 
 import { useDiario } from "@/hooks/useGameData";
 
@@ -42,7 +43,17 @@ export default function DiarioEntryForm({ defaultAuthorId, defaultAuthorName, in
 
   const handleSubmit = async () => {
     if (!sessionNumber || !content.trim()) {
-      await showAlert("Preencha o número da sessão e o conteúdo.");
+      await showAlert({ title: "Erro", message: "Preencha o número da sessão e o conteúdo.", type: "danger" });
+      return;
+    }
+
+    let finalImageUrl = imageUrl;
+    try {
+      if (finalImageUrl && finalImageUrl.startsWith("data:image/")) {
+        finalImageUrl = await uploadBase64Image(finalImageUrl, "diary") || finalImageUrl;
+      }
+    } catch (err: any) {
+      await showAlert({ title: "Erro", message: "Erro ao fazer upload da imagem do diário: " + (err.message || "Tente novamente."), type: "danger" });
       return;
     }
 
@@ -51,7 +62,7 @@ export default function DiarioEntryForm({ defaultAuthorId, defaultAuthorName, in
       sessionNumber: Number(sessionNumber),
       sessionTitle: sessionTitle.trim(),
       content: content.trim(),
-      imageUrl,
+      imageUrl: finalImageUrl,
       authorId: initialEntry ? initialEntry.authorId : defaultAuthorId,
       authorName: initialEntry ? initialEntry.authorName : defaultAuthorName,
       createdAt: initialEntry ? initialEntry.createdAt : new Date().toISOString(),

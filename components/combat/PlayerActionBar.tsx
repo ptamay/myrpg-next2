@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCombat } from '@/contexts/CombatContext';
 import { useUserSession } from '@/contexts/UserSessionContext';
-import { rollAttack, rollDamage } from '@/lib/dice/rollParser';
+import { rollAttack, rollDamage, parseDmgString } from '@/lib/dice/rollParser';
 import { computeExtraDamages, buildDamageLog, isPaladin, rollDivineSmite } from '@/lib/dice/specialDamage';
 import { getMaxAttacks, isMonk } from '@/lib/dice/multiattack';
 import { PendingAttack } from '@/contexts/CombatContext';
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Props) {
-  const { combat, addToLog, updateParticipant, applyDamage, triggerRollEvent, nextTurn, removeCondition, addCondition, removeParticipant } = useCombat();
+  const { combat, addToLog, updateParticipant, applyDamage, triggerRollEvent, nextTurn, removeCondition, addCondition, removeParticipant, applyHeal } = useCombat();
   const { isGM, profile } = useUserSession();
   
   const [pendingDamageList, setPendingDamageList] = useState<any[]>([]); // Lista de alvos acertados para rolar o dano conjunto
@@ -55,13 +55,140 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
   const handleAttack = (atk: any) => {
     if (combat.selectedTargetIds.length === 0) return alert("Selecione pelo menos um alvo no tabuleiro primeiro!");
     
-    const maxAttacks = getMaxAttacks(activeParticipant);
-    const currentAttacks = activeParticipant.attacksMade || 0;
-    const isOutOfAttacks = currentAttacks >= maxAttacks;
+    if (atk.actionCost) {
+      if (atk.actionCost === 'action' && activeParticipant.actionSpent) return alert("Você já usou sua Ação neste turno!");
+      if (atk.actionCost === 'bonus' && activeParticipant.bonusActionSpent) return alert("Você já usou sua Ação Bônus neste turno!");
+      if (atk.actionCost === 'reaction' && activeParticipant.reactionSpent) return alert("Você já usou sua Reação neste turno!");
+    } else {
+      const maxAttacks = getMaxAttacks(activeParticipant);
+      const currentAttacks = activeParticipant.attacksMade || 0;
+      const isOutOfAttacks = currentAttacks >= maxAttacks;
+      if (isOutOfAttacks) return alert("Você já usou sua Ação Principal e todos os Ataques Extras!");
+    }
 
-    if (isOutOfAttacks) return alert("Você já usou sua Ação Principal e todos os Ataques Extras!");
+    if (atk.resourceCost && atk.resourceCost.resourceName) {
+      const res = activeParticipant.classResources?.find(r => r.name === atk.resourceCost.resourceName);
+      if (!res || res.current < atk.resourceCost.amount) return alert(`Recurso Insuficiente: ${atk.resourceCost.resourceName}`);
+    }
 
+    let updates: any = {};
+    if (atk.actionCost) {
+      if (atk.actionCost === 'action') updates.actionSpent = true;
+      if (atk.actionCost === 'bonus') updates.bonusActionSpent = true;
+      if (atk.actionCost === 'reaction') updates.reactionSpent = true;
+    } else {
+      updates.actionSpent = true;
+      updates.attacksMade = (activeParticipant.attacksMade || 0) + 1;
+    }
+    
+    if (atk.resourceCost && atk.resourceCost.resourceName) {
+      const resIdx = activeParticipant.classResources?.findIndex(r => r.name === atk.resourceCost.resourceName);
+      if (resIdx !== undefined && resIdx >= 0) {
+        const newResources = [...(activeParticipant.classResources || [])];
+        newResources[resIdx].current -= atk.resourceCost.amount;
+        updates.classResources = newResources;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) updateParticipant(activeParticipant.refId, updates);
     setPendingAttack(atk);
+  };
+
+  const handleAbility = (ab: any) => {
+    if (ab.actionCost) {
+      if (ab.actionCost === 'action' && activeParticipant.actionSpent) return alert("Ação Principal já gasta!");
+      if (ab.actionCost === 'bonus' && activeParticipant.bonusActionSpent) return alert("Ação Bônus já gasta!");
+      if (ab.actionCost === 'reaction' && activeParticipant.reactionSpent) return alert("Reação já gasta!");
+    }
+
+    if (ab.resourceCost && ab.resourceCost.resourceName) {
+      const res = activeParticipant.classResources?.find(r => r.name === ab.resourceCost.resourceName);
+      if (!res || res.current < ab.resourceCost.amount) return alert(`Recurso Insuficiente: ${ab.resourceCost.resourceName}`);
+    }
+
+    let updates: any = {};
+    if (ab.actionCost === 'action') updates.actionSpent = true;
+    if (ab.actionCost === 'bonus') updates.bonusActionSpent = true;
+    if (ab.actionCost === 'reaction') updates.reactionSpent = true;
+    
+    if (ab.resourceCost && ab.resourceCost.resourceName) {
+      const resIdx = activeParticipant.classResources?.findIndex(r => r.name === ab.resourceCost.resourceName);
+      if (resIdx !== undefined && resIdx >= 0) {
+        const newResources = [...(activeParticipant.classResources || [])];
+        newResources[resIdx].current -= ab.resourceCost.amount;
+        updates.classResources = newResources;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) updateParticipant(activeParticipant.refId, updates);
+    addToLog(`usou a habilidade: **${ab.name}**`, activeParticipant.name, 'system');
+
+    // ─── Automatização de Efeitos de Habilidades ───
+    if (ab.conditionApplied) {
+      addCondition(activeParticipant.refId, ab.conditionApplied);
+      addToLog(`Recebeu a condição: **${ab.conditionApplied}**`, activeParticipant.name, 'system');
+    }
+
+    const nameLower = ab.name.toLowerCase();
+
+    if (nameLower === 'ataque furtivo') {
+      addCondition(activeParticipant.refId, 'Furtivo Ativo');
+      addToLog(`Preparou um Ataque Furtivo!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'golpe descuidado' || nameLower === 'ataque temerário') {
+      addCondition(activeParticipant.refId, 'Ataque Temerário');
+      addToLog(`O próximo ataque terá Vantagem (e ataques contra receberão Vantagem)!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'esquiva prodigiosa') {
+      addCondition(activeParticipant.refId, 'Esquiva Prodigiosa');
+      addToLog(`O próximo dano sofrido será reduzido à metade!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'segundo vento') {
+      const level = parseInt(activeParticipant.playerLevel?.toString() || '1');
+      const healRoll = Math.floor(Math.random() * 10) + 1;
+      const healTotal = healRoll + level;
+      applyHeal(activeParticipant.refId, healTotal);
+      addToLog(`Recuperou **${healTotal}** PV (d10: ${healRoll} + Nv: ${level}) com Segundo Vento!`, activeParticipant.name, 'heal');
+    } else if (nameLower === 'cura pelas mãos') {
+      if (combat.selectedTargetIds.length === 0) {
+        alert("Selecione um alvo no tabuleiro para curar!");
+        return;
+      }
+      const pRes = activeParticipant.classResources?.find(r => r.name.toLowerCase() === 'cura pelas mãos (pv)');
+      if (!pRes || pRes.current <= 0) {
+        alert("Sem pontos de Cura pelas Mãos disponíveis!");
+        return;
+      }
+      const input = prompt(`Quantos pontos deseja usar? (Max: ${pRes.current})`);
+      const healAmount = parseInt(input || "0");
+      if (healAmount > 0 && healAmount <= pRes.current) {
+        combat.selectedTargetIds.forEach(targetId => {
+          applyHeal(targetId, healAmount);
+          const t = combat.participants.find(p => p.refId === targetId);
+          addToLog(`Curou **${healAmount}** PV de ${t?.name} com Cura pelas Mãos!`, activeParticipant.name, 'heal');
+        });
+        
+        const newResources = [...(activeParticipant.classResources || [])];
+        const resIdx = newResources.findIndex(r => r.name.toLowerCase() === 'cura pelas mãos (pv)');
+        if (resIdx >= 0) {
+          newResources[resIdx].current -= Math.min(newResources[resIdx].current, healAmount * combat.selectedTargetIds.length);
+          updateParticipant(activeParticipant.refId, { classResources: newResources });
+        }
+      }
+    } else if (nameLower === 'destruição divina') {
+      addCondition(activeParticipant.refId, 'Destruição Divina');
+      addToLog(`A sua arma resplandece com energia divina!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'surto de ação') {
+      updateParticipant(activeParticipant.refId, { actionSpent: false, attacksMade: 0 });
+      addToLog(`Recuperou sua Ação Principal!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'chuva de golpes') {
+      updateParticipant(activeParticipant.refId, { flurryUsed: true, bonusActionSpent: true });
+      addToLog(`Pode realizar 2 ataques desarmados adicionais!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'defesa paciente') {
+      addCondition(activeParticipant.refId, 'Esquiva');
+      updateParticipant(activeParticipant.refId, { bonusActionSpent: true });
+      addToLog(`Assumiu postura defensiva (Ataques contra você têm Desvantagem)!`, activeParticipant.name, 'system');
+    } else if (nameLower === 'passo do vento') {
+      updateParticipant(activeParticipant.refId, { bonusActionSpent: true });
+      addToLog(`Pode usar Disparada ou Desengajar como Ação Bônus!`, activeParticipant.name, 'system');
+    }
   };
 
   const handleRollDamage = () => {
@@ -86,9 +213,17 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
         extras,
         hit.res.isCritical
       );
-      applyDamage(hit.target.refId, totalDmg);
+      const parsed = parseDmgString(hit.atk.dmg);
+      applyDamage(hit.target.refId, totalDmg, parsed.damageType);
       addToLog(logMsg, activeParticipant.name, hit.res.isCritical ? 'critical' : 'damage');
     });
+
+    if (activeParticipant.conditions?.some(c => c.toLowerCase() === 'furtivo ativo')) {
+      removeCondition(activeParticipant.refId, 'Furtivo Ativo');
+    }
+    if (activeParticipant.conditions?.some(c => c.toLowerCase() === 'destruição divina')) {
+      removeCondition(activeParticipant.refId, 'Destruição Divina');
+    }
 
     setPendingDamageList([]);
     setSmiteSlot(undefined);
@@ -146,19 +281,31 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
             {(activeParticipant.attacks || []).map((atk: any, idx: number) => {
               const maxAttacks = getMaxAttacks(activeParticipant);
               const currentAttacks = activeParticipant.attacksMade || 0;
-              const isOutOfAttacks = currentAttacks >= maxAttacks;
+              const isOutOfAttacks = !atk.actionCost && currentAttacks >= maxAttacks;
+              
               return (
                 <button 
                   key={idx}
                   className="btn primary-btn" 
                   disabled={isOutOfAttacks}
                   onClick={() => handleAttack(atk)}
-                  title={`Ataque contra alvos selecionados`}
+                  title={atk.resourceCost?.resourceName ? `Gasta ${atk.resourceCost.amount} ${atk.resourceCost.resourceName}` : 'Ataque contra alvos selecionados'}
                 >
-                  ⚔️ {atk.name} {activeParticipant.actionSpent && !isOutOfAttacks && `(${activeParticipant.attacksMade + 1}/${maxAttacks})`}
+                  ⚔️ {atk.name} {atk.actionCost ? `(${atk.actionCost})` : (activeParticipant.actionSpent && !isOutOfAttacks ? `(${currentAttacks + 1}/${maxAttacks})` : '')}
                 </button>
               );
             })}
+
+            {activeParticipant.abilities && activeParticipant.abilities.map((ab, idx) => (
+              <button 
+                key={`ab-${idx}`}
+                className="btn success-btn" 
+                onClick={() => handleAbility(ab)}
+                title={ab.description}
+              >
+                ⚡ {ab.name} {ab.actionCost ? `(${ab.actionCost})` : ''} {ab.resourceCost?.resourceName ? `[-${ab.resourceCost.amount} ${ab.resourceCost.resourceName}]` : ''}
+              </button>
+            ))}
 
             <div style={{ width: '1px', background: 'var(--border-subtle)', margin: '0 10px' }}></div>
             

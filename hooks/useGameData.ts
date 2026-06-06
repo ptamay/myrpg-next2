@@ -177,7 +177,7 @@ export function useNpcs() {
   const [error, setError] = useState<string | null>(null);
   
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const { profile } = useUserSession();
+  const { profile, sessionLoading } = useUserSession();
   const role = profile?.role;
 
   const fetchNpcs = useCallback(async () => {
@@ -195,16 +195,55 @@ export function useNpcs() {
   }, [supabase]);
 
   useEffect(() => {
+    if (sessionLoading) return;
     fetchNpcs();
-    const handler = () => fetchNpcs();
-    window.addEventListener('sync_npc_update', handler);
-    return () => window.removeEventListener('sync_npc_update', handler);
-  }, [fetchNpcs]);
+
+    let reconnectTimer: NodeJS.Timeout;
+    let currentChannel: any = null;
+    let isMounted = true;
+
+    const connect = () => {
+      if (currentChannel) supabase.removeChannel(currentChannel);
+      
+      const channelId = `npcs_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      currentChannel = supabase.channel(channelId)
+        .on("postgres_changes", { event: "*", schema: "public", table: "npcs" }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedNpc = mapDBToNpc(payload.new as any);
+            setNpcs(prev => {
+              const exists = prev.find(n => n.id === updatedNpc.id);
+              const next = exists ? prev.map(n => n.id === updatedNpc.id ? updatedNpc : n) : [...prev, updatedNpc];
+              npcsRef.current = next;
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setNpcs(prev => {
+              const next = prev.filter(n => n.id !== payload.old.id);
+              npcsRef.current = next;
+              return next;
+            });
+          }
+        });
+        
+      currentChannel.subscribe((status: string) => {
+        if (!isMounted) return;
+        if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      });
+    };
+
+    connect();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      if (currentChannel) supabase.removeChannel(currentChannel);
+    };
+  }, [fetchNpcs, sessionLoading, supabase]);
 
   const saveNpcs = useCallback(async (val: Npc[] | ((prev: Npc[]) => Npc[])) => {
     if (role !== 'gm') return;
-    // NOTE: We capture the current npcs via a ref-like pattern to avoid stale closure.
-    // We always upsert the full `next` list to guarantee the write is never silently skipped.
     const currentNpcs = npcsRef.current;
     const next = typeof val === 'function' ? val(currentNpcs) : val;
     npcsRef.current = next;
@@ -214,18 +253,23 @@ export function useNpcs() {
       const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
       if (!campaign) return;
 
-      if (next.length > 0) {
-        const { error } = await supabase.from("npcs").upsert(next.map(n => mapNpcToDB(n, campaign.id)));
+      const changedNpcs = next.filter(n => {
+        const old = currentNpcs.find(o => o.id === n.id);
+        return !old || JSON.stringify(old) !== JSON.stringify(n);
+      });
+
+      if (changedNpcs.length > 0) {
+        const { error } = await supabase.from("npcs").upsert(changedNpcs.map(n => mapNpcToDB(n, campaign.id)));
         if (error) throw new Error(error.message || JSON.stringify(error));
       }
+
       const prevIds = currentNpcs.map(n => n.id);
       const nextIds = new Set(next.map(n => n.id));
       const deletedIds = prevIds.filter(id => !nextIds.has(id));
+      
       if (deletedIds.length > 0) {
         await supabase.from("npcs").delete().in("id", deletedIds);
       }
-      window.dispatchEvent(new CustomEvent('sync_npc_update'));
-      window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'npc_update', payload: {} } }));
     } catch (err) {
       console.error("Erro ao salvar NPCs", err);
     }
@@ -244,7 +288,7 @@ export function usePlayers() {
   const [error, setError] = useState<string | null>(null);
   
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const { profile } = useUserSession();
+  const { profile, sessionLoading } = useUserSession();
   const role = profile?.role;
   const playerId = profile?.player_id;
 
@@ -265,15 +309,54 @@ export function usePlayers() {
   }, [supabase]);
 
   useEffect(() => {
+    if (sessionLoading) return;
     fetchPlayers();
-    const handler = () => fetchPlayers();
-    window.addEventListener('sync_player_update', handler);
-    return () => window.removeEventListener('sync_player_update', handler);
-  }, [fetchPlayers]);
+
+    let reconnectTimer: NodeJS.Timeout;
+    let currentChannel: any = null;
+    let isMounted = true;
+
+    const connect = () => {
+      if (currentChannel) supabase.removeChannel(currentChannel);
+      
+      const channelId = `players_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      currentChannel = supabase.channel(channelId)
+        .on("postgres_changes", { event: "*", schema: "public", table: "players" }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedPlayer = mapDBToPlayer(payload.new as any);
+            setPlayers(prev => {
+              const exists = prev.find(p => p.id === updatedPlayer.id);
+              const next = exists ? prev.map(p => p.id === updatedPlayer.id ? updatedPlayer : p) : [...prev, updatedPlayer];
+              playersRef.current = next;
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setPlayers(prev => {
+              const next = prev.filter(p => p.id !== payload.old.id);
+              playersRef.current = next;
+              return next;
+            });
+          }
+        });
+        
+      currentChannel.subscribe((status: string) => {
+        if (!isMounted) return;
+        if (status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      });
+    };
+
+    connect();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      if (currentChannel) supabase.removeChannel(currentChannel);
+    };
+  }, [fetchPlayers, sessionLoading, supabase]);
 
   const savePlayers = useCallback((val: Player[] | ((prev: Player[]) => Player[])) => {
-    // Use ref to avoid stale closure — the `players` state variable captured in the
-    // callback may not reflect the latest value when the callback runs.
     const currentPlayers = playersRef.current;
     const next = typeof val === 'function' ? val(currentPlayers) : val;
     playersRef.current = next;
@@ -285,8 +368,13 @@ export function usePlayers() {
         const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
         if (!campaign) return;
 
-        // Always upsert all players — avoid the stale-closure diff bug
-        const mapped = next.map(p => mapPlayerToDB(p, campaign.id));
+        const changedPlayers = next.filter(p => {
+          const old = currentPlayers.find(o => o.id === p.id);
+          return !old || JSON.stringify(old) !== JSON.stringify(p);
+        });
+
+        const mapped = changedPlayers.map(p => mapPlayerToDB(p, campaign.id));
+        
         if (mapped.length > 0) {
           if (role === 'gm') {
             const { error } = await supabase.from("players").upsert(mapped);
@@ -308,8 +396,6 @@ export function usePlayers() {
             await supabase.from("players").delete().in("id", deletedIds);
           }
         }
-        window.dispatchEvent(new CustomEvent('sync_player_update'));
-        window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'player_update', payload: {} } }));
       } catch (err) {
         console.error("Erro ao salvar Players", err);
       }
@@ -423,8 +509,29 @@ export function useDiario() {
       
       const channelId = `diary_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       currentChannel = supabase.channel(channelId)
-        .on("postgres_changes", { event: "*", schema: "public", table: "diary_entries" }, () => {
-          fetchEntries();
+        .on("postgres_changes", { event: "*", schema: "public", table: "diary_entries" }, (payload: any) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const d = payload.new as any;
+            const updated = {
+              id: d.id,
+              sessionNumber: d.session_number,
+              sessionTitle: d.session_title,
+              authorId: d.author_id,
+              authorName: d.author_name,
+              content: d.content,
+              imageUrl: d.image_url,
+              likes: d.likes || [],
+              comments: d.comments || [],
+              createdAt: d.created_at || new Date().toISOString()
+            };
+            setEntries(prev => {
+              const exists = prev.find(e => e.id === updated.id);
+              if (exists) return prev.map(e => e.id === updated.id ? updated : e);
+              return [updated, ...prev].sort((a, b) => b.sessionNumber - a.sessionNumber);
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setEntries(prev => prev.filter(e => e.id !== payload.old.id));
+          }
         });
         
       currentChannel.subscribe((status: string) => {
@@ -571,16 +678,54 @@ export function useMurais(activeMuralId?: string | null) {
       const channelId = `murals_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       let channel = supabase.channel(channelId);
 
+      const handleMuralChange = (payload: any) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const m = payload.new as any;
+          setMurais(prev => {
+            const updated = {
+              id: m.id, name: m.name, backgroundStyle: m.background_style,
+              cards: prev.find(x => x.id === m.id)?.cards || [],
+              connections: prev.find(x => x.id === m.id)?.connections || [],
+              createdAt: m.created_at || new Date().toISOString()
+            };
+            const exists = prev.find(x => x.id === m.id);
+            return exists ? prev.map(x => x.id === m.id ? updated : x) : [...prev, updated];
+          });
+        } else if (payload.eventType === 'DELETE') {
+          setMurais(prev => prev.filter(m => m.id !== payload.old.id));
+        }
+      };
+
+      const handleCardChange = (payload: any) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const c = payload.new as any;
+          const newCard = { id: c.id, muralId: c.mural_id, type: c.type, title: c.title, content: c.content, imageUrl: c.image_url, refId: c.ref_id, position: { x: c.position_x || 0, y: c.position_y || 0 }, createdBy: c.created_by, createdAt: c.created_at || new Date().toISOString() };
+          setMurais(prev => prev.map(m => m.id === c.mural_id ? { ...m, cards: m.cards.find(x => x.id === c.id) ? m.cards.map(x => x.id === c.id ? newCard : x) : [...m.cards, newCard] } : m));
+        } else if (payload.eventType === 'DELETE') {
+          setMurais(prev => prev.map(m => ({ ...m, cards: m.cards.filter(x => x.id !== payload.old.id) })));
+        }
+      };
+
+      const handleConnChange = (payload: any) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const l = payload.new as any;
+          const newLink = { id: l.id, muralId: l.mural_id, fromCardId: l.from_card_id, toCardId: l.to_card_id, label: l.label, color: l.color };
+          setMurais(prev => prev.map(m => m.id === l.mural_id ? { ...m, connections: m.connections.find(x => x.id === l.id) ? m.connections.map(x => x.id === l.id ? newLink : x) : [...m.connections, newLink] } : m));
+        } else if (payload.eventType === 'DELETE') {
+          setMurais(prev => prev.map(m => ({ ...m, connections: m.connections.filter(x => x.id !== payload.old.id) })));
+        }
+      };
+
       if (activeMuralId) {
         channel = channel
-          .on("postgres_changes", { event: "*", schema: "public", table: "murals", filter: `id=eq.${activeMuralId}` }, () => { fetchMurais(); })
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards", filter: `mural_id=eq.${activeMuralId}` }, () => { fetchMurais(); })
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections", filter: `mural_id=eq.${activeMuralId}` }, () => { fetchMurais(); });
+          .on("postgres_changes", { event: "*", schema: "public", table: "murals", filter: `id=eq.${activeMuralId}` }, handleMuralChange)
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards", filter: `mural_id=eq.${activeMuralId}` }, handleCardChange)
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections", filter: `mural_id=eq.${activeMuralId}` }, handleConnChange);
       } else {
         channel = channel
-          .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, () => { fetchMurais(); })
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, () => { fetchMurais(); })
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, () => { fetchMurais(); });
+          .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, handleMuralChange)
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, handleCardChange)
+          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, handleConnChange);
       }
 
       currentChannel = channel;
@@ -598,8 +743,7 @@ export function useMurais(activeMuralId?: string | null) {
     connect();
 
     const broadcastHandler = (e: any) => {
-      // Opcional: checar se o ID do mural bate, mas um refetch geral é seguro
-      fetchMurais();
+      // Avoid refetching. postgres_changes already handles the update.
     };
     window.addEventListener('sync_mural_update', broadcastHandler);
 

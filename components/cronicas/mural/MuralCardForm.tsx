@@ -4,6 +4,7 @@ import { MuralCard, MuralCardType } from "@/types/cronicas";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import { uploadBase64Image } from "@/lib/supabase/storage";
 
 interface MuralCardFormProps {
   initialData?: MuralCard | null;
@@ -94,12 +95,22 @@ export default function MuralCardForm({ initialData, onSave, onCancel }: MuralCa
       return;
     }
     
+    let finalImageUrl = imageUrl;
+    try {
+      if (finalImageUrl && finalImageUrl.startsWith("data:image/")) {
+        finalImageUrl = await uploadBase64Image(finalImageUrl, "murals") || finalImageUrl;
+      }
+    } catch (err: any) {
+      await showAlert({ title: "Erro", message: "Erro ao fazer upload da imagem: " + (err.message || "Tente novamente."), type: "danger" });
+      return;
+    }
+
     onSave({
       type,
       title: title.trim(),
       content: content.trim(),
       refId: (type === 'npc' || type === 'jogador' || type === 'anotacao') ? refId : undefined,
-      imageUrl: (type === 'artefato' || type === 'retrato' || type === 'anotacao') ? imageUrl : undefined,
+      imageUrl: (type === 'artefato' || type === 'retrato' || type === 'anotacao') ? finalImageUrl : undefined,
     });
   };
 

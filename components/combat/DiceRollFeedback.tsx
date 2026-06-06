@@ -64,6 +64,26 @@ export default function DiceRollFeedback() {
           {event.total}
         </div>
       </div>
+
+      {event.targetsStatus && event.targetsStatus.length > 0 && (
+        <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+          {event.targetsStatus.map((t, idx) => (
+            <div key={idx} style={{ 
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1rem', borderRadius: '8px',
+              borderLeft: t.status === 'hit' ? '4px solid #22c55e' : '4px solid #ef4444'
+            }}>
+              <span style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>{t.name}</span>
+              <span style={{ 
+                fontWeight: 'bold', fontSize: '1.2rem', textTransform: 'uppercase',
+                color: t.status === 'hit' ? '#22c55e' : '#ef4444'
+              }}>
+                {t.status === 'hit' ? '🎯 ACERTOU' : '❌ ERROU'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

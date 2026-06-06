@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCombat, PendingAttack } from '@/contexts/CombatContext';
 import InitiativeBar from './InitiativeBar';
 import BattleBoard from './BattleBoard';
 import ActionPanel from './ActionPanel';
-import PlayerActionBar from './PlayerActionBar';
+import TurnActionModal from './TurnActionModal';
 import DiceRollFeedback from './DiceRollFeedback';
 import BackgroundEffects from '@/components/layout/BackgroundEffects';
 import { useCampaignInfo } from '@/hooks/useGameData';
@@ -21,12 +21,15 @@ export default function CombatArena() {
   const [viewedParticipantId, setViewedParticipantId] = useState<string | null>(null);
   const [pendingAttack, setPendingAttack] = useState<PendingAttack | null>(null);
 
+  // Removido useEffect que abria o modal automaticamente
+
   if (!combat) return null;
 
   const weather = jornadaPorDia[diaAtual]?.blocos?.[indiceBlocoAtivo]?.weatherEffect || 'clear';
 
   // Se não há nenhum selecionado, exibe o participante ativo do turno
-  const activeId = combat.participants[combat.currentTurnIndex]?.refId ?? null;
+  const activeParticipant = combat.participants[combat.currentTurnIndex] ?? null;
+  const activeId = activeParticipant?.refId ?? null;
   const displayId = viewedParticipantId; // Removido fallback automático para activeId
 
   return (
@@ -34,46 +37,83 @@ export default function CombatArena() {
       <BackgroundEffects weatherEffect={weather} />
       <DiceRollFeedback />
       <InitiativeBar />
-      <PlayerActionBar pendingAttack={pendingAttack} setPendingAttack={setPendingAttack} />
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        
+        {/* Banner de Turno */}
+        {activeParticipant && (
+          <div style={{
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 40,
+            background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.7), rgba(0,0,0,0.7), transparent)',
+            padding: '15px 100px',
+            pointerEvents: 'none',
+            textAlign: 'center',
+            textShadow: '0 2px 10px rgba(0,0,0,1)',
+            animation: 'fadeInDownFadeOut 4s ease-in-out forwards'
+          }}>
+            <h1 style={{ 
+              fontSize: '2.5rem', 
+              fontWeight: '900', 
+              color: '#fff', 
+              margin: 0,
+              textTransform: 'uppercase',
+              letterSpacing: '2px'
+            }}>
+              <span style={{ 
+                fontSize: '1rem', 
+                color: '#fbbf24', 
+                display: 'block', 
+                letterSpacing: '6px', 
+                marginBottom: '-5px',
+                fontWeight: 'bold'
+              }}>VEZ DE</span>
+              {activeParticipant.name}
+            </h1>
+            <style>{`
+              @keyframes fadeInDownFadeOut {
+                0% { opacity: 0; transform: translate(-50%, -20px); }
+                10% { opacity: 1; transform: translate(-50%, 0); }
+                80% { opacity: 1; transform: translate(-50%, 0); }
+                100% { opacity: 0; transform: translate(-50%, -20px); }
+              }
+            `}</style>
+          </div>
+        )}
+
         <BattleBoard
           onSelectParticipant={(id) => {
             const isMe = id === profile?.player_id;
-            const myTurn = activeId === profile?.player_id;
             const isActiveParticipant = id === activeId;
             
             if (isGM) {
-              if (isActiveParticipant) {
-                // GM clicou no cara do turno -> abre a ficha dele para usar as ações
-                setViewedParticipantId(prev => (prev === id ? null : id));
-              } else {
-                // GM clicou em qualquer outro -> apenas marca como alvo (mirar)
-                toggleTarget(id);
-              }
+              // GM clicou -> abre o modal de ação do participante
+              setViewedParticipantId(prev => (prev === id ? null : id));
             } else {
+              // Jogador
               if (isMe) {
                 // Jogador clica em si mesmo -> abre sua própria ficha
                 setViewedParticipantId(prev => (prev === id ? null : id));
-              } else {
-                // Jogador clica nos outros
-                if (myTurn && !isActiveParticipant) {
-                  // Só pode marcar como alvo se for a vez dele e não for ele mesmo
-                  toggleTarget(id);
-                  setViewedParticipantId(null);
-                }
               }
+              // Jogador clica em outro não faz nada, pois a mira é dentro do modal
             }
           }}
         />
 
-        <ActionPanel
-          participantId={displayId}
+        <ActionPanel />
+      </div>
+
+      {viewedParticipantId && (
+        <TurnActionModal 
+          participantId={viewedParticipantId}
           onClose={() => setViewedParticipantId(null)}
           pendingAttack={pendingAttack}
           setPendingAttack={setPendingAttack}
         />
-      </div>
+      )}
     </div>
   );
 }

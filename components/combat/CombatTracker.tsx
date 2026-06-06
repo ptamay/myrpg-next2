@@ -4,9 +4,10 @@ import React, { useState } from "react";
 import { useCombat } from "@/contexts/CombatContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "@/components/ui/HpInlineEditor";
+import ActionEconomyPanel from "./ActionEconomyPanel";
 
 export default function CombatTracker() {
-  const { combat, nextTurn, endCombat, applyDamage, applyHeal, setInitiative, addCondition, removeCondition, addToLog, updateParticipant, clearLog } = useCombat();
+  const { combat, nextTurn, prevTurn, endCombat, applyDamage, applyHeal, setInitiative, addCondition, removeCondition, addToLog, updateParticipant, clearLog } = useCombat();
   const { isGM } = useUserSession();
   
   const [initInputs, setInitInputs] = useState<Record<string, string>>({});
@@ -49,6 +50,12 @@ export default function CombatTracker() {
         
         {isGM && (
           <div style={{ display: "flex", gap: "1rem" }}>
+            <button className="btn secondary-btn" style={{ borderColor: "var(--text-muted)", color: "var(--text-muted)", padding: "0 12px" }} onClick={() => {
+              addToLog("O turno foi desfeito.", "Mestre");
+              prevTurn();
+            }} title="Voltar para o turno anterior">
+              ⏪ Voltar
+            </button>
             <button className="btn primary-btn" onClick={() => {
               addToLog("O turno foi passado.", "Mestre");
               nextTurn();
@@ -74,105 +81,112 @@ export default function CombatTracker() {
             {(combat.participants || []).map((p, index) => {
               const isActive = index === combat.currentTurnIndex;
               return (
-                <div key={p.refId} className={`glass-panel ${isActive ? 'active-turn' : ''}`} style={{
-                  padding: "1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  borderLeft: isActive ? "4px solid var(--accent-primary)" : "4px solid transparent",
-                  opacity: p.isDead ? 0.4 : 1,
-                  transition: "all 0.3s"
-                }}>
-                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", width: "40px", textAlign: "center", color: isActive ? "var(--accent-primary)" : "var(--text-muted)" }}>
-                    {p.initiative}
-                  </div>
-                  
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>
-                      {p.name} {p.isDead && "💀"} {p.isTransformed && "🐾"}
+                <div key={p.refId} style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className={`glass-panel ${isActive ? 'active-turn' : ''}`} style={{
+                    padding: "1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "1rem",
+                    borderLeft: isActive ? "4px solid var(--accent-primary)" : "4px solid transparent",
+                    opacity: p.isDead ? 0.4 : 1,
+                    transition: "all 0.3s"
+                  }}>
+                    <div style={{ fontSize: "1.5rem", fontWeight: "bold", width: "40px", textAlign: "center", color: isActive ? "var(--accent-primary)" : "var(--text-muted)" }}>
+                      {p.initiative}
                     </div>
-                    {p.originalName && (
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Forma de: {p.originalName}</div>
-                    )}
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "4px" }}>
-                      {(p.conditions || []).map(c => (
-                        <span key={c} style={{ background: "var(--danger)", color: "white", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", textTransform: "uppercase" }}>
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: "bold" }}>CA</div>
-                      <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>{p.ac}</div>
-                    </div>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: "bold" }}>DESL.</div>
-                      <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>{p.speed}</div>
+                    
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>
+                        {p.name} {p.isDead && "💀"} {p.isTransformed && "🐾"}
+                      </div>
+                      {p.originalName && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Forma de: {p.originalName}</div>
+                      )}
+                      <div style={{ display: "flex", gap: "0.5rem", marginTop: "4px" }}>
+                        {(p.conditions || []).map(c => (
+                          <span key={c} style={{ background: "var(--danger)", color: "white", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", textTransform: "uppercase" }}>
+                            {c}
+                          </span>
+                        ))}
+                      </div>
                     </div>
 
-                    <div style={{ width: "160px" }}>
-                      {isGM ? (
-                        <HpInlineEditor 
-                          hpCurrent={p.hpCurrent} 
-                          hpMax={p.hpMax} 
-                          tempHp={p.tempHp}
-                          onApplyDamage={(dmg) => applyDamage(p.refId, dmg)}
-                          onApplyHeal={(heal) => applyHeal(p.refId, heal)}
-                          onSetTempHp={(temp) => updateParticipant(p.refId, { tempHp: temp })}
-                          onSetHp={(val) => updateParticipant(p.refId, { hpCurrent: val })}
-                        />
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center" }}>
-                          <span style={{ fontSize: "1.1rem", fontWeight: "bold", color: "var(--text-primary)" }}>{p.hpCurrent}</span>
-                          <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>/ {p.hpMax}</span>
-                          {p.tempHp > 0 && <span style={{ fontSize: "0.75rem", color: "#eab308", background: "rgba(234, 179, 8, 0.15)", padding: "1px 4px", borderRadius: "4px" }}>+{p.tempHp} Temp</span>}
+                    <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: "bold" }}>CA</div>
+                        <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>{p.ac}</div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: "bold" }}>DESL.</div>
+                        <div style={{ fontWeight: "bold", fontSize: "1.1rem" }}>{p.speed}</div>
+                      </div>
+
+                      <div style={{ width: "160px" }}>
+                        {isGM ? (
+                          <HpInlineEditor 
+                            hpCurrent={p.hpCurrent} 
+                            hpMax={p.hpMax} 
+                            tempHp={p.tempHp}
+                            onApplyDamage={(dmg) => applyDamage(p.refId, dmg)}
+                            onApplyHeal={(heal) => applyHeal(p.refId, heal)}
+                            onSetTempHp={(temp) => updateParticipant(p.refId, { tempHp: temp })}
+                            onSetHp={(val) => updateParticipant(p.refId, { hpCurrent: val })}
+                          />
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "baseline", gap: "4px", justifyContent: "center" }}>
+                            <span style={{ fontSize: "1.1rem", fontWeight: "bold", color: "var(--text-primary)" }}>{p.hpCurrent}</span>
+                            <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>/ {p.hpMax}</span>
+                            {p.tempHp > 0 && <span style={{ fontSize: "0.75rem", color: "#eab308", background: "rgba(234, 179, 8, 0.15)", padding: "1px 4px", borderRadius: "4px" }}>+{p.tempHp} Temp</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {isGM && (
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", borderLeft: "1px solid var(--border-subtle)", paddingLeft: "1rem" }}>
+                          <input 
+                            type="number" 
+                            placeholder="Init" 
+                            className="journey-input" 
+                            style={{ width: "60px", padding: "4px" }}
+                            value={initInputs[p.refId] || ""}
+                            onChange={(e) => setInitInputs({ ...initInputs, [p.refId]: e.target.value })}
+                            onKeyDown={(e) => e.key === "Enter" && handleInitSubmit(p.refId)}
+                          />
+                          <div style={{ position: "relative" }}>
+                            <input 
+                              type="text" 
+                              placeholder="+ Cond" 
+                              className="journey-input" 
+                              style={{ width: "80px", padding: "4px" }}
+                              value={condInputs[p.refId] || ""}
+                              onChange={(e) => setCondInputs({ ...condInputs, [p.refId]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && condInputs[p.refId]) {
+                                  addCondition(p.refId, condInputs[p.refId]);
+                                  setCondInputs({ ...condInputs, [p.refId]: "" });
+                                }
+                              }}
+                            />
+                          </div>
+                          {(p.conditions || []).length > 0 && (
+                            <button 
+                              className="btn secondary-btn" 
+                              style={{ padding: "4px 8px" }}
+                              onClick={() => removeCondition(p.refId, p.conditions[0])}
+                              title="Remover primeira condição"
+                            >
+                              - Cond
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
-
-                    {isGM && (
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", borderLeft: "1px solid var(--border-subtle)", paddingLeft: "1rem" }}>
-                        <input 
-                          type="number" 
-                          placeholder="Init" 
-                          className="journey-input" 
-                          style={{ width: "60px", padding: "4px" }}
-                          value={initInputs[p.refId] || ""}
-                          onChange={(e) => setInitInputs({ ...initInputs, [p.refId]: e.target.value })}
-                          onKeyDown={(e) => e.key === "Enter" && handleInitSubmit(p.refId)}
-                        />
-                        <div style={{ position: "relative" }}>
-                          <input 
-                            type="text" 
-                            placeholder="+ Cond" 
-                            className="journey-input" 
-                            style={{ width: "80px", padding: "4px" }}
-                            value={condInputs[p.refId] || ""}
-                            onChange={(e) => setCondInputs({ ...condInputs, [p.refId]: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && condInputs[p.refId]) {
-                                addCondition(p.refId, condInputs[p.refId]);
-                                setCondInputs({ ...condInputs, [p.refId]: "" });
-                              }
-                            }}
-                          />
-                        </div>
-                        {(p.conditions || []).length > 0 && (
-                          <button 
-                            className="btn secondary-btn" 
-                            style={{ padding: "4px 8px" }}
-                            onClick={() => removeCondition(p.refId, p.conditions[0])}
-                            title="Remover primeira condição"
-                          >
-                            - Cond
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
+                  {isActive && (
+                    <div style={{ padding: "0 1rem 1rem 1rem", marginTop: "-12px" }}>
+                      <ActionEconomyPanel participant={p} />
+                    </div>
+                  )}
                 </div>
               );
             })}

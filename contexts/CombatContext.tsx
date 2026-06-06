@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Player, Npc } from '@/lib/gameData';
+import { Player, Npc, Ability } from '@/lib/gameData';
 import { ActiveBuff } from '@/lib/types/buffs';
 import { parseAC, parseSpeed, parseProfBonus } from '@/lib/dice/dnd5e';
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -30,6 +30,7 @@ export interface CombatParticipant {
   hpMax: number;
   tempHp: number;
   ac: number;              
+  tempAc?: number;
   speed: number;           
   conditions: string[];
   activeBuffs: ActiveBuff[];
@@ -39,7 +40,16 @@ export interface CombatParticipant {
   profBonus: number;
   str: number; dex: number; con: number;
   int: number; wis: number; cha: number;
-  attacks: { name: string; bonus: string; dmg: string }[];
+  attacks: { 
+    name: string; 
+    bonus: string; 
+    dmg: string;
+    actionCost?: string;
+    resourceCost?: { resourceName: string; amount: number };
+  }[];
+  resistances: string[];
+  immunities: string[];
+  abilities: Ability[];
   
   // F4: Action Economy Tracker
   actionSpent: boolean;
@@ -49,10 +59,12 @@ export interface CombatParticipant {
   
   // F5: Extra Attack Tracking
   attacksMade: number;
+  flurryUsed?: boolean;
+  multiattack_count?: number;
   playerLevel?: number;
   playerClass?: string;
   cr?: string;         // ND do NPC
-  flurryUsed: boolean; // Monge: Chuva de Golpes usada neste turno
+  combatFaction: 'ally' | 'enemy'; // Facção ativa neste combate específico
 
   // Spell Slots
   spellSlots?: Record<number, number>;
@@ -65,12 +77,39 @@ export interface CombatParticipant {
   isRaging?: boolean;           // Bárbaro em Fúria
   isConcentrating?: boolean;    // Concentrando em uma magia
   concentrationSpell?: string;  // Nome da magia em concentração
+
+  // --- Transformation State ---
+  availableTransformation?: any; // Snapshot da forma cadastrada (Npc | Player)
+  preTransformHp?: number;
+  preTransformHpMax?: number;
+  preTransformAc?: number;
+  preTransformSpeed?: number;
+  preTransformStr?: number;
+  preTransformDex?: number;
+  preTransformCon?: number;
+  preTransformAttacks?: { 
+    name: string; 
+    bonus: string; 
+    dmg: string;
+    actionCost?: string;
+    resourceCost?: { resourceName: string; amount: number };
+  }[];
+  preTransformImage?: string;
+  preTransformName?: string;
+  combatTransformActive?: boolean;
+  combatTransformName?: string;
 }
 
 export type PendingAttack = {
   name: string;     // "Machado Grande"
   bonus: string;    // "+5"
   dmg: string;      // "1d12+3 cortante"
+  actionCost?: string;
+  resourceCost?: { resourceName: string; amount: number };
+  saveAttr?: string;
+  saveDC?: number;
+  conditionApplied?: string;
+  advantage?: 'normal' | 'advantage' | 'disadvantage';
 };
 
 export type LogEntryType = 'attack' | 'damage' | 'critical' | 'crit_fail' | 'initiative' | 'system' | 'heal';
@@ -94,6 +133,7 @@ export interface RollFeedbackEvent {
   actorName: string;
   formula: string;
   timestamp: number;
+  targetsStatus?: { name: string; status: 'hit' | 'miss' | 'pass' | 'fail' }[];
 }
 
 export interface CombatSession {
@@ -109,15 +149,16 @@ export interface CombatSession {
 
 export interface CombatContextValue {
   combat: CombatSession | null;
-  startCombat: (players: Player[], npcs: Npc[]) => void;
+  startCombat: (participantsConfig: { entity: Player | Npc; type: 'player' | 'npc'; role: 'ally' | 'enemy' }[]) => void;
   endCombat: () => Promise<void>;
   nextTurn: () => void;
-  applyDamage: (participantId: string, amount: number) => void;
+  prevTurn: () => void;
+  applyDamage: (participantId: string, amount: number, damageType?: string) => void;
   applyHeal: (participantId: string, amount: number) => void;
   addCondition: (participantId: string, condition: string) => void;
   removeCondition: (participantId: string, condition: string) => void;
   setInitiative: (participantId: string, value: number) => void;
-  broadcastCombatState: (newState?: CombatSession | null) => void;
+  broadcastCombatState: (newState: CombatSession | null, prevCombat?: CombatSession | null) => void;
   addToLog: (action: string, actorName?: string, type?: LogEntryType) => void;
   updateParticipant: (participantId: string, updates: Partial<CombatParticipant>) => void;
   removeParticipant: (participantId: string) => void;
@@ -125,6 +166,7 @@ export interface CombatContextValue {
   clearLog: () => void;
   toggleTarget: (participantId: string) => void;
   clearTargets: () => void;
+  transformParticipant: (participantId: string, transformData: any | null) => void;
 }
 
 const CombatContext = createContext<CombatContextValue | undefined>(undefined);
@@ -137,6 +179,11 @@ function sumBuffs(buffs: ActiveBuff[] | undefined, stat: 'acBonus' | 'speedBonus
     }
     return acc;
   }, 0);
+}
+
+function parseResText(text: string): string[] {
+  if (!text) return [];
+  return text.split(/[,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
 function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): CombatParticipant {
@@ -192,6 +239,9 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     con: parseInt(activeForm.con as any) || 10, int: parseInt(activeForm.int as any) || 10,
     wis: parseInt(activeForm.wis as any) || 10, cha: parseInt(activeForm.cha as any) || 10,
     attacks: Array.isArray((activeForm as Player).attacks) ? (activeForm as Player).attacks : [],
+    resistances: Array.isArray(activeForm.resistances) ? activeForm.resistances : parseResText((activeForm as Npc).res || ''),
+    immunities: Array.isArray(activeForm.immunities) ? activeForm.immunities : parseResText((activeForm as Npc).imm || ''),
+    abilities: activeForm.abilities || [],
     actionSpent: false,
     bonusActionSpent: false,
     reactionSpent: false,
@@ -200,6 +250,7 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     playerLevel: (entity as Player).playerLevel ?? (entity as Npc).playerLevel,
     playerClass: (entity as Player).playerClass || (entity as Player).classLevel?.split(' ')[0] || (entity as Npc).playerClass,
     cr: type === 'npc' ? (entity as Npc).cr : undefined,
+    multiattack_count: (entity as Npc).multiattackCount || 1,
     flurryUsed: false,
     spellSlots: activeForm.spellSlots ? { ...activeForm.spellSlots } : undefined,
     spellSlotsUsed: activeForm.spellSlotsUsed ? { ...activeForm.spellSlotsUsed } : {},
@@ -207,6 +258,9 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     isRaging: false,
     isConcentrating: false,
     concentrationSpell: undefined,
+    availableTransformation: entity.transformation ? { ...entity.transformation } : undefined,
+    combatTransformActive: false,
+    combatFaction: 'enemy',
   };
 }
 
@@ -214,15 +268,83 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   const [combat, setCombat] = useState<CombatSession | null>(null);
   const { isGM, profile } = useUserSession();
 
-  const broadcastCombatState = async (newState: CombatSession | null = combat) => {
+  const broadcastCombatState = (newState: CombatSession | null, prevCombat?: CombatSession | null) => {
+    if (!newState || !prevCombat) {
+      window.dispatchEvent(new CustomEvent('send_broadcast', { 
+        detail: { type: 'combat_update', payload: { fullState: newState } } 
+      }));
+      return;
+    }
+
+    const changedParticipants = newState.participants.filter(p => {
+      const old = prevCombat.participants.find(o => o.refId === p.refId);
+      return !old || old !== p; 
+    });
+
+    const newLogs = newState.log.filter(l => !prevCombat.log.some(o => o.id === l.id));
+
+    const meta: Partial<CombatSession> = {};
+    if (newState.round !== prevCombat.round) meta.round = newState.round;
+    if (newState.currentTurnIndex !== prevCombat.currentTurnIndex) meta.currentTurnIndex = newState.currentTurnIndex;
+    if (newState.isActive !== prevCombat.isActive) meta.isActive = newState.isActive;
+    if (newState.selectedTargetIds !== prevCombat.selectedTargetIds) meta.selectedTargetIds = newState.selectedTargetIds;
+    if (newState.latestRollEvent !== prevCombat.latestRollEvent) meta.latestRollEvent = newState.latestRollEvent;
+
+    const payload: any = {};
+    if (changedParticipants.length > 0) payload.participants = changedParticipants;
+    if (newLogs.length > 0) payload.newLogs = newLogs;
+    if (Object.keys(meta).length > 0) payload.meta = meta;
+
+    const oldIds = prevCombat.participants.map(p => p.refId).join(',');
+    const newIds = newState.participants.map(p => p.refId).join(',');
+    if (oldIds !== newIds) {
+      payload.participants = newState.participants;
+      payload.fullParticipantsList = true;
+    }
+
     window.dispatchEvent(new CustomEvent('send_broadcast', { 
-      detail: { type: 'combat_update', payload: newState } 
+      detail: { type: 'combat_update', payload } 
     }));
+  };
+
+  const updateCombatAndBroadcast = (updater: (prev: CombatSession | null) => CombatSession | null) => {
+    setCombat(prev => {
+      const newState = updater(prev);
+      broadcastCombatState(newState, prev);
+      return newState;
+    });
   };
 
   useEffect(() => {
     const handleSync = (e: any) => {
-      setCombat(e.detail as CombatSession);
+      const payload = e.detail;
+      if (payload === null) {
+        setCombat(null);
+        return;
+      }
+      setCombat(prev => {
+        if (payload.fullState !== undefined) return payload.fullState;
+        if (!prev) return prev;
+        
+        let newParticipants = prev.participants;
+        if (payload.participants) {
+          if (payload.fullParticipantsList) {
+             newParticipants = payload.participants;
+          } else {
+             newParticipants = prev.participants.map(p => {
+               const updated = payload.participants.find((up: any) => up.refId === p.refId);
+               return updated ? updated : p;
+             });
+          }
+        }
+
+        return {
+          ...prev,
+          ...payload.meta,
+          participants: newParticipants,
+          log: payload.newLogs ? [...payload.newLogs, ...prev.log] : prev.log
+        };
+      });
     };
     
     const handleSyncEntity = (e: any) => {
@@ -246,11 +368,12 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           movementSpent: oldP.movementSpent,
           attacksMade: oldP.attacksMade,
           flurryUsed: oldP.flurryUsed,
-          isDead: oldP.isDead
+          isDead: oldP.isDead,
+          combatFaction: oldP.combatFaction
         };
         
         const newCombat = { ...prev, participants: newParticipants };
-        broadcastCombatState(newCombat);
+        broadcastCombatState(newCombat, prev);
         return newCombat;
       });
     };
@@ -263,23 +386,19 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const startCombat = (players: Player[], npcs: Npc[]) => {
+  const startCombat = (participantsConfig: { entity: Player | Npc; type: 'player' | 'npc'; role: 'ally' | 'enemy' }[]) => {
     try {
       if (!isGM) return;
-      const baseParticipants = [
-        ...players.map(p => toCombatParticipant(p, 'player')),
-        ...npcs.map(n => toCombatParticipant(n, 'npc'))
-      ];
+      const baseParticipants = participantsConfig.map(cfg => {
+        const p = toCombatParticipant(cfg.entity, cfg.type);
+        p.combatFaction = cfg.role;
+        return p;
+      });
 
       const initialLog: CombatLogEntry[] = [];
 
       const participants = baseParticipants.map(p => {
-        // Init modifier is DEX mod + any custom parseable init from the entity
-        // p.init doesn't exist directly on CombatParticipant, we need the original entity.
-        // Wait, toCombatParticipant maps it to initiative: 0. 
-        // Let's calculate the dex modifier:
         const dexMod = Math.floor((p.dex - 10) / 2);
-        
         // roll 1d20 + dexMod + custom initMod
         const totalMod = dexMod + p.initMod;
         const rollResult = rollExpression(`1d20+${totalMod}`);
@@ -319,7 +438,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       };
       
       setCombat(newCombat);
-      broadcastCombatState(newCombat);
+      broadcastCombatState(newCombat, null);
     } catch (err: any) {
       window.alert("ERRO AO INICIAR COMBATE: " + err.message);
       console.error("Erro em startCombat:", err);
@@ -331,7 +450,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     // Persisting logic will be handled via events or API later, 
     // for now we just clear the state and broadcast.
     setCombat(null);
-    await broadcastCombatState(null);
+    broadcastCombatState(null, combat);
     
     // We should trigger an event to update the parent gameData here, 
     // or the parent will read it. For now, we dispatch a generic event.
@@ -339,57 +458,286 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const nextTurn = () => {
-    if (!combat) return;
-    let nextIndex = combat.currentTurnIndex + 1;
-    let nextRound = combat.round;
-    if (nextIndex >= combat.participants.length) {
-      nextIndex = 0;
-      nextRound += 1;
-    }
-    
-    // F4: Reset action economy for the incoming participant
-    const incomingParticipantId = combat.participants[nextIndex].refId;
-    const newParticipants = combat.participants.map(p => 
-      p.refId === incomingParticipantId 
-        ? { ...p, actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: false, attacksMade: 0, flurryUsed: false } 
-        : p
-    );
-    
-    const newCombat = { ...combat, currentTurnIndex: nextIndex, round: nextRound, participants: newParticipants };
-    setCombat(newCombat);
-    broadcastCombatState(newCombat);
+    updateCombatAndBroadcast(prev => {
+      if (!prev) return prev;
+      let nextIndex = prev.currentTurnIndex + 1;
+      let nextRound = prev.round;
+      if (nextIndex >= prev.participants.length) {
+        nextIndex = 0;
+        nextRound += 1;
+      }
+      
+      const incomingParticipantId = prev.participants[nextIndex].refId;
+      const newParticipants = prev.participants.map(p => 
+        p.refId === incomingParticipantId 
+          ? { ...p, actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: false, attacksMade: 0, flurryUsed: false } 
+          : p
+      );
+      
+      return { ...prev, currentTurnIndex: nextIndex, round: nextRound, participants: newParticipants, selectedTargetIds: [] };
+    });
+  };
+
+  const prevTurn = () => {
+    updateCombatAndBroadcast(prev => {
+      if (!prev) return prev;
+      let prevIndex = prev.currentTurnIndex - 1;
+      let prevRound = prev.round;
+      if (prevIndex < 0) {
+        prevIndex = prev.participants.length - 1;
+        prevRound = Math.max(1, prevRound - 1);
+      }
+      
+      const incomingParticipantId = prev.participants[prevIndex].refId;
+      const newParticipants = prev.participants.map(p => 
+        p.refId === incomingParticipantId 
+          ? { ...p, actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: false, attacksMade: 0, flurryUsed: false } 
+          : p
+      );
+      
+      return { ...prev, currentTurnIndex: prevIndex, round: prevRound, participants: newParticipants, selectedTargetIds: [] };
+    });
   };
 
   const updateParticipant = (participantId: string, updates: Partial<CombatParticipant>) => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
       const newParticipants = prev.participants.map(p => 
         p.refId === participantId ? { ...p, ...updates } : p
       );
-      const newCombat = { ...prev, participants: newParticipants };
-      broadcastCombatState(newCombat);
-      return newCombat;
+      return { ...prev, participants: newParticipants };
     });
   };
 
-  const applyDamage = (participantId: string, amount: number) => {
-    if (!combat) return;
-    const p = combat.participants.find(p => p.refId === participantId);
-    if (!p) return;
+  const transformParticipant = (participantId: string, transformData: any | null) => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const pIndex = prev.participants.findIndex(x => x.refId === participantId);
+      if (pIndex === -1) return prev;
+      const p = prev.participants[pIndex];
 
-    let current = p.hpCurrent;
-    let temp = p.tempHp;
+      let newParticipants = [...prev.participants];
+      let actionLog = '';
 
-    if (temp > 0) {
-      const absorbed = Math.min(temp, amount);
-      const remaining = amount - absorbed;
-      temp -= absorbed;
-      if (remaining > 0) current = Math.max(0, current - remaining);
-    } else {
-      current = Math.max(0, current - amount);
-    }
+      if (transformData) {
+        const newHpCurrent = transformData.hpCurrent ?? transformData.hpMax ?? 0;
+        newParticipants[pIndex] = {
+          ...p,
+          preTransformHp: p.hpCurrent,
+          preTransformHpMax: p.hpMax,
+          preTransformAc: p.ac,
+          preTransformSpeed: p.speed,
+          preTransformStr: p.str,
+          preTransformDex: p.dex,
+          preTransformCon: p.con,
+          preTransformAttacks: p.attacks,
+          preTransformImage: p.image,
+          preTransformName: p.name,
+          combatTransformActive: true,
+          combatTransformName: transformData.name,
+          hpCurrent: newHpCurrent,
+          hpMax: transformData.hpMax ?? 0,
+          ac: parseAC(transformData.ac || 10),
+          speed: parseSpeed(transformData.speed || "30 ft"),
+          str: parseInt(transformData.str) || 10,
+          dex: parseInt(transformData.dex) || 10,
+          con: parseInt(transformData.con) || 10,
+          attacks: Array.isArray(transformData.attacks) ? transformData.attacks : [],
+          image: transformData.image,
+          name: `${transformData.name} (${p.originalName || p.name})`
+        };
+        actionLog = `🐺 ${p.name} se transformou em **${transformData.name}**!`;
+      } else {
+        newParticipants[pIndex] = {
+          ...p,
+          combatTransformActive: false,
+          combatTransformName: undefined,
+          hpCurrent: p.preTransformHp ?? p.hpCurrent,
+          hpMax: p.preTransformHpMax ?? p.hpMax,
+          ac: p.preTransformAc ?? p.ac,
+          speed: p.preTransformSpeed ?? p.speed,
+          str: p.preTransformStr ?? p.str,
+          dex: p.preTransformDex ?? p.dex,
+          con: p.preTransformCon ?? p.con,
+          attacks: p.preTransformAttacks ?? p.attacks,
+          image: p.preTransformImage ?? p.image,
+          name: p.preTransformName ?? p.name,
+        };
+        actionLog = `🧍 ${p.preTransformName ?? p.name} reverteu para a forma original.`;
+      }
 
-    updateParticipant(participantId, { hpCurrent: current, tempHp: temp, isDead: current <= 0 && temp <= 0 });
+      const logEntry: CombatLogEntry = {
+        id: generateId(),
+        round: prev.round,
+        actorName: 'Sistema',
+        action: actionLog,
+        type: 'system',
+        timestamp: new Date().toISOString()
+      };
+
+      return { ...prev, participants: newParticipants, log: [...prev.log, logEntry] };
+    });
+  };
+
+  const applyDamage = (participantId: string, amount: number, damageType?: string) => {
+    setCombat(prev => {
+      if (!prev) return prev;
+      const pIndex = prev.participants.findIndex(x => x.refId === participantId);
+      if (pIndex === -1) return prev;
+      const p = prev.participants[pIndex];
+
+      let current = p.hpCurrent;
+      let temp = p.tempHp;
+
+      let finalAmount = amount;
+      let logResistance = false;
+      let logImmunity = false;
+
+      const matchDmgType = (typeList: string[], dt?: string) => {
+        if (!dt) return false;
+        const normalized = dt.toLowerCase().trim();
+        return typeList.some(t => {
+           const nt = t.toLowerCase().trim();
+           return nt === normalized || nt.includes(normalized) || normalized.includes(nt);
+        });
+      };
+
+      if (damageType) {
+        if (matchDmgType(p.immunities, damageType)) {
+          finalAmount = 0;
+          logImmunity = true;
+        } else {
+          let hasResistance = matchDmgType(p.resistances, damageType);
+          
+          if (!hasResistance && p.isRaging) {
+            const RAGE_PHYSICAL_TYPES = ['cortante', 'perfurante', 'contundente', 'slashing', 'piercing', 'bludgeoning'];
+            hasResistance = matchDmgType(RAGE_PHYSICAL_TYPES, damageType);
+          }
+
+          if (hasResistance) {
+            finalAmount = Math.floor(amount / 2);
+            logResistance = true;
+          }
+        }
+      }
+
+      if (temp > 0) {
+        const absorbed = Math.min(temp, finalAmount);
+        const remaining = finalAmount - absorbed;
+        temp -= absorbed;
+        if (remaining > 0) current = current - remaining; // permite ficar negativo para checar overflow
+      } else {
+        current = current - finalAmount;
+      }
+
+      let newParticipants = [...prev.participants];
+      let logEntries: CombatLogEntry[] = [];
+
+      if (logImmunity) {
+        logEntries.push({
+          id: generateId(),
+          round: prev.round,
+          actorName: 'Sistema',
+          action: `🔒 ${p.name} é imune a ${damageType}! Dano ignorado.`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        });
+      } else if (logResistance) {
+        logEntries.push({
+          id: generateId(),
+          round: prev.round,
+          actorName: 'Sistema',
+          action: `🛡️ ${p.name} resistiu! ${amount} → ${finalAmount} de dano ${damageType}`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      if (p.combatTransformActive && current <= 0) {
+        const overflow = Math.abs(current);
+        const origHp = Math.max(0, (p.preTransformHp ?? p.hpCurrent) - overflow);
+        newParticipants[pIndex] = {
+          ...p,
+          combatTransformActive: false,
+          combatTransformName: undefined,
+          hpCurrent: origHp,
+          hpMax: p.preTransformHpMax ?? p.hpMax,
+          tempHp: temp,
+          isDead: origHp <= 0 && temp <= 0,
+          ac: p.preTransformAc ?? p.ac,
+          speed: p.preTransformSpeed ?? p.speed,
+          str: p.preTransformStr ?? p.str,
+          dex: p.preTransformDex ?? p.dex,
+          con: p.preTransformCon ?? p.con,
+          attacks: p.preTransformAttacks ?? p.attacks,
+          image: p.preTransformImage ?? p.image,
+          name: p.preTransformName ?? p.name,
+        };
+        logEntries.push({
+          id: generateId(),
+          round: prev.round,
+          actorName: 'Sistema',
+          action: `💥 ${p.name} saiu da forma! ${overflow > 0 ? `**${overflow}** de dano excedente aplicado.` : ''}`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        current = Math.max(0, current);
+        
+        if (current === 0 && temp <= 0 && p.availableTransformation && !p.combatTransformActive) {
+          const transData = p.availableTransformation;
+          
+          newParticipants[pIndex] = {
+            ...p,
+            isDead: false,
+            hpCurrent: parseInt(transData.hpMax) || 1,
+            combatTransformActive: true,
+            combatTransformName: transData.name,
+            preTransformHp: 0,
+            preTransformHpMax: p.hpMax,
+            preTransformAc: p.ac,
+            preTransformSpeed: p.speed,
+            preTransformStr: p.str,
+            preTransformDex: p.dex,
+            preTransformCon: p.con,
+            preTransformAttacks: p.attacks,
+            preTransformImage: p.image,
+            preTransformName: p.name,
+            hpMax: parseInt(transData.hpMax) || p.hpMax,
+            ac: parseInt(transData.ac) || p.ac,
+            speed: parseInt(transData.speed) || p.speed,
+            str: parseInt(transData.str) || p.str,
+            dex: parseInt(transData.dex) || p.dex,
+            con: parseInt(transData.con) || p.con,
+            attacks: Array.isArray(transData.attacks) ? transData.attacks : [],
+            image: transData.image || p.image,
+            name: `${transData.name} (${p.originalName || p.name})`
+          };
+          
+          logEntries.push({
+            id: generateId(),
+            round: prev.round,
+            actorName: 'Sistema',
+            action: `🐺 ${p.name} chegou a 0 HP e assumiu automaticamente a forma de **${transData.name}**!`,
+            type: 'system',
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          newParticipants[pIndex] = {
+            ...p,
+            hpCurrent: current,
+            tempHp: temp,
+            isDead: current <= 0 && temp <= 0
+          };
+        }
+      }
+
+      return { 
+        ...prev, 
+        participants: newParticipants,
+        log: logEntries.length > 0 ? [...prev.log, ...logEntries] : prev.log 
+      };
+    });
   };
 
   const applyHeal = (participantId: string, amount: number) => {
@@ -418,18 +766,17 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setInitiative = (participantId: string, value: number) => {
-    if (!combat || !isGM) return;
-    const newParticipants = combat.participants.map(p => 
-      p.refId === participantId ? { ...p, initiative: value } : p
-    ).sort((a, b) => b.initiative - a.initiative);
-    
-    const newCombat = { ...combat, participants: newParticipants };
-    setCombat(newCombat);
-    broadcastCombatState(newCombat);
+    updateCombatAndBroadcast(prev => {
+      if (!prev) return prev;
+      const newParticipants = prev.participants.map(p => 
+        p.refId === participantId ? { ...p, initiative: value } : p
+      ).sort((a, b) => b.initiative - a.initiative);
+      return { ...prev, participants: newParticipants };
+    });
   };
 
   const addToLog = (action: string, actorName: string = 'Sistema', type: 'attack'|'damage'|'critical'|'crit_fail'|'initiative'|'system'|'heal' = 'system') => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
       const newEntry: CombatLogEntry = {
         id: generateId(),
@@ -439,35 +786,31 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         type,
         timestamp: new Date().toISOString()
       };
-      const newCombat = { ...prev, log: [newEntry, ...prev.log] };
-      broadcastCombatState(newCombat);
-      return newCombat;
+      return { ...prev, log: [newEntry, ...prev.log] };
     });
   };
 
   const triggerRollEvent = (event: Omit<RollFeedbackEvent, 'id' | 'timestamp'>) => {
-    if (!combat) return;
-    const newEvent: RollFeedbackEvent = {
-      ...event,
-      id: generateId(),
-      timestamp: Date.now()
-    };
-    const newCombat = { ...combat, latestRollEvent: newEvent };
-    setCombat(newCombat);
-    broadcastCombatState(newCombat);
+    updateCombatAndBroadcast(prev => {
+      if (!prev) return prev;
+      const newEvent: RollFeedbackEvent = {
+        ...event,
+        id: generateId(),
+        timestamp: Date.now()
+      };
+      return { ...prev, latestRollEvent: newEvent };
+    });
   };
 
   const clearLog = () => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
-      const newCombat = { ...prev, log: [] };
-      broadcastCombatState(newCombat);
-      return newCombat;
+      return { ...prev, log: [] };
     });
   };
 
   const removeParticipant = (participantId: string) => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
       let newTurnIndex = prev.currentTurnIndex;
       const indexToRemove = prev.participants.findIndex(p => p.refId === participantId);
@@ -487,20 +830,17 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         newTurnIndex = 0; // Volta pro topo se acabou a rodada
       }
 
-      const newCombat = { 
+      return { 
         ...prev, 
         participants: newParticipants, 
         currentTurnIndex: newTurnIndex,
         selectedTargetIds: newSelectedTargets
       };
-      
-      broadcastCombatState(newCombat);
-      return newCombat;
     });
   };
 
   const toggleTarget = (participantId: string) => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
       const current = prev.selectedTargetIds || [];
       const isSelected = current.includes(participantId);
@@ -508,18 +848,14 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         ? current.filter(id => id !== participantId) 
         : [...current, participantId];
       
-      const newCombat = { ...prev, selectedTargetIds: newTargets };
-      broadcastCombatState(newCombat);
-      return newCombat;
+      return { ...prev, selectedTargetIds: newTargets };
     });
   };
 
   const clearTargets = () => {
-    setCombat(prev => {
+    updateCombatAndBroadcast(prev => {
       if (!prev) return prev;
-      const newCombat = { ...prev, selectedTargetIds: [] };
-      broadcastCombatState(newCombat);
-      return newCombat;
+      return { ...prev, selectedTargetIds: [] };
     });
   };
 
@@ -529,6 +865,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       startCombat,
       endCombat,
       nextTurn,
+      prevTurn,
       applyDamage,
       applyHeal,
       addCondition,
@@ -541,7 +878,8 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       triggerRollEvent,
       clearLog,
       toggleTarget,
-      clearTargets
+      clearTargets,
+      transformParticipant,
     }}>
       {children}
     </CombatContext.Provider>

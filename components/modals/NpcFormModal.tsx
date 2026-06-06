@@ -5,9 +5,14 @@ import Modal from "../ui/Modal";
 import CropModal from "./CropModal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
-import { Npc, SpellEntry } from "@/lib/gameData";
+import { Npc, SpellEntry, ClassResource, Ability } from "@/lib/gameData";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
+import { DND5E_CLASSES, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities } from "@/lib/constants/dnd5eClasses";
 import SpellsSection from "../ui/SpellsSection";
+import ClassResourcesSection from "../ui/ClassResourcesSection";
+import AbilitiesSection from "../ui/AbilitiesSection";
+import DamageTypeSelector from "../ui/DamageTypeSelector";
+import { uploadBase64Image } from "@/lib/supabase/storage";
 
 interface NpcFormModalProps {
   isOpen: boolean;
@@ -54,7 +59,12 @@ const initialFormState = {
   spellsKnown: [] as SpellEntry[],
   playerClass: "",
   playerLevel: "1",
-  customClass: ""
+  customClass: "",
+  classResources: [] as ClassResource[],
+  abilities: [] as Ability[],
+  resistances: [] as string[],
+  immunities: [] as string[],
+  multiattackCount: "1"
 };
 
 const dataToAttacks = (data: any) => {
@@ -101,6 +111,7 @@ const dataToFormState = (data: any) => ({
   isDead: data?.isDead || false,
   isHidden: data?.isHidden || false,
   profBonus: data?.profBonus || "",
+  multiattackCount: data?.multiattackCount?.toString() || "1",
   saves: data?.saves || [],
   skills: data?.skills || [],
   hasSpells: data?.hasSpells || false,
@@ -110,7 +121,11 @@ const dataToFormState = (data: any) => ({
   spellsKnown: data?.spellsKnown || [],
   playerClass: data?.playerClass || "",
   playerLevel: data?.playerLevel?.toString() || "1",
-  customClass: data?.customClass || ""
+  customClass: data?.customClass || "",
+  classResources: data?.classResources || [],
+  abilities: data?.abilities || [],
+  resistances: data?.resistances || [],
+  immunities: data?.immunities || [],
 });
 
 export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
@@ -224,15 +239,42 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    let finalValue: string | boolean = value;
+    let finalValue: string | boolean | Record<number, number> = value;
     if (type === 'checkbox') {
       finalValue = (e.target as HTMLInputElement).checked;
     }
 
+    let updates: any = { [name]: finalValue };
+
+    if (name === 'playerClass' && value !== 'custom' && value !== '') {
+      const cls = DND5E_CLASSES.find(c => c.id === value);
+      if (cls) {
+        const level = isEditingTransformation ? transFormState.playerLevel : formState.playerLevel;
+        const currentResources = isEditingTransformation ? transFormState.classResources : formState.classResources;
+        const currentAbilities = isEditingTransformation ? transFormState.abilities : formState.abilities;
+
+        if (currentResources.length === 0) {
+          updates.classResources = getDefaultClassResources(value, parseInt(level) || 1);
+        }
+        if (currentAbilities.length === 0) {
+          updates.abilities = getDefaultAbilities(value, parseInt(level) || 1);
+        }
+        
+        if (isCaster(value)) {
+          updates.hasSpells = true;
+          updates.spellcastingAbility = cls.spellAbility || 'int';
+          updates.spellSlotType = getCasterType(value) === 'pact' ? 'pact' : 'standard';
+          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level) || 1);
+        } else {
+          updates.hasSpells = false;
+        }
+      }
+    }
+
     if (isEditingTransformation) {
-      setTransFormState(prev => ({ ...prev, [name]: finalValue }));
+      setTransFormState(prev => ({ ...prev, ...updates }));
     } else {
-      setFormState(prev => ({ ...prev, [name]: finalValue }));
+      setFormState(prev => ({ ...prev, ...updates }));
     }
   };
 
@@ -332,28 +374,48 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
       spellSlotsUsed: prevData?.spellSlotsUsed || {},
       spellsKnown: state.spellsKnown,
       profBonus: state.profBonus || "",
+      multiattackCount: parseInt(state.multiattackCount) || 1,
       playerClass: state.playerClass,
       playerLevel: parseInt(state.playerLevel) || 1,
-      customClass: state.customClass
+      customClass: state.customClass,
+      classResources: state.classResources,
+      abilities: state.abilities,
+      resistances: state.resistances,
+      immunities: state.immunities
     };
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
     
+    // Faz o upload das imagens Base64 (se houver) para o Supabase Storage e retorna a URL
+    let finalAvatarUrl = avatarBase64;
+    let finalTransAvatarUrl = transAvatarBase64;
+    try {
+      if (finalAvatarUrl && finalAvatarUrl.startsWith("data:image/")) {
+        finalAvatarUrl = await uploadBase64Image(finalAvatarUrl, "avatars") || finalAvatarUrl;
+      }
+      if (hasTransformation && finalTransAvatarUrl && finalTransAvatarUrl.startsWith("data:image/")) {
+        finalTransAvatarUrl = await uploadBase64Image(finalTransAvatarUrl, "avatars") || finalTransAvatarUrl;
+      }
+    } catch (uploadError: any) {
+      await showAlert({ title: "Erro", message: "Erro ao fazer upload da imagem: " + (uploadError.message || "Tente novamente."), type: "danger" });
+      return;
+    }
+
     // Original Form Data
     const npcData: Npc = {
       id,
-      ...constructNpcObject(formState, avatarBase64, activeData, selectedSaves, selectedSkills, attacksState),
+      ...constructNpcObject(formState, finalAvatarUrl, activeData, selectedSaves, selectedSkills, attacksState),
       transformation: undefined,
       isTransformed: hasTransformation ? isEditingTransformation : false,
     } as Npc;
 
     // Transformation Data
     if (hasTransformation) {
-      npcData.transformation = constructNpcObject(transFormState, transAvatarBase64, activeData?.transformation, transSelectedSaves, transSelectedSkills, transAttacksState);
+      npcData.transformation = constructNpcObject(transFormState, finalTransAvatarUrl, activeData?.transformation, transSelectedSaves, transSelectedSkills, transAttacksState);
     }
 
     const newNpcs = [...(dadosGlobais.npcs || [])];
@@ -493,7 +555,18 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                 </div>
                 <div className="form-group flex-2">
                   <label>Classe Base (Oculto / Engine)</label>
-                  <input type="text" name="playerClass" className="journey-input" placeholder="Ex: Fighter, Mage..." value={activeState.playerClass} onChange={handleChange} />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <select name="playerClass" className="journey-input" value={activeState.playerClass} onChange={handleChange}>
+                      <option value="">Selecione...</option>
+                      {DND5E_CLASSES.map(c => (
+                        <option key={c.id} value={c.id}>{c.label}</option>
+                      ))}
+                      <option value="custom">Outra (Personalizada)</option>
+                    </select>
+                    {activeState.playerClass === "custom" && (
+                      <input type="text" name="customClass" className="journey-input" placeholder="Nome da classe" value={activeState.customClass} onChange={handleChange} />
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -516,15 +589,42 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                 <div className="form-group flex-1"><label>Percepção</label><input type="text" name="perc" className="journey-input" placeholder="Ex: 14" value={activeState.perc} onChange={handleChange} /></div>
               </div>
               
+              <div className="form-row mt-3">
+                <div className="form-group flex-1"><label>Bônus Proficiência</label><input type="text" name="profBonus" className="journey-input" placeholder="+2" value={activeState.profBonus} onChange={handleChange} /></div>
+                <div className="form-group flex-1"><label>Ataques por Turno</label><input type="number" name="multiattackCount" className="journey-input" min="1" max="10" value={activeState.multiattackCount} onChange={handleChange} /></div>
+              </div>
+              
               <h4 className="form-section-title mt-4">Ações e Ataques</h4>
               <div className="form-group mt-2">
                 <label>Ataques (Motor de Combate Automático)</label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
                   {activeAttacks.map((atk, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '10px' }}>
-                      <input type="text" className="journey-input" placeholder="Nome da Arma/Ataque" style={{ flex: 2 }} value={atk.name} onChange={(e) => handleAttackChange(i, 'name', e.target.value)} />
-                      <input type="text" className="journey-input" placeholder="Acerto (+5)" style={{ flex: 1 }} value={atk.bonus} onChange={(e) => handleAttackChange(i, 'bonus', e.target.value)} />
-                      <input type="text" className="journey-input" placeholder="Dano (1d8+3)" style={{ flex: 1 }} value={atk.dmg} onChange={(e) => handleAttackChange(i, 'dmg', e.target.value)} />
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px', padding: '8px', background: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <input type="text" className="journey-input" placeholder="Nome da Arma/Ataque" style={{ flex: 2 }} value={atk.name} onChange={(e) => handleAttackChange(i, 'name', e.target.value)} />
+                        <input type="text" className="journey-input" placeholder="Acerto (+5)" style={{ flex: 1 }} value={atk.bonus} onChange={(e) => handleAttackChange(i, 'bonus', e.target.value)} />
+                        <input type="text" className="journey-input" placeholder="Dano (1d8+3)" style={{ flex: 1 }} value={atk.dmg} onChange={(e) => handleAttackChange(i, 'dmg', e.target.value)} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <select className="journey-input" style={{ flex: 1 }} value={atk.actionCost || 'action'} onChange={(e) => handleAttackChange(i, 'actionCost', e.target.value)}>
+                          <option value="action">Ação</option>
+                          <option value="bonus">Ação Bônus</option>
+                          <option value="reaction">Reação</option>
+                          <option value="free">Ação Gratuita</option>
+                        </select>
+                        <select className="journey-input" style={{ flex: 1 }} value={atk.resourceCost?.resourceName || ''} onChange={(e) => {
+                          if (!e.target.value) handleAttackChange(i, 'resourceCost', undefined as any);
+                          else handleAttackChange(i, 'resourceCost', { resourceName: e.target.value, amount: atk.resourceCost?.amount || 1 } as any);
+                        }}>
+                          <option value="">Sem Custo Extra</option>
+                          {activeState.classResources?.map((res: any) => (
+                            <option key={res.id} value={res.name}>{res.name}</option>
+                          ))}
+                        </select>
+                        {atk.resourceCost?.resourceName && (
+                          <input type="number" className="journey-input" style={{ width: '80px' }} placeholder="Qtd" value={atk.resourceCost.amount || 1} min="1" onChange={(e) => handleAttackChange(i, 'resourceCost', { ...atk.resourceCost, amount: parseInt(e.target.value) || 1 } as any)} title="Quantidade" />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -591,11 +691,34 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
                 </div>
               </div>
 
+              <h4 className="form-section-title mt-4">Tipos de Dano (Resistências e Imunidades)</h4>
+              <DamageTypeSelector
+                resistances={activeState.resistances}
+                immunities={activeState.immunities}
+                onResistancesChange={(res) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, resistances: res })) : setFormState(prev => ({ ...prev, resistances: res }))}
+                onImmunitiesChange={(imm) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, immunities: imm })) : setFormState(prev => ({ ...prev, immunities: imm }))}
+              />
               <div className="form-row mt-4">
-                <div className="form-group flex-1"><label>Resistências</label><input type="text" name="res" className="journey-input" value={activeState.res} onChange={handleChange} /></div>
-                <div className="form-group flex-1"><label>Imunidades</label><input type="text" name="imm" className="journey-input" value={activeState.imm} onChange={handleChange} /></div>
+                <div className="form-group flex-1"><label>Resistências (Legado/Extra)</label><input type="text" name="res" className="journey-input" value={activeState.res} onChange={handleChange} /></div>
+                <div className="form-group flex-1"><label>Imunidades (Legado/Extra)</label><input type="text" name="imm" className="journey-input" value={activeState.imm} onChange={handleChange} /></div>
               </div>
               <div className="form-group mt-2"><label>Ações Completas (Texto Livre)</label><textarea name="actions" className="journey-input form-textarea" value={activeState.actions} onChange={handleChange}></textarea></div>
+
+              <ClassResourcesSection
+                resources={activeState.classResources}
+                onChange={(res) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, classResources: res })) : setFormState(prev => ({ ...prev, classResources: res }))}
+                playerClass={activeState.playerClass}
+                playerLevel={parseInt(activeState.playerLevel)}
+              />
+
+              <AbilitiesSection
+                abilities={activeState.abilities}
+                onChange={(ab) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, abilities: ab })) : setFormState(prev => ({ ...prev, abilities: ab }))}
+                classResources={activeState.classResources}
+                playerClass={activeState.playerClass}
+                playerLevel={parseInt(activeState.playerLevel)}
+              />
+
 
               <h4 className="form-section-title mt-4">Teatro Mental & História</h4>
               <div className="form-row">

@@ -57,7 +57,11 @@ export function mapNpcToDB(npc: Npc, campaignId: string) {
     conditions: npc.conditions || [],
     active_buffs: npc.activeBuffs || [],
     saves: npc.saves || [],
-    prof_bonus: npc.profBonus || ''
+    prof_bonus: npc.profBonus || '',
+    abilities: npc.abilities || [],
+    resistances_arr: npc.resistances || [],
+    immunities_arr: npc.immunities || [],
+    multiattack_count: npc.multiattackCount || 1
   };
 }
 
@@ -115,7 +119,11 @@ export function mapDBToNpc(row: any): Npc {
     conditions: row.conditions || [],
     activeBuffs: row.active_buffs || [],
     saves: row.saves || [],
-    profBonus: row.prof_bonus || ''
+    profBonus: row.prof_bonus || '',
+    abilities: row.abilities || [],
+    resistances: row.resistances_arr || [],
+    immunities: row.immunities_arr || [],
+    multiattackCount: row.multiattack_count || 1
   };
 }
 
@@ -172,7 +180,10 @@ export function mapPlayerToDB(player: Player, campaignId: string) {
     class_resources: player.classResources || [],
     expertise_skills: player.expertiseSkills || [],
     custom_class: player.customClass || '',
-    short_rest_taken_today: player.shortRestTakenToday || false
+    short_rest_taken_today: player.shortRestTakenToday || false,
+    abilities: player.abilities || [],
+    resistances_arr: player.resistances || [],
+    immunities_arr: player.immunities || []
   };
 }
 
@@ -227,6 +238,9 @@ export function mapDBToPlayer(row: any): Player {
     classResources: row.class_resources || [],
     expertiseSkills: row.expertise_skills || [],
     customClass: row.custom_class || '',
-    shortRestTakenToday: row.short_rest_taken_today || false
+    shortRestTakenToday: row.short_rest_taken_today || false,
+    abilities: row.abilities || [],
+    resistances: row.resistances_arr || [],
+    immunities: row.immunities_arr || []
   };
 }

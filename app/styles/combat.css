@@ -187,10 +187,10 @@
   z-index: 1;
 }
 
-/* Condições Grandes na Imagem */
+/* Condições Menos Agressivas na Base da Imagem */
 .conditions-overlay {
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   left: 8px;
   right: 8px;
   display: flex;
@@ -198,17 +198,51 @@
   gap: 4px;
   z-index: 2;
   pointer-events: none;
+  justify-content: center;
 }
 .condition-badge {
-  background: rgba(220, 38, 38, 0.9);
-  color: white;
-  font-size: 0.75rem;
-  font-weight: bold;
+  background: rgba(0, 0, 0, 0.6);
+  color: #e2e8f0;
+  font-size: 0.65rem;
+  font-weight: 500;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   text-transform: uppercase;
+  letter-spacing: 0.05em;
   box-shadow: 0 2px 4px rgba(0,0,0,0.5);
   backdrop-filter: blur(2px);
+}
+
+/* Efeitos Visuais por Condição */
+.combatant-card.is-poisoned {
+  border-color: rgba(34, 197, 94, 0.6) !important;
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.3) inset;
+}
+.combatant-card.is-poisoned::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: radial-gradient(circle, transparent 50%, rgba(34, 197, 94, 0.1) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.combatant-card.is-stealth {
+  opacity: 0.65;
+  filter: drop-shadow(0 0 10px rgba(0,0,0,0.8));
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.combatant-card.is-frightened {
+  border-color: rgba(168, 85, 247, 0.6) !important;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.3) inset;
+  animation: fear-shake 2s infinite ease-in-out;
+}
+
+@keyframes fear-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-1px) rotate(-0.5deg); }
+  75% { transform: translateX(1px) rotate(0.5deg); }
 }
 
 @keyframes rage-pulse {
@@ -506,15 +540,16 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(10, 10, 15, 0.95);
+  background: radial-gradient(circle at center, rgba(30,30,45,0.95) 0%, rgba(10,10,15,0.95) 100%);
   border: 2px solid var(--accent-primary);
   border-radius: 16px;
-  padding: 2rem;
+  padding: 2rem 3rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  z-index: 1000;
-  box-shadow: 0 0 50px rgba(139, 92, 246, 0.5);
+  z-index: 10000;
+  box-shadow: 0 0 60px rgba(139, 92, 246, 0.5), 0 0 20px rgba(139, 92, 246, 0.3) inset;
+  backdrop-filter: blur(10px);
   pointer-events: none;
   animation: fade-in-out 3s ease forwards;
 }
@@ -538,10 +573,12 @@
 }
 
 .roll-title {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 900;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem;
   text-transform: uppercase;
+  text-shadow: 0 4px 15px rgba(0,0,0,0.8);
+  letter-spacing: 0.05em;
 }
 
 .roll-result-container {
@@ -571,8 +608,9 @@
 }
 
 .roll-total {
-  font-size: 3rem;
+  font-size: 3.5rem;
   color: var(--text-primary);
+  text-shadow: 0 0 15px rgba(255,255,255,0.4);
 }
 
 @keyframes fade-in-out {
@@ -651,3 +689,81 @@
   justify-content: center;
   width: 100%;
 }
+
+/* Premium Combat Log */
+.combat-log-entry {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid transparent;
+  animation: slideDownFadeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  margin-bottom: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: all 0.2s;
+}
+
+.combat-log-entry:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+@keyframes slideDownFadeIn {
+  from { opacity: 0; transform: translateY(-15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.type-critical {
+  border-left-color: gold;
+  background: linear-gradient(90deg, rgba(255,215,0,0.15) 0%, transparent 100%);
+  animation: slideDownFadeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), pulseCritical 2s infinite;
+}
+
+@keyframes pulseCritical {
+  0% { box-shadow: 0 0 0 rgba(255,215,0,0); }
+  50% { box-shadow: 0 0 10px rgba(255,215,0,0.3); }
+  100% { box-shadow: 0 0 0 rgba(255,215,0,0); }
+}
+
+.type-damage {
+  border-left-color: #ef4444;
+  background: linear-gradient(90deg, rgba(239,68,68,0.1) 0%, transparent 100%);
+}
+
+.type-heal {
+  border-left-color: #22c55e;
+  background: linear-gradient(90deg, rgba(34,197,94,0.1) 0%, transparent 100%);
+}
+
+.type-attack {
+  border-left-color: #fb923c;
+}
+
+.type-crit_fail {
+  border-left-color: #7f1d1d;
+  background: linear-gradient(90deg, rgba(127,29,29,0.15) 0%, transparent 100%);
+}
+
+.type-system {
+  border-left-color: #9ca3af;
+}
+
+.log-action strong {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+/* Transformação em Combate */
+.transform-badge {
+  animation: transformPulse 2s infinite;
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+@keyframes transformPulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(124,58,237,0.4); }
+  50% { box-shadow: 0 0 15px rgba(124,58,237,0.9); }
+}
+
+.hp-bar-transform {
+  background: linear-gradient(90deg, #7c3aed, #a78bfa) !important;
+}
+
+

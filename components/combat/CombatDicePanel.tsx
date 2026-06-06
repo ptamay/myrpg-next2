@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CombatParticipant, PendingAttack } from "@/contexts/CombatContext";
+import { useCombat, CombatParticipant, PendingAttack } from "@/contexts/CombatContext";
 import { rollDie, rollWithAdvantage, rollWithDisadvantage } from "@/lib/dice/dnd5e";
+import { parseDmgString, ParsedDamage, rollDamage } from "@/lib/dice/rollParser";
+import { CONDITIONS_MAP } from "@/lib/constants/dnd5e";
 
 type AdvantageType = "normal" | "advantage" | "disadvantage";
-type AnimState = "idle" | "spinning" | "scrambling" | "revealing";
+type AnimState = "idle" | "spinning" | "revealing";
 type RollMode = "free" | "attack" | "damage" | "save";
 
 export interface RollEntry {
@@ -23,6 +25,8 @@ export interface RollEntry {
   rollMode: RollMode;
   saveAttr?: string;
   saveDC?: number;
+  damageType?: string;
+  conditionApplied?: string;
 }
 
 interface Props {
@@ -30,6 +34,7 @@ interface Props {
   participants: CombatParticipant[];
   onRoll: (entry: RollEntry) => void;
   pendingAttack?: PendingAttack | null;
+  pendingDamage?: { isCritical: boolean; parsedDmg: ParsedDamage } | null;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -45,59 +50,119 @@ function HexSvg({ children, className }: { children?: React.ReactNode, className
   );
 }
 
-export default function CombatDicePanel({ activeParticipant, participants, onRoll, pendingAttack }: Props) {
+export default function CombatDicePanel({ activeParticipant, participants, onRoll, pendingAttack, pendingDamage }: Props) {
   const [advantage, setAdvantage] = useState<AdvantageType>("normal");
   const [modifier, setModifier] = useState<string>("0");
   const [rollMode, setRollMode] = useState<RollMode>("free");
   const [saveAttr, setSaveAttr] = useState<string>("Destreza");
   const [saveDC, setSaveDC] = useState<number>(15);
+  const { combat } = useCombat();
   
   const [animState, setAnimState] = useState<AnimState>("idle");
   const [displayNumber, setDisplayNumber] = useState<string | number>("");
-  const [lastRoll, setLastRoll] = useState<RollEntry | null>(null);
   const [activeDie, setActiveDie] = useState<number | null>(null);
 
   useEffect(() => {
-    if (pendingAttack) {
-      setRollMode("attack");
-      const bonusNum = parseInt(pendingAttack.bonus.replace('+', '')) || 0;
-      setModifier(bonusNum.toString());
+    if (pendingDamage) {
+      setRollMode("damage");
+      const mod = pendingDamage.parsedDmg.modifier || 0;
+      setModifier(mod.toString());
+    } else if (pendingAttack) {
+      if (pendingAttack.saveDC) {
+        setRollMode("save");
+        setSaveAttr(pendingAttack.saveAttr || "Destreza");
+        setSaveDC(pendingAttack.saveDC);
+      } else {
+        setRollMode("attack");
+        setModifier(pendingAttack.bonus.replace('+', ''));
+        
+        let hasAdvantage = false;
+        let hasDisadvantage = false;
+
+        // Verifica condições do Atacante
+        const attackerConditions = activeParticipant?.conditions || [];
+        attackerConditions.forEach(condName => {
+          const cDef = CONDITIONS_MAP.find(c => c.id.toLowerCase() === condName.toLowerCase() || c.label.toLowerCase() === condName.toLowerCase());
+          if (cDef?.effect) {
+            if (cDef.effect.attackAdvantage) hasAdvantage = true;
+            if (cDef.effect.attackDisadvantage) hasDisadvantage = true;
+          }
+          if (condName.toLowerCase() === 'ataque temerário') hasAdvantage = true;
+        });
+
+        // Verifica condições do primeiro Alvo selecionado
+        if (combat && combat.selectedTargetIds.length > 0) {
+          const firstTarget = combat.participants.find(p => p.refId === combat.selectedTargetIds[0]);
+          if (firstTarget) {
+            const targetConditions = firstTarget.conditions || [];
+            targetConditions.forEach(condName => {
+              const cDef = CONDITIONS_MAP.find(c => c.id.toLowerCase() === condName.toLowerCase() || c.label.toLowerCase() === condName.toLowerCase());
+              if (cDef?.effect) {
+                if (cDef.effect.attackAdvantageOnTarget || cDef.effect.meleeAdvantageOnTarget) hasAdvantage = true;
+                if (cDef.effect.attackDisadvantageOnTarget || cDef.effect.rangedDisadvantageOnTarget) hasDisadvantage = true;
+              }
+            });
+          }
+        }
+
+        if (hasAdvantage && hasDisadvantage) setAdvantage("normal");
+        else if (hasAdvantage) setAdvantage("advantage");
+        else if (hasDisadvantage) setAdvantage("disadvantage");
+        else setAdvantage("normal");
+      }
+    } else {
+      setRollMode("free");
+      setModifier("0");
     }
-  }, [pendingAttack]);
+  }, [pendingAttack, pendingDamage, activeParticipant, combat?.selectedTargetIds]);
   
   const handleRoll = (faces: number) => {
     if (animState !== "idle") return;
+    
+    // Validar cliques no modo errado
+    if (rollMode === "attack" && faces !== 20) return;
+    if (rollMode === "damage" && pendingDamage && faces !== pendingDamage.parsedDmg.dieSides) return;
     setActiveDie(faces);
     setAnimState("spinning");
-    setDisplayNumber("");
-
-    setTimeout(() => {
-      setAnimState("scrambling");
-      const scramble = setInterval(() => setDisplayNumber(Math.floor(Math.random() * faces) + 1), 50);
-
-      setTimeout(() => {
-        clearInterval(scramble);
-
+    
+    let suspenseFrames = 0;
+    const maxFrames = 25; // 2.5s
+    const intervalId = setInterval(() => {
+      setDisplayNumber(Math.floor(Math.random() * faces) + 1);
+      suspenseFrames++;
+      if (suspenseFrames >= maxFrames) {
+        clearInterval(intervalId);
+        
         let dieResult: number;
         let rolls: number[];
+        let mod = parseInt(modifier) || 0;
+        let isCritical = false;
+        let isCritFail = false;
+        let total = 0;
 
-        if (faces === 20 && advantage === "advantage") {
-          const r = rollWithAdvantage(20);
-          dieResult = r.result;
-          rolls = r.rolls;
-        } else if (faces === 20 && advantage === "disadvantage") {
-          const r = rollWithDisadvantage(20);
-          dieResult = r.result;
-          rolls = r.rolls;
+        if (rollMode === "damage" && pendingDamage) {
+          const expr = `${pendingDamage.parsedDmg.dieCount}d${faces}+${mod}`;
+          const dmgRes = rollDamage(expr, pendingDamage.isCritical);
+          total = dmgRes.total;
+          rolls = dmgRes.rolls;
+          dieResult = rolls[0] || 0; 
         } else {
-          dieResult = rollDie(faces);
-          rolls = [dieResult];
+          if (faces === 20 && advantage === "advantage") {
+            const r = rollWithAdvantage(20);
+            dieResult = r.result;
+            rolls = r.rolls;
+          } else if (faces === 20 && advantage === "disadvantage") {
+            const r = rollWithDisadvantage(20);
+            dieResult = r.result;
+            rolls = r.rolls;
+          } else {
+            dieResult = rollDie(faces);
+            rolls = [dieResult];
+          }
+          total = dieResult + mod;
+          isCritical = faces === 20 && dieResult === 20;
+          isCritFail = faces === 20 && dieResult === 1;
         }
-
-        const mod = parseInt(modifier) || 0;
-        const total = dieResult + mod;
-        const isCritical = faces === 20 && dieResult === 20;
-        const isCritFail = faces === 20 && dieResult === 1;
         
         const entry: RollEntry = {
           id: generateId(),
@@ -112,16 +177,20 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
           rolls,
           timestamp: new Date().toISOString(),
           rollMode,
+          damageType: pendingDamage?.parsedDmg.damageType,
+          conditionApplied: pendingAttack?.conditionApplied
         };
 
-        setLastRoll(entry);
         setDisplayNumber(dieResult);
         setAnimState("revealing");
-        onRoll(entry);
-
-        setTimeout(() => setAnimState("idle"), 800);
-      }, 600);
-    }, 400);
+        
+        setTimeout(() => {
+          setAnimState("idle");
+          setActiveDie(null);
+          onRoll(entry);
+        }, 800);
+      }
+    }, 100);
   };
 
   const handleSaveTest = () => {
@@ -138,38 +207,87 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
       rolls: [],
       timestamp: new Date().toISOString(),
       rollMode: "save",
-      saveAttr,
-      saveDC
+      saveAttr: rollMode === "save" ? saveAttr : undefined,
+      saveDC: rollMode === "save" ? saveDC : undefined,
+      conditionApplied: pendingAttack?.conditionApplied
     };
     onRoll(entry);
+  };
+
+  const getHexClass = (faces: number) => {
+    let classes = "static-hex ";
+    if (activeDie === faces) {
+      classes += "highlight active-roll ";
+    }
+    
+    if (rollMode === "attack" && faces === 20 && pendingAttack) {
+      classes += "pulsing-attack ";
+    }
+    
+    if (rollMode === "damage" && pendingDamage && faces === pendingDamage.parsedDmg.dieSides) {
+      classes += pendingDamage.isCritical ? "pulsing-crit " : "pulsing-damage ";
+    }
+    
+    return classes;
+  };
+
+  const getHexContent = (faces: number) => {
+    if (animState !== "idle" && activeDie === faces) {
+      return <span className="inline-roll-result">{displayNumber}</span>;
+    }
+    if (rollMode === "damage" && pendingDamage && pendingDamage.isCritical && faces === pendingDamage.parsedDmg.dieSides) {
+      return <span style={{color: "gold", textShadow: "0 0 5px gold"}}>2×d{faces}</span>;
+    }
+    if (rollMode === "damage" && pendingDamage && faces === pendingDamage.parsedDmg.dieSides) {
+      const count = pendingDamage.parsedDmg.dieCount;
+      return <span>{count > 1 ? `${count}d${faces}` : `d${faces}`}</span>;
+    }
+    return `d${faces}`;
   };
 
   return (
     <div className="dice-panel-container">
       {/* Roll Mode Selector */}
-      <div className="dice-panel-header">
+      <div className="dice-panel-header" style={{ display: 'flex', gap: '8px', marginBottom: '1rem', alignItems: 'center' }}>
         <select 
           className="journey-input dice-mode-select" 
           value={rollMode} 
           onChange={e => setRollMode(e.target.value as RollMode)}
-          disabled={!!pendingAttack}
+          disabled={!!pendingAttack || !!pendingDamage}
+          style={{ flex: 1, padding: '8px', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid var(--border-subtle)' }}
         >
           <option value="free">🎲 Rolagem Livre</option>
           <option value="attack">⚔️ Ataque (CA)</option>
           <option value="damage">🩸 Dano (HP)</option>
           <option value="save">🛡️ Resistência (CD)</option>
         </select>
-        <div className="dice-modifier">
-          Mod: 
-          <input 
-            type="number" 
-            className="journey-input modifier-input" 
-            value={modifier} 
-            onChange={e => setModifier(e.target.value)} 
-            disabled={!!pendingAttack}
-          />
-        </div>
+        
+        {rollMode !== "save" && (
+          <div className="dice-modifier" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>MOD:</span>
+            <input 
+              type="number" 
+              className="journey-input modifier-input" 
+              value={modifier} 
+              onChange={e => setModifier(e.target.value)} 
+              disabled={!!pendingAttack}
+              style={{ width: '50px', padding: '6px', textAlign: 'center', fontWeight: 'bold' }}
+            />
+          </div>
+        )}
       </div>
+
+      {pendingDamage && (
+        <div style={{ marginBottom: '12px', padding: '8px', background: pendingDamage.isCritical ? 'rgba(255,215,0,0.15)' : 'rgba(239,68,68,0.15)', borderRadius: '6px', border: `1px solid ${pendingDamage.isCritical ? 'gold' : '#ef4444'}`, textAlign: 'center' }}>
+          <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: pendingDamage.isCritical ? 'gold' : '#ef4444' }}>
+            {pendingDamage.isCritical ? "💥 CRÍTICO D&D 5E!" : "🩸 DANO CONFIRMADO"}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+            Tipo: <strong>{pendingDamage.parsedDmg.damageType || "Comum"}</strong> 
+            {pendingDamage.isCritical ? " (Dados duplicados no cálculo final)" : ""}
+          </div>
+        </div>
+      )}
 
       {rollMode === "save" ? (
         <div style={{ background: "rgba(0,0,0,0.3)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -192,111 +310,109 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
         </div>
       ) : (
         <>
-      {/* Container Hexagonal Buttons */}
-      <div className="dice-hex-grid">
-        <div className="dice-hex-row top-row">
-          {[4, 6, 8, 10].map(faces => {
-            const isAttackAndNotD20 = rollMode === "attack" && faces !== 20;
-            return (
-              <div 
-                key={faces} 
-                className="hex-wrapper" 
-                onClick={() => !isAttackAndNotD20 && handleRoll(faces)}
-                style={{ opacity: isAttackAndNotD20 ? 0.3 : 1, cursor: isAttackAndNotD20 ? 'not-allowed' : 'pointer' }}
-              >
-                <HexSvg className={`static-hex ${activeDie === faces ? 'highlight' : ''}`}>d{faces}</HexSvg>
-              </div>
-            );
-          })}
-        </div>
-        <div className="dice-hex-row bottom-row">
-          {[12, 20].map(faces => {
-            const isAttackAndNotD20 = rollMode === "attack" && faces !== 20;
-            const isPendingD20 = pendingAttack && faces === 20;
-            return (
-              <div 
-                key={faces} 
-                className="hex-wrapper" 
-                onClick={() => !isAttackAndNotD20 && handleRoll(faces)}
-                style={{ opacity: isAttackAndNotD20 ? 0.3 : 1, cursor: isAttackAndNotD20 ? 'not-allowed' : 'pointer' }}
-              >
-                <HexSvg className={`static-hex ${activeDie === faces ? 'highlight' : ''} ${isPendingD20 ? 'pulsing-d20' : ''}`}>d{faces}</HexSvg>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Advantage Selection */}
-      {rollMode !== "damage" && (
-        <div style={{ textAlign: "center", marginTop: "1rem" }}>
-          <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-muted)", marginBottom: "8px", fontWeight: "bold" }}>
-            Vantagem (Apenas d20)
+          {/* Container Hexagonal Buttons */}
+          <div className="dice-hex-grid" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+            <div className="dice-hex-row top-row" style={{ display: 'flex', gap: '12px' }}>
+              {[4, 6, 8, 10].map(faces => {
+                const isAttackAndNotD20 = rollMode === "attack" && faces !== 20;
+                const isDamageAndNotTarget = rollMode === "damage" && pendingDamage && faces !== pendingDamage.parsedDmg.dieSides;
+                const disabled = isAttackAndNotD20 || isDamageAndNotTarget;
+                
+                return (
+                  <div 
+                    key={faces} 
+                    className={`hex-wrapper ${disabled ? 'disabled' : ''}`}
+                    onClick={() => !disabled && handleRoll(faces)}
+                    style={{ opacity: disabled ? 0.2 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                  >
+                    <HexSvg className={getHexClass(faces)}>{getHexContent(faces)}</HexSvg>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="dice-hex-row bottom-row" style={{ display: 'flex', gap: '12px' }}>
+              {[12, 20].map(faces => {
+                const isAttackAndNotD20 = rollMode === "attack" && faces !== 20;
+                const isDamageAndNotTarget = rollMode === "damage" && pendingDamage && faces !== pendingDamage.parsedDmg.dieSides;
+                const disabled = isAttackAndNotD20 || isDamageAndNotTarget;
+                
+                return (
+                  <div 
+                    key={faces} 
+                    className={`hex-wrapper ${disabled ? 'disabled' : ''}`}
+                    onClick={() => !disabled && handleRoll(faces)}
+                    style={{ opacity: disabled ? 0.2 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+                  >
+                    <HexSvg className={getHexClass(faces)}>{getHexContent(faces)}</HexSvg>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="adv-toggle-group-premium">
-            <button className={`adv-btn ${advantage === "disadvantage" ? "active-desv" : ""}`} onClick={() => setAdvantage("disadvantage")}>DESV</button>
-            <button className={`adv-btn ${advantage === "normal" ? "active-norm" : ""}`} onClick={() => setAdvantage("normal")}>NORMAL</button>
-            <button className={`adv-btn ${advantage === "advantage" ? "active-vant" : ""}`} onClick={() => setAdvantage("advantage")}>VANT</button>
-          </div>
-        </div>
-      )}
 
-      {/* Modifier Input */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginTop: "1rem" }}>
-        <span style={{ fontSize: "0.8rem", fontWeight: "bold", color: "var(--text-muted)", textTransform: "uppercase" }}>Modificador:</span>
-        <input
-          type="number"
-          value={modifier}
-          onChange={e => setModifier(e.target.value)}
-          className="dice-modifier-input"
-        />
-      </div>
+          {/* Advantage Selection */}
+          {rollMode !== "damage" && (
+            <div style={{ textAlign: "center", marginTop: "1rem" }}>
+              <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", color: "var(--text-muted)", marginBottom: "8px", fontWeight: "bold" }}>
+                Vantagem (Apenas d20)
+              </div>
+              <div className="adv-toggle-group-premium" style={{ display: 'flex', background: 'rgba(0,0,0,0.5)', borderRadius: '6px', overflow: 'hidden' }}>
+                <button className={`adv-btn ${advantage === "disadvantage" ? "active-desv" : ""}`} onClick={() => setAdvantage("disadvantage")} style={{flex: 1, padding: '6px', border: 'none', background: advantage === "disadvantage" ? 'rgba(239,68,68,0.3)' : 'transparent', color: advantage === "disadvantage" ? '#ef4444' : 'var(--text-muted)'}}>DESV</button>
+                <button className={`adv-btn ${advantage === "normal" ? "active-norm" : ""}`} onClick={() => setAdvantage("normal")} style={{flex: 1, padding: '6px', border: 'none', background: advantage === "normal" ? 'rgba(251,146,60,0.3)' : 'transparent', color: advantage === "normal" ? '#fb923c' : 'var(--text-muted)'}}>NORM</button>
+                <button className={`adv-btn ${advantage === "advantage" ? "active-vant" : ""}`} onClick={() => setAdvantage("advantage")} style={{flex: 1, padding: '6px', border: 'none', background: advantage === "advantage" ? 'rgba(34,197,94,0.3)' : 'transparent', color: advantage === "advantage" ? '#22c55e' : 'var(--text-muted)'}}>VANT</button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Central Animation / Result Display */}
-      <div className="dice-result-area" style={{ height: '140px', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', marginTop: '1rem' }}>
-        {animState !== 'idle' && activeDie && (
-          <div className={`rolling-die-container ${animState}`}>
-            <HexSvg className={`rolling-hex ${activeDie === 20 ? 'highlight' : ''}`} />
-            {displayNumber !== "" && (
-              <div className="rolling-die-number">{displayNumber}</div>
-            )}
-          </div>
-        )}
-        
-        {animState === 'idle' && lastRoll && (
-          <div className="dice-result-summary">
-            <div className="summary-dice">
-              d{lastRoll.dieFaces} {lastRoll.modifier !== 0 ? (lastRoll.modifier > 0 ? `+${lastRoll.modifier}` : lastRoll.modifier) : ""}
-              {lastRoll.advantage !== "normal" && lastRoll.dieFaces === 20 && (
-                <span className={`summary-adv ${lastRoll.advantage}`}>
-                  {lastRoll.advantage === "advantage" ? " [VANT]" : " [DESV]"}
-                </span>
-              )}
-            </div>
-            <div className={`summary-total ${lastRoll.isCritical ? 'crit' : lastRoll.isCritFail ? 'fail' : ''}`}>
-              {lastRoll.total}
-            </div>
-            {lastRoll.rolls.length > 1 && (
-              <div className="summary-rolls">
-                Rolagens: {lastRoll.rolls.join(" e ")}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       <style jsx>{`
-        .pulsing-d20 {
+        .pulsing-attack {
           animation: pulseD20 1.5s infinite;
           fill: rgba(255, 165, 0, 0.4) !important;
           stroke: #ffa500 !important;
         }
+        .pulsing-damage {
+          animation: pulseDmg 1.5s infinite;
+          fill: rgba(239, 68, 68, 0.4) !important;
+          stroke: #ef4444 !important;
+        }
+        .pulsing-crit {
+          animation: pulseCrit 1.2s infinite;
+          fill: rgba(255, 215, 0, 0.4) !important;
+          stroke: gold !important;
+        }
+        .inline-roll-result {
+          font-size: 1.4rem;
+          color: white;
+          text-shadow: 0 0 8px rgba(255,255,255,0.8);
+          animation: flashResult 0.3s;
+        }
         @keyframes pulseD20 {
-          0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255,165,0,0.5)); }
-          50% { transform: scale(1.1); filter: drop-shadow(0 0 15px rgba(255,165,0,1)); }
-          100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255,165,0,0.5)); }
+          0% { filter: drop-shadow(0 0 5px rgba(255,165,0,0.5)); }
+          50% { filter: drop-shadow(0 0 15px rgba(255,165,0,1)); }
+          100% { filter: drop-shadow(0 0 5px rgba(255,165,0,0.5)); }
+        }
+        @keyframes pulseDmg {
+          0% { filter: drop-shadow(0 0 5px rgba(239,68,68,0.5)); }
+          50% { filter: drop-shadow(0 0 15px rgba(239,68,68,1)); }
+          100% { filter: drop-shadow(0 0 5px rgba(239,68,68,0.5)); }
+        }
+        @keyframes pulseCrit {
+          0% { filter: drop-shadow(0 0 8px rgba(255,215,0,0.5)); transform: scale(1); }
+          50% { filter: drop-shadow(0 0 20px rgba(255,215,0,1)); transform: scale(1.05); }
+          100% { filter: drop-shadow(0 0 8px rgba(255,215,0,0.5)); transform: scale(1); }
+        }
+        @keyframes flashResult {
+          0% { opacity: 0; transform: scale(0.5); }
+          50% { opacity: 1; transform: scale(1.2); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        .active-roll {
+          animation: spinHex 0.4s linear infinite;
+        }
+        @keyframes spinHex {
+          100% { transform: rotate(360deg); }
         }
       `}</style>
     </div>

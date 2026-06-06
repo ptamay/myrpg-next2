@@ -10,41 +10,60 @@ export default function CombatSetupModal({ isOpen, onClose }: { isOpen: boolean;
   const { isGM } = useUserSession();
   const { startCombat, combat } = useCombat();
 
-  const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set());
-  const [selectedNpcs, setSelectedNpcs] = useState<Set<string>>(new Set());
+  const [participantsRoles, setParticipantsRoles] = useState<Record<string, 'ally' | 'enemy'>>({});
 
-  // Inicia com todos os players vivos marcados e todos os npcs inimigos/neutros vivos marcados
   useEffect(() => {
     if (isOpen && dadosGlobais && !combat?.isActive) {
-      const pSet = new Set<string>((dadosGlobais.players || []).filter((p: any) => !p.isDead).map((p: any) => p.id));
-      const nSet = new Set<string>((dadosGlobais.npcs || []).filter((n: any) => !n.isDead && !n.isHidden && n.faction !== "ally").map((n: any) => n.id));
-      setSelectedPlayers(pSet);
-      setSelectedNpcs(nSet);
+      const initialRoles: Record<string, 'ally' | 'enemy'> = {};
+      
+      // Players vivos entram como aliados por padrão
+      (dadosGlobais.players || []).filter((p: any) => !p.isDead).forEach((p: any) => {
+        initialRoles[p.id] = 'ally';
+      });
+
+      // NPCs começam fora do combate (null) por padrão. Não definiremos 'enemy' nem 'ally'.
+      (dadosGlobais.npcs || []).filter((n: any) => !n.isDead && !n.isHidden).forEach((n: any) => {
+        // initialRoles[n.id] fica vazio, indicando "Fora"
+      });
+
+      setParticipantsRoles(initialRoles);
     }
   }, [isOpen, dadosGlobais, combat?.isActive]);
 
   if (!isOpen) return null;
 
-  const togglePlayer = (id: string) => {
-    const next = new Set(selectedPlayers);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedPlayers(next);
-  };
-
-  const toggleNpc = (id: string) => {
-    const next = new Set(selectedNpcs);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedNpcs(next);
+  const setRole = (id: string, role: 'ally' | 'enemy' | null) => {
+    setParticipantsRoles(prev => {
+      const next = { ...prev };
+      if (role === null) {
+        delete next[id];
+      } else {
+        next[id] = role;
+      }
+      return next;
+    });
   };
 
   const handleStart = () => {
     if (!isGM) return;
-    const playersToInclude = (dadosGlobais.players || []).filter((p: any) => selectedPlayers.has(p.id));
-    const npcsToInclude = (dadosGlobais.npcs || []).filter((n: any) => selectedNpcs.has(n.id));
     
-    startCombat(playersToInclude, npcsToInclude);
+    const finalConfig: { entity: any; type: 'player' | 'npc'; role: 'ally' | 'enemy' }[] = [];
+    
+    (dadosGlobais.players || []).forEach((p: any) => {
+      if (participantsRoles[p.id]) {
+        finalConfig.push({ entity: p, type: 'player', role: participantsRoles[p.id] });
+      }
+    });
+
+    (dadosGlobais.npcs || []).forEach((n: any) => {
+      if (participantsRoles[n.id]) {
+        finalConfig.push({ entity: n, type: 'npc', role: participantsRoles[n.id] });
+      }
+    });
+    
+    if (finalConfig.length === 0) return;
+
+    startCombat(finalConfig);
     onClose();
   };
 
@@ -73,38 +92,41 @@ export default function CombatSetupModal({ isOpen, onClose }: { isOpen: boolean;
 
               <div>
                 <h3 style={{ marginBottom: "0.5rem", color: "var(--primary-color)" }}>Jogadores</h3>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {(dadosGlobais.players || [])
                     .filter((p: any) => !p.isDead) // Filtra mortos
-                    .map((p: any) => (
-                    <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.05)", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>
-                      <input type="checkbox" checked={selectedPlayers.has(p.id)} onChange={() => togglePlayer(p.id)} />
-                      <span>{p.name}</span>
-                    </label>
-                  ))}
+                    .map((p: any) => {
+                      const role = participantsRoles[p.id] || null;
+                      return (
+                        <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.05)", padding: "8px 12px", borderRadius: "8px" }}>
+                          <span style={{ fontWeight: "bold" }}>{p.name}</span>
+                          <div style={{ display: "flex", gap: "4px" }}>
+                            <button className={`btn ${role === null ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", opacity: role === null ? 1 : 0.5 }} onClick={() => setRole(p.id, null)}>Fora</button>
+                            <button className={`btn ${role === 'ally' ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", backgroundColor: role === 'ally' ? '#22c55e' : 'transparent', opacity: role === 'ally' ? 1 : 0.5 }} onClick={() => setRole(p.id, 'ally')}>Aliado</button>
+                            <button className={`btn ${role === 'enemy' ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", backgroundColor: role === 'enemy' ? '#ef4444' : 'transparent', opacity: role === 'enemy' ? 1 : 0.5 }} onClick={() => setRole(p.id, 'enemy')}>Inimigo</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
 
               <div>
                 <h3 style={{ marginBottom: '0.5rem', color: 'var(--danger)' }}>NPCs / Monstros</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: "column", gap: '0.5rem' }}>
                   {(dadosGlobais.npcs || [])
                     .filter((n: any) => !n.isHidden && !n.isDead) // Filtra ocultos E mortos
                     .map((n: any) => {
-                    const faction = (n.faction || 'enemy').toLowerCase();
-                    const factionLabel = faction === 'ally' || faction === 'aliado'
-                      ? { icon: '🟢', label: 'Aliado', color: '#22c55e' }
-                      : faction === 'neutral' || faction === 'neutro'
-                      ? { icon: '⚪', label: 'Neutro', color: '#9ca3af' }
-                      : { icon: '🔴', label: 'Inimigo', color: '#ef4444' };
+                    const role = participantsRoles[n.id] || null;
                     return (
-                      <label key={n.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.05)', padding: '8px', borderRadius: '8px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={selectedNpcs.has(n.id)} onChange={() => toggleNpc(n.id)} />
-                        <span style={{ flex: 1 }}>{n.name}</span>
-                        <span title={factionLabel.label} style={{ fontSize: '0.65rem', color: factionLabel.color, fontWeight: 'bold' }}>
-                          {factionLabel.icon}
-                        </span>
-                      </label>
+                      <div key={n.id} style={{ display: 'flex', alignItems: 'center', justifyContent: "space-between", background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: '8px' }}>
+                        <span style={{ flex: 1, fontWeight: "bold" }}>{n.name}</span>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                            <button className={`btn ${role === null ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", opacity: role === null ? 1 : 0.5 }} onClick={() => setRole(n.id, null)}>Fora</button>
+                            <button className={`btn ${role === 'ally' ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", backgroundColor: role === 'ally' ? '#22c55e' : 'transparent', opacity: role === 'ally' ? 1 : 0.5 }} onClick={() => setRole(n.id, 'ally')}>Aliado</button>
+                            <button className={`btn ${role === 'enemy' ? 'primary-btn' : 'secondary-btn'}`} style={{ padding: "4px 8px", fontSize: "0.75rem", backgroundColor: role === 'enemy' ? '#ef4444' : 'transparent', opacity: role === 'enemy' ? 1 : 0.5 }} onClick={() => setRole(n.id, 'enemy')}>Inimigo</button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -117,9 +139,9 @@ export default function CombatSetupModal({ isOpen, onClose }: { isOpen: boolean;
                 className="btn primary-btn" 
                 style={{ backgroundColor: "var(--danger)" }}
                 onClick={handleStart}
-                disabled={selectedPlayers.size === 0 && selectedNpcs.size === 0}
+                disabled={Object.values(participantsRoles).length === 0}
               >
-                Inicar Combate ({selectedPlayers.size + selectedNpcs.size})
+                Inicar Combate ({Object.values(participantsRoles).length})
               </button>
             </footer>
           </>

@@ -88,10 +88,14 @@ export function getMaxAttacks(p: CombatParticipant): number {
   let base: number;
 
   if (p.type === 'npc') {
-    // NPC com classe+nível → usa tabela de classe (Phase 5.7)
-    base = (p.playerClass && p.playerLevel)
-      ? getAttacksByClass(p)
-      : getAttacksByCR(p.cr);
+    if (p.multiattack_count && p.multiattack_count > 0) {
+      base = p.multiattack_count;
+    } else {
+      // NPC com classe+nível → usa tabela de classe (Phase 5.7)
+      base = (p.playerClass && p.playerLevel)
+        ? getAttacksByClass(p)
+        : getAttacksByCR(p.cr);
+    }
   } else {
     // Player → sempre tabela de classe
     base = p.playerClass ? getAttacksByClass(p) : 1;

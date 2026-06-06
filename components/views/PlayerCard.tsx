@@ -21,6 +21,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
   const [skillsExpanded, setSkillsExpanded] = useState(false);
   const [attacksExpanded, setAttacksExpanded] = useState(false);
   const [spellsExpanded, setSpellsExpanded] = useState(false);
+  const [abilitiesExpanded, setAbilitiesExpanded] = useState(false);
 
   const activePlayer = player.isTransformed && player.transformation ? player.transformation : player;
 
@@ -406,6 +407,31 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
                     <span className="atk-dmg" style={{ width: "35%", textAlign: "right", color: "var(--text-secondary)" }}>
                       {a.dmg || '--'}
                     </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activePlayer.abilities && activePlayer.abilities.length > 0 && (
+          <>
+            <div className={`player-skills-trigger ${abilitiesExpanded ? "active" : ""}`} onClick={(e) => { e.stopPropagation(); setAbilitiesExpanded(!abilitiesExpanded); }}>
+              <span>Habilidades Especiais</span>
+              <svg className="chevron-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: abilitiesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+            
+            <div className={`player-skills-collapse ${abilitiesExpanded ? "active" : ""}`} onClick={(e) => e.stopPropagation()} style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "8px", padding: abilitiesExpanded ? "12px" : "0 12px", marginBottom: abilitiesExpanded ? "12px" : 0 }}>
+              <div className="player-attacks-list" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {activePlayer.abilities.map((a: any, i: number) => (
+                  <div key={i} className="player-atk-row" style={{ display: "flex", flexDirection: "column", fontSize: "0.8rem", padding: "8px 10px", background: "rgba(255,255,255,0.03)", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.02)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span className="atk-name" style={{ fontWeight: 700, color: "#fff" }}>
+                        {a.name ? a.name.charAt(0).toUpperCase() + a.name.slice(1) : ''}
+                      </span>
+                      {a.actionCost && <span style={{ fontSize: "0.65rem", color: "var(--accent-primary)", border: "1px solid rgba(var(--accent-primary-rgb), 0.5)", padding: "2px 6px", borderRadius: "12px", textTransform: "uppercase" }}>{a.actionCost}</span>}
+                    </div>
+                    {a.description && <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem", marginTop: "6px", lineHeight: "1.3" }}>{a.description}</span>}
                   </div>
                 ))}
               </div>

@@ -6,6 +6,49 @@ export interface DiceExpression {
   modifier: number;
 }
 
+export interface ParsedDamage {
+  dieCount: number;   // número de dados (ex: 1)
+  dieSides: number;   // faces do dado (ex: 8)
+  modifier: number;   // modificador fixo (ex: 3)
+  damageType: string; // tipo de dano (ex: "cortante")
+  raw: string;        // string original
+}
+
+/**
+ * Parseia uma string de dano no formato "NdX[+/-M] [tipo]"
+ * Exemplos: "1d8+3 cortante", "2d6 fogo", "1d4", "1d4+2 perfurante"
+ */
+export function parseDmgString(expr: string): ParsedDamage {
+  const defaultResult: ParsedDamage = {
+    dieCount: 1, dieSides: 6, modifier: 0, damageType: '', raw: expr
+  };
+  if (!expr) return defaultResult;
+
+  // Separar a parte numérica do tipo de dano
+  // Ex: "1d8+3 cortante" → dice="1d8+3", type="cortante"
+  const trimmed = expr.trim();
+  const diceTypeRegex = /^(\d*d\d+(?:[+-]\d+)?)\s*(.*)/i;
+  const match = trimmed.match(diceTypeRegex);
+
+  if (!match) return defaultResult;
+
+  const diceStr = match[1];
+  const damageType = match[2]?.trim() || '';
+
+  const diceRegex = /^(\d*)d(\d+)([+-]\d+)?$/i;
+  const diceMatch = diceStr.match(diceRegex);
+
+  if (!diceMatch) return defaultResult;
+
+  return {
+    dieCount: diceMatch[1] ? parseInt(diceMatch[1], 10) : 1,
+    dieSides: parseInt(diceMatch[2], 10),
+    modifier: diceMatch[3] ? parseInt(diceMatch[3], 10) : 0,
+    damageType,
+    raw: expr,
+  };
+}
+
 export function parseDiceExpression(expr: string): DiceExpression {
   const defaultExpr = { count: 1, sides: 20, modifier: 0 };
   if (!expr) return defaultExpr;
@@ -71,19 +114,19 @@ export function rollAttack(bonusStr: string, advantage: 'normal' | 'advantage' |
 }
 
 export function rollDamage(expr: string, isCritical: boolean = false) {
-  const { count, sides, modifier } = parseDiceExpression(expr);
-  const actualCount = isCritical ? count * 2 : count;
+  const { dieCount, dieSides, modifier } = parseDmgString(expr);
+  const actualCount = isCritical ? dieCount * 2 : dieCount;
   
   let total = 0;
   const rolls = [];
 
   for (let i = 0; i < actualCount; i++) {
-    const r = rollDie(sides);
+    const r = rollDie(dieSides);
     rolls.push(r);
     total += r;
   }
 
   total += modifier;
 
-  return { total, rolls, modifier, actualCount, sides };
+  return { total, rolls, modifier, actualCount, sides: dieSides };
 }

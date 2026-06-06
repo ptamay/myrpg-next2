@@ -18,6 +18,13 @@ export interface SpellEntry {
   savingThrow?: string;
   spellAttack?: boolean;
   higherLevel?: string;
+  conditionApplied?: string;
+  // Automation fields
+  effect?: 'damage' | 'heal' | 'condition' | 'buff' | 'utility' | 'passive';
+  targetType?: 'single' | 'multiple' | 'area' | 'self';
+  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling';
+  tempAcBonus?: number;
+  spellLevel?: number;
 }
 
 export interface ClassResource {
@@ -26,6 +33,34 @@ export interface ClassResource {
   current: number;
   max: number;
   resetOn: 'short' | 'long' | 'other';
+}
+
+export type ActionCost = 'action' | 'bonus' | 'reaction' | 'free' | 'movement' | 'none';
+
+export type DamageType = 
+  | 'cortante' | 'perfurante' | 'contundente'
+  | 'fogo' | 'frio' | 'raio' | 'trovao'
+  | 'acido' | 'veneno' | 'psiquico' | 'necrotico'
+  | 'radiante' | 'forca' | 'energia' | string;
+
+export interface Ability {
+  id: string;
+  name: string;
+  description?: string;
+  actionCost: ActionCost;
+  resourceCost?: { resourceName: string; amount: number };
+  effect: 'damage' | 'heal' | 'condition' | 'buff' | 'utility' | 'passive';
+  dmg?: string;
+  dmgType?: DamageType;
+  conditionApplied?: string;
+  isPassive?: boolean;
+  minLevel?: number;
+  targetType?: 'single' | 'multiple' | 'area' | 'self';
+  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling';
+  tempAcBonus?: number;
+  spellLevel?: number;
+  savingThrow?: string;
+  saveDC?: number;
 }
 
 export const personagens = ['Kronodyr', 'Alric', 'Marop', 'Vynik'];
@@ -61,7 +96,19 @@ export interface Player {
   perc: number | string;
   hdTotal: string;
   inspiration: boolean;
-  attacks: { name: string; bonus: string; dmg: string }[];
+  attacks: { 
+    name: string; 
+    bonus: string; 
+    dmg: string;
+    actionCost?: ActionCost;
+    resourceCost?: { resourceName: string; amount: number };
+    saveAttr?: string;
+    saveDC?: number;
+    conditionApplied?: string;
+  }[];
+  abilities?: Ability[];
+  resistances?: DamageType[];
+  immunities?: DamageType[];
   image?: string;
   isDead: boolean;
   saves?: string[];
@@ -147,10 +194,20 @@ export interface Npc {
   // Phase 5.7: Unificação com Player
   playerClass?: string;
   playerLevel?: number;
-  attacks?: { name: string; bonus: string; dmg: string }[];
+  attacks?: { 
+    name: string; 
+    bonus: string; 
+    dmg: string;
+    actionCost?: ActionCost;
+    resourceCost?: { resourceName: string; amount: number };
+  }[];
+  abilities?: Ability[];
+  resistances?: DamageType[];
+  immunities?: DamageType[];
   expertiseSkills?: string[];
   classFeatures?: ClassFeature[];
   customClass?: string;
+  multiattackCount?: number;
 }
 
 export interface GlobalData {

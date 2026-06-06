@@ -44,7 +44,8 @@ function matchesClass(p: CombatParticipant, ...terms: string[]): boolean {
 
 function getSneakAttack(p: CombatParticipant, isCrit: boolean, advType: string): ExtraDamageResult | null {
   if (!matchesClass(p, 'ladino', 'rogue')) return null;
-  if (advType === 'disadvantage') return null; // Sem furtivo com desvantagem
+  const hasFurtivoAtivo = hasCondition(p, 'furtivo ativo');
+  if (advType !== 'advantage' && !hasFurtivoAtivo) return null;
 
   const diceCount = Math.ceil(lvl(p) / 2);
   const dice = `${diceCount}d6`;

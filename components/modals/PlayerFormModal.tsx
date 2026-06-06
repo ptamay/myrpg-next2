@@ -9,11 +9,14 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapPlayerToDB } from "@/lib/supabase/mappers";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
-import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel } from "@/lib/constants/dnd5eClasses";
+import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities } from "@/lib/constants/dnd5eClasses";
 import SpellsSection from "../ui/SpellsSection";
 import ClassResourcesSection from "../ui/ClassResourcesSection";
+import AbilitiesSection from "../ui/AbilitiesSection";
+import DamageTypeSelector from "../ui/DamageTypeSelector";
 import LevelUpModal from "./LevelUpModal";
-import { SpellEntry, ClassResource } from "@/lib/gameData";
+import { SpellEntry, ClassResource, Ability } from "@/lib/gameData";
+import { uploadBase64Image } from "@/lib/supabase/storage";
 
 interface PlayerFormModalProps {
   isOpen: boolean;
@@ -46,7 +49,10 @@ const initialFormState = {
   spellSlotType: "standard",
   spellSlots: {} as Record<number, number>,
   spellsKnown: [] as SpellEntry[],
-  classResources: [] as ClassResource[]
+  classResources: [] as ClassResource[],
+  abilities: [] as Ability[],
+  resistances: [] as string[],
+  immunities: [] as string[]
 };
 
 
@@ -76,7 +82,10 @@ const dataToFormState = (data: any) => ({
   spellSlotType: data?.spellSlotType || "standard",
   spellSlots: data?.spellSlots || {},
   spellsKnown: data?.spellsKnown || [],
-  classResources: data?.classResources || []
+  classResources: data?.classResources || [],
+  abilities: data?.abilities || [],
+  resistances: data?.resistances || [],
+  immunities: data?.immunities || []
 });
 
 const dataToAttacks = (data: any) => {
@@ -233,6 +242,16 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
         const level = isEditingTransformation ? transFormState.playerLevel : formState.playerLevel;
         updates.hdTotal = `${level}d${cls.hitDie}`;
         updates.profBonus = getProficiencyBonus(parseInt(level)).toString();
+        
+        const currentResources = isEditingTransformation ? transFormState.classResources : formState.classResources;
+        const currentAbilities = isEditingTransformation ? transFormState.abilities : formState.abilities;
+
+        if (currentResources.length === 0) {
+          updates.classResources = getDefaultClassResources(value, parseInt(level) || 1);
+        }
+        if (currentAbilities.length === 0) {
+          updates.abilities = getDefaultAbilities(value, parseInt(level) || 1);
+        }
         
         if (isCaster(value)) {
           updates.hasSpells = true;
@@ -460,7 +479,10 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       spellSlots: state.spellSlots,
       spellSlotsUsed: prevData?.spellSlotsUsed || {},
       spellsKnown: state.spellsKnown,
-      classResources: state.classResources
+      classResources: state.classResources,
+      abilities: state.abilities,
+      resistances: state.resistances,
+      immunities: state.immunities
     };
   };
 
@@ -471,19 +493,34 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
 
     const supabase = getSupabaseClient();
     
+    // Faz o upload das imagens Base64 (se houver) para o Supabase Storage e retorna a URL
+    let finalAvatarUrl = avatarBase64;
+    let finalTransAvatarUrl = transAvatarBase64;
+    try {
+      if (finalAvatarUrl && finalAvatarUrl.startsWith("data:image/")) {
+        finalAvatarUrl = await uploadBase64Image(finalAvatarUrl, "avatars") || finalAvatarUrl;
+      }
+      if (hasTransformation && finalTransAvatarUrl && finalTransAvatarUrl.startsWith("data:image/")) {
+        finalTransAvatarUrl = await uploadBase64Image(finalTransAvatarUrl, "avatars") || finalTransAvatarUrl;
+      }
+    } catch (uploadError: any) {
+      await showAlert({ title: "Erro", message: "Erro ao fazer upload da imagem: " + (uploadError.message || "Tente novamente."), type: "danger" });
+      return;
+    }
+
     const selectedProfile = profiles.find(p => p.id === selectedUserId);
     const resolvedPlayerName = selectedProfile ? (selectedProfile.display_name || selectedProfile.email) : "";
 
     const playerData: any = {
       id,
       playerName: resolvedPlayerName,
-      ...constructPlayerObject(formState, attacksState, selectedSaves, selectedSkills, expertiseSkills, avatarBase64, activeData),
+      ...constructPlayerObject(formState, attacksState, selectedSaves, selectedSkills, expertiseSkills, finalAvatarUrl, activeData),
       transformation: undefined,
       isTransformed: hasTransformation ? isEditingTransformation : false
     };
 
     if (hasTransformation) {
-      playerData.transformation = constructPlayerObject(transFormState, transAttacksState, transSelectedSaves, transSelectedSkills, transExpertiseSkills, transAvatarBase64, activeData?.transformation);
+      playerData.transformation = constructPlayerObject(transFormState, transAttacksState, transSelectedSaves, transSelectedSkills, transExpertiseSkills, finalTransAvatarUrl, activeData?.transformation);
     }
 
     const newPlayers = [...(dadosGlobais.players || [])];
@@ -720,10 +757,38 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
                 </button>
               </label>
               {activeAttacks.map((atk, index) => (
-                <div className="form-row" style={{ gap: "8px", marginBottom: "8px" }} key={index}>
-                  <div className="form-group flex-3"><input type="text" className="journey-input" placeholder="Nome da Arma/Ataque" value={atk.name} onChange={(e) => handleAttackChange(index, "name", e.target.value)} /></div>
-                  <div className="form-group flex-1"><input type="text" className="journey-input" placeholder="Bônus" value={atk.bonus} onChange={(e) => handleAttackChange(index, "bonus", e.target.value)} /></div>
-                  <div className="form-group flex-2"><input type="text" className="journey-input" placeholder="Dano/Tipo" value={atk.dmg} onChange={(e) => handleAttackChange(index, "dmg", e.target.value)} /></div>
+                <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '8px', padding: '8px', background: 'rgba(0,0,0,0.1)', borderRadius: '4px' }}>
+                  <div className="form-row" style={{ gap: "8px" }}>
+                    <div className="form-group flex-3"><input type="text" className="journey-input" placeholder="Nome da Arma/Ataque" value={atk.name} onChange={(e) => handleAttackChange(index, "name", e.target.value)} /></div>
+                    <div className="form-group flex-1"><input type="text" className="journey-input" placeholder="Bônus" value={atk.bonus} onChange={(e) => handleAttackChange(index, "bonus", e.target.value)} /></div>
+                    <div className="form-group flex-2"><input type="text" className="journey-input" placeholder="Dano/Tipo" value={atk.dmg} onChange={(e) => handleAttackChange(index, "dmg", e.target.value)} /></div>
+                  </div>
+                  <div className="form-row" style={{ gap: "8px", marginTop: "4px" }}>
+                    <div className="form-group flex-1">
+                      <select className="journey-input" value={atk.actionCost || 'action'} onChange={(e) => handleAttackChange(index, 'actionCost', e.target.value)}>
+                        <option value="action">Ação</option>
+                        <option value="bonus">Ação Bônus</option>
+                        <option value="reaction">Reação</option>
+                        <option value="free">Ação Gratuita</option>
+                      </select>
+                    </div>
+                    <div className="form-group flex-1">
+                      <select className="journey-input" value={atk.resourceCost?.resourceName || ''} onChange={(e) => {
+                        if (!e.target.value) handleAttackChange(index, 'resourceCost', undefined as any);
+                        else handleAttackChange(index, 'resourceCost', { resourceName: e.target.value, amount: atk.resourceCost?.amount || 1 } as any);
+                      }}>
+                        <option value="">Sem Custo Extra</option>
+                        {activeState.classResources?.map((res: any) => (
+                          <option key={res.id} value={res.name}>{res.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {atk.resourceCost?.resourceName && (
+                      <div className="form-group" style={{ width: '80px' }}>
+                        <input type="number" className="journey-input" placeholder="Qtd" value={atk.resourceCost.amount || 1} min="1" onChange={(e) => handleAttackChange(index, 'resourceCost', { ...atk.resourceCost, amount: parseInt(e.target.value) || 1 } as any)} title="Quantidade gasta" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
 
@@ -773,12 +838,28 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
                 </div>
               </div>
 
+              <h4 className="form-section-title mt-4">Tipos de Dano (Resistências e Imunidades)</h4>
+              <DamageTypeSelector
+                resistances={activeState.resistances}
+                immunities={activeState.immunities}
+                onResistancesChange={(res) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, resistances: res })) : setFormState(prev => ({ ...prev, resistances: res }))}
+                onImmunitiesChange={(imm) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, immunities: imm })) : setFormState(prev => ({ ...prev, immunities: imm }))}
+              />
+
               <ClassResourcesSection 
                 resources={activeState.classResources}
                 onChange={(resources) => {
                   if (isEditingTransformation) setTransFormState(prev => ({ ...prev, classResources: resources }));
                   else setFormState(prev => ({ ...prev, classResources: resources }));
                 }}
+                playerClass={activeState.playerClass}
+                playerLevel={parseInt(activeState.playerLevel) || 1}
+              />
+
+              <AbilitiesSection
+                abilities={activeState.abilities}
+                onChange={(ab) => isEditingTransformation ? setTransFormState(prev => ({ ...prev, abilities: ab })) : setFormState(prev => ({ ...prev, abilities: ab }))}
+                classResources={activeState.classResources}
                 playerClass={activeState.playerClass}
                 playerLevel={parseInt(activeState.playerLevel) || 1}
               />

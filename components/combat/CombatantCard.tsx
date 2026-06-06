@@ -80,9 +80,13 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
   else if (hpPercent <= 50) hpClass = 'med';
 
   const isDead = participant.isDead || participant.hpCurrent <= 0;
+  const isEnemy = participant.combatFaction === 'enemy';
+  const hideHpData = !isGM && isEnemy;
+  const isAllyFaction = participant.combatFaction === 'ally';
   const isNeutral = participant.faction === 'neutral';
-  const isAllyFaction = participant.faction === 'player' || participant.faction === 'ally';
-  const isTargeted = combat?.selectedTargetIds.includes(participant.refId);
+  const isTargeted = false;
+
+  const hasCond = (cMatch: string) => (participant.conditions || []).some(c => c.toLowerCase().includes(cMatch));
 
   const classNames = [
     'combatant-card',
@@ -92,7 +96,10 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
     participant.isRaging ? 'is-raging' : '',
     participant.isConcentrating ? 'is-concentrating' : '',
     isNeutral ? 'neutral' : '',
-    isTargeted ? 'is-targeted' : ''
+    isTargeted ? 'is-targeted' : '',
+    hasCond('envenenado') ? 'is-poisoned' : '',
+    (hasCond('furtivo') || hasCond('escondido') || hasCond('invisível')) ? 'is-stealth' : '',
+    hasCond('amedrontado') ? 'is-frightened' : ''
   ].filter(Boolean).join(' ');
 
   const hasSpellSlots = participant.spellSlots && Object.values(participant.spellSlots).some(v => v > 0);
@@ -120,7 +127,7 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
   return (
     <div className="combatant-card-wrapper" style={{ animationDelay: `${index * 0.1}s`, animationFillMode: 'forwards' }}>
       <div className={classNames} onClick={onClick} data-combat-id={participant.refId}>
-        {isTargeted && <div className="target-reticle">🎯</div>}
+        {/* Target reticle removed */}
         
         <div className="card-portrait">
           {participant.image ? <img src={participant.image} alt={participant.name} /> : <div style={{ fontSize: '2.5rem', color: '#666' }}>{participant.name.charAt(0)}</div>}
@@ -136,7 +143,8 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
           <div className="card-name" title={participant.name}>
             {participant.name}
             {isDead && ' 💀'}
-            {participant.isTransformed && ' 🐾'}
+            {participant.combatTransformActive && <span className="transform-badge" style={{ fontSize: '0.75rem', padding: '0 4px', borderRadius: '4px', marginLeft: '4px' }}>🐺</span>}
+            {(!participant.combatTransformActive && participant.isTransformed) && ' 🐾'}
             {participant.isRaging && ' 🔥'}
             {participant.isConcentrating && <span title={`Concentração: ${participant.concentrationSpell || 'magia'}`}> 🌀</span>}
           </div>
@@ -145,29 +153,50 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
             <span>👟 {participant.speed} m</span>
           </div>
 
-          {hasSpellSlots && <div style={{ marginBottom: '6px' }}><SpellSlotPips slots={participant.spellSlots!} used={participant.spellSlotsUsed || {}} /></div>}
-          {hasResources && <div style={{ marginBottom: '6px' }}>{(participant.classResources || []).map(res => <ResourcePips key={res.id} name={res.name} current={res.current} max={res.max} />)}</div>}
+          {!hideHpData && hasSpellSlots && <div style={{ marginBottom: '6px' }}><SpellSlotPips slots={participant.spellSlots!} used={participant.spellSlotsUsed || {}} /></div>}
+          {!hideHpData && hasResources && <div style={{ marginBottom: '6px' }}>{(participant.classResources || []).map(res => <ResourcePips key={res.id} name={res.name} current={res.current} max={res.max} />)}</div>}
 
           <div style={{ marginTop: 'auto' }}>
+            {participant.combatTransformActive && (
+              <div style={{ marginBottom: '6px', padding: '4px 6px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', borderLeft: '2px solid #6b7280' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px', fontWeight: 'bold' }}>
+                  <span>❤️ Original</span>
+                  <span>{participant.preTransformHp} / {participant.preTransformHpMax}</span>
+                </div>
+                <div className="hp-bar-container" style={{ height: '3px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px' }}>
+                  <div className="hp-bar" style={{ width: `${Math.max(0, Math.min(100, ((participant.preTransformHp || 0) / (participant.preTransformHpMax || 1)) * 100))}%`, background: '#6b7280', borderRadius: '2px' }} />
+                </div>
+              </div>
+            )}
+
             <div className="card-hp-wrapper" style={{ marginBottom: isGM ? '4px' : '0' }}>
-              <div className="hp-bar-container" style={{ height: '8px' }}>
-                <div className={`hp-bar ${hpClass}`} style={{ width: `${hpPercent}%` }} />
-              </div>
-              <div className="hp-text" style={{ color: isDead ? 'var(--danger)' : 'var(--text-primary)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 'bold' }}>
-                  {participant.hpCurrent} / {participant.hpMax}
-                  {participant.tempHp > 0 && <span style={{ color: '#eab308', marginLeft: '4px' }}>(+{participant.tempHp})</span>}
-                </span>
-                {isGM && (
-                  <button 
-                    className="btn secondary-btn" 
-                    style={{ padding: '2px 6px', fontSize: '0.7rem' }}
-                    onClick={(e) => { e.stopPropagation(); setShowHpEditor(!showHpEditor); }}
-                  >
-                    HP ⚙️
-                  </button>
-                )}
-              </div>
+              {!hideHpData && (
+                <>
+                  <div className="hp-bar-container" style={{ height: '8px' }}>
+                    <div className={`hp-bar ${hpClass} ${participant.combatTransformActive ? 'hp-bar-transform' : ''}`} style={{ width: `${hpPercent}%` }} />
+                  </div>
+                  <div className="hp-text" style={{ color: isDead ? 'var(--danger)' : 'var(--text-primary)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold' }}>
+                      {participant.hpCurrent} / {participant.hpMax}
+                      {participant.tempHp > 0 && <span style={{ color: '#eab308', marginLeft: '4px' }}>(+{participant.tempHp})</span>}
+                    </span>
+                    {isGM && (
+                      <button 
+                        className="btn secondary-btn" 
+                        style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                        onClick={(e) => { e.stopPropagation(); setShowHpEditor(!showHpEditor); }}
+                      >
+                        HP ⚙️
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+              {hideHpData && (
+                <div className="hp-text" style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontStyle: 'italic', display: 'flex', justifyContent: 'center', marginTop: '8px' }}>
+                  Facção Inimiga
+                </div>
+              )}
             </div>
 
             {isGM && showHpEditor && (
