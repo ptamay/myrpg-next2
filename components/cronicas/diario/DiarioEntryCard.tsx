@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { DiaryEntry } from "@/types/cronicas";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
@@ -22,7 +22,7 @@ const FormattedContent = ({ content }: { content: string }) => {
   };
 
   const lines = content.split('\n');
-  const elements: JSX.Element[] = [];
+  const elements: React.ReactNode[] = [];
   let currentList: string[] = [];
 
   const pushList = () => {
