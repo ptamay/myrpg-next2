@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useApp } from "@/contexts/AppContext";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface NpcCardPlayerProps {
   npc: any;
@@ -44,7 +45,7 @@ export default function NpcCardPlayer({ npc }: NpcCardPlayerProps) {
       
       <div className="npc-card-header">
         {activeNpc.image ? (
-          <img src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
+          <OptimizedImage src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
         ) : (
           <div className="npc-card-placeholder" style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }}>{(activeNpc.name || "?").charAt(0).toUpperCase()}</div>
         )}

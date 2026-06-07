@@ -442,4 +442,131 @@ body.theme-noturna .particle {
         filter: blur(0);
     }
 }
+
+/* =========================================================
+   RESPONSIVIDADE: MOBILE (Hamburger Menu & AppShell)
+   ========================================================= */
+
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1000;
+    width: 45px;
+    height: 45px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--shadow-premium);
+}
+
+.mobile-menu-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 900;
+}
+
+@media (max-width: 768px) {
+    /* Ocultar Nebulosas para performance e visual clean */
+    .background-effects::before,
+    .background-effects::after {
+        display: none !important;
+    }
+    .particle {
+        display: none !important;
+    }
+
+    /* Mostrar botão de toggle e overlay se aberto */
+    .mobile-menu-toggle {
+        display: flex;
+    }
+    
+    .mobile-menu-overlay {
+        display: block;
+    }
+
+    /* Reconfigurar Sidebar para Off-Canvas */
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 950;
+        transition: left 0.4s cubic-bezier(0.2, 0, 0, 1);
+        border-right: 1px solid var(--border-subtle);
+        background: hsla(240, 10%, 6%, 0.95);
+        align-items: flex-start;
+        padding: 4rem 1.5rem 2rem 1.5rem; /* Espaço pro header e botões */
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .sidebar-nav {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .nav-tab {
+        width: 100%;
+        flex-direction: row;
+        justify-content: flex-start;
+        height: 50px;
+        padding: 0 1rem;
+    }
+
+    .nav-tab span {
+        font-size: 0.9rem;
+    }
+
+    .nav-tab.active::before {
+        left: 0;
+        width: 4px;
+        height: 100%;
+    }
+
+    /* Content Area ajustes */
+    .main-content {
+        padding: 1rem;
+        padding-top: 5rem !important; /* Espaço pro hamburger */
+    }
+}
+
+@media (max-width: 1100px) {
+    .main-content {
+        padding: 1rem;
+    }
+}
+
+/* =========================================================
+   CONTENÇÃO GLOBAL DE OVERFLOW (MOBILE & DESKTOP)
+   ========================================================= */
+.app-shell {
+    width: 100vw;
+    max-width: 100%;
+    overflow-x: hidden !important;
+}
+
+.main-content, .content-area {
+    overflow-x: hidden !important;
+    max-width: 100%;
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        padding: 0.5rem;
+        padding-top: 5rem !important; /* Espaço pro hamburger */
+    }
+}
 

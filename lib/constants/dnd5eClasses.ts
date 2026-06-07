@@ -61,7 +61,8 @@ export const DND5E_CLASSES: DnD5eClass[] = [
   { id: 'feiticeiro', label: 'Feiticeiro',hitDie: 6,  casterType: 'full',      spellAbility: 'cha', savingThrows: ['CON','CAR'],
     subclasses: [
       { id: 'draconica', label: 'Linhagem Dracônica', minLevel: 1 },
-      { id: 'magia_selvagem', label: 'Magia Selvagem', minLevel: 1 }
+      { id: 'magia_selvagem', label: 'Magia Selvagem', minLevel: 1 },
+      { id: 'tempestade', label: 'Feitiçaria da Tempestade', minLevel: 1 }
     ]
   },
   { id: 'bruxo',      label: 'Bruxo',     hitDie: 8,  casterType: 'pact',      spellAbility: 'cha', savingThrows: ['SAB','CAR'] },
@@ -212,16 +213,8 @@ export function getDefaultClassResources(classId: string, level: number, subclas
     addRes('Canalizar Divindade', cd, 'short');
   }
 
-  // Inject Spell Slots automatically
-  const spellSlots = getSpellSlotsForLevel(classId, level);
-  const casterType = getCasterType(classId);
-  const resetOn = casterType === 'pact' ? 'short' : 'long';
-  
-  for (const [lvlStr, maxSlots] of Object.entries(spellSlots)) {
-    if (maxSlots > 0) {
-      addRes(`Espaço Nível ${lvlStr}`, maxSlots, resetOn);
-    }
-  }
+  // Note: Spell Slots are no longer injected into generic classResources
+  // as the system now uses a dedicated spellSlots object natively.
 
   return resources;
 }
@@ -707,7 +700,73 @@ export function getDefaultAbilities(classId: string, level: number, subclass?: s
           effect: 'utility',
           description: 'Ganha Vantagem em uma rolagem de ataque, teste de atributo ou salvaguarda.'
         });
+      } else if (subclass === 'tempestade') {
+        abilities.push({
+          id: crypto.randomUUID(),
+          name: 'Magia Tempestuosa',
+          actionCost: 'bonus',
+          effect: 'buff',
+          conditionApplied: 'Voo Tempestuoso',
+          description: 'Antes ou depois de lançar uma magia de 1º círculo ou superior, você pode voar até 3m (10ft) sem provocar ataques de oportunidade.'
+        });
+        abilities.push({
+          id: crypto.randomUUID(),
+          name: 'Orador do Vento',
+          actionCost: 'none',
+          effect: 'passive',
+          isPassive: true,
+          description: 'Sabe falar, ler e escrever Primordial (e seus dialetos Aquan, Auran, Ignan e Terran).'
+        });
       }
+    }
+    
+    if (level >= 6 && subclass === 'tempestade') {
+        abilities.push({
+            id: crypto.randomUUID(),
+            name: 'Coração da Tempestade',
+            actionCost: 'none',
+            effect: 'damage',
+            isPassive: true,
+            description: `Você ganha resistência a dano elétrico e trovejante. Ao conjurar magia de 1º círculo ou maior que cause dano elétrico ou trovejante, pode causar ${Math.floor(level/2)} de dano elétrico ou trovejante a criaturas a até 3m de você.`
+        });
+        abilities.push({
+            id: crypto.randomUUID(),
+            name: 'Guia da Tempestade',
+            actionCost: 'bonus',
+            effect: 'utility',
+            description: 'Você pode controlar sutilmente o clima ao redor, parando a chuva ou alterando a direção do vento a até 30m.'
+        });
+    }
+
+    if (level >= 14 && subclass === 'tempestade') {
+        abilities.push({
+            id: crypto.randomUUID(),
+            name: 'Fúria da Tempestade',
+            actionCost: 'reaction',
+            effect: 'damage',
+            saveAttr: 'for',
+            conditionApplied: 'Empurrado',
+            description: `Ao ser atingido por um ataque corpo a corpo, você pode causar ${level} de dano elétrico ao atacante. Ele deve passar num teste de Força ou ser empurrado 6m (20ft) para trás.`,
+            reactionTrigger: 'when_hit'
+        });
+    }
+
+    if (level >= 18 && subclass === 'tempestade') {
+        abilities.push({
+            id: crypto.randomUUID(),
+            name: 'Alma do Vento',
+            actionCost: 'none',
+            effect: 'passive',
+            isPassive: true,
+            description: 'Imunidade a dano elétrico e trovejante. Deslocamento de voo de 18m (60ft).'
+        });
+        abilities.push({
+            id: crypto.randomUUID(),
+            name: 'Compartilhar Ventos',
+            actionCost: 'action',
+            effect: 'buff',
+            description: 'Com uma ação, reduza seu deslocamento de voo para 9m e conceda 9m de voo para até 3+Mod CAR aliados por 1 hora.'
+        });
     }
   }
 

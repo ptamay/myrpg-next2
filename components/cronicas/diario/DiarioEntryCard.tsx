@@ -1,9 +1,82 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { DiaryEntry } from "@/types/cronicas";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import DiarioEntryForm from "./DiarioEntryForm";
 import Modal from "@/components/ui/Modal";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
+
+// Componente para formatar o texto do diário
+const FormattedContent = ({ content }: { content: string }) => {
+  if (!content) return null;
+
+  // Função simples para processar negrito (**texto**)
+  const renderLineContent = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} style={{ color: 'var(--text-primary)', fontWeight: '600' }}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: string[] = [];
+
+  const pushList = () => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} style={{ paddingLeft: '1.5rem', marginBottom: '1rem', marginTop: '0.5rem', listStyle: 'none' }}>
+          {currentList.map((li, idx) => (
+            <li key={idx} style={{ marginBottom: '0.6rem', position: 'relative', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+              {/* Marcador personalizado */}
+              <span style={{ 
+                position: 'absolute', 
+                left: '-1.25rem', 
+                top: '0.55rem', 
+                width: '6px', 
+                height: '6px', 
+                borderRadius: '50%', 
+                backgroundColor: 'var(--accent-primary)',
+                boxShadow: '0 0 5px var(--accent-primary)',
+                opacity: 0.9 
+              }} />
+              {renderLineContent(li)}
+            </li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('-')) {
+      let text = trimmed.substring(1).trim();
+      currentList.push(text);
+    } else {
+      pushList();
+      if (trimmed === '') {
+        // Espaçamento para linhas em branco
+        elements.push(<div key={`br-${index}`} style={{ height: '0.5rem' }} />);
+      } else {
+        // Parágrafo normal
+        elements.push(
+          <div key={`p-${index}`} style={{ marginBottom: '0.5rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            {renderLineContent(line)}
+          </div>
+        );
+      }
+    }
+  });
+
+  pushList();
+
+  return <>{elements}</>;
+};
 
 export default function DiarioEntryCard({ 
   entry, 
@@ -78,7 +151,7 @@ export default function DiarioEntryCard({
     return (
       <div className="timeline-item">
         <div className="timeline-avatar-wrapper">
-          {avatar ? <img src={avatar} alt={displayName} /> : <div className="diario-avatar-placeholder">{(displayName || "?").charAt(0).toUpperCase()}</div>}
+          {avatar ? <OptimizedImage src={avatar} alt={displayName} width={48} height={48} /> : <div className="diario-avatar-placeholder">{(displayName || "?").charAt(0).toUpperCase()}</div>}
         </div>
         <div className="timeline-card" style={{ padding: "0.5rem" }}>
           <DiarioEntryForm
@@ -100,7 +173,7 @@ export default function DiarioEntryCard({
     <div className="timeline-item">
       <div className="timeline-avatar-wrapper">
         {avatar ? (
-          <img src={avatar} alt={displayName} />
+          <OptimizedImage src={avatar} alt={displayName} width={48} height={48} />
         ) : (
           <div className="diario-avatar-placeholder">
             {(displayName || "?").charAt(0).toUpperCase()}
@@ -160,11 +233,11 @@ export default function DiarioEntryCard({
           )}
 
           <div className="timeline-content-preview">
-            {entry.content}
+            <FormattedContent content={entry.content} />
           </div>
 
           {entry.imageUrl && (
-            <img src={entry.imageUrl} alt="Anexo" className="timeline-image-preview" />
+            <OptimizedImage src={entry.imageUrl} alt="Anexo" width={400} height={300} className="timeline-image-preview" />
           )}
         </div>
 
@@ -211,7 +284,7 @@ export default function DiarioEntryCard({
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
               <div className="timeline-avatar-wrapper" style={{ margin: 0 }}>
                 {avatar ? (
-                  <img src={avatar} alt={displayName} style={{ width: "40px", height: "40px", borderRadius: "50%" }} />
+                  <OptimizedImage src={avatar} alt={displayName} width={48} height={48} style={{ width: "40px", height: "40px", borderRadius: "50%" }} />
                 ) : (
                   <div className="diario-avatar-placeholder" style={{ width: "40px", height: "40px", fontSize: "1rem" }}>
                     {(displayName || "?").charAt(0).toUpperCase()}
@@ -225,13 +298,13 @@ export default function DiarioEntryCard({
             </div>
 
             {/* Conteúdo Completo */}
-            <div className="timeline-content" style={{ fontSize: "1rem", color: "var(--text-primary)", marginBottom: "1.5rem", whiteSpace: "pre-wrap" }}>
-              {entry.content}
+            <div className="timeline-content" style={{ fontSize: "1rem", color: "var(--text-primary)", marginBottom: "1.5rem", whiteSpace: "normal" }}>
+              <FormattedContent content={entry.content} />
             </div>
 
             {/* Imagem em tamanho normal */}
             {entry.imageUrl && (
-              <img src={entry.imageUrl} alt="Anexo Detalhado" className="timeline-image-detail" />
+              <OptimizedImage src={entry.imageUrl} alt="Anexo Detalhado" width={800} height={600} className="timeline-image-detail" />
             )}
 
             {/* Ações e Comentários dentro do Modal */}

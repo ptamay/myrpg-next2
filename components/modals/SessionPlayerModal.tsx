@@ -8,6 +8,7 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "../ui/HpInlineEditor";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface SessionPlayerModalProps {
   isOpen: boolean;
@@ -354,7 +355,7 @@ export default function SessionPlayerModal({ isOpen, onClose }: SessionPlayerMod
               
               <div className="npc-card-header">
                 {player.image ? (
-                  <img src={player.image} className="npc-card-avatar" alt={player.name} />
+                  <OptimizedImage src={player.image} className="npc-card-avatar" alt={player.name} />
                 ) : (
                   <div className="npc-card-placeholder">{(player.name || "?").charAt(0).toUpperCase()}</div>
                 )}

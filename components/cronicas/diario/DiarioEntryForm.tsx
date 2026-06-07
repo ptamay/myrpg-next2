@@ -6,6 +6,7 @@ import CropModal from "@/components/modals/CropModal";
 import { uploadBase64Image } from "@/lib/supabase/storage";
 
 import { useDiario } from "@/hooks/useGameData";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface DiarioEntryFormProps {
   defaultAuthorId: string;
@@ -126,7 +127,7 @@ export default function DiarioEntryForm({ defaultAuthorId, defaultAuthorName, in
         </label>
         {imageUrl && (
           <div style={{ marginTop: "8px", position: "relative", display: "inline-block" }}>
-            <img src={imageUrl} alt="Preview" className="diario-image-preview" />
+            <OptimizedImage src={imageUrl} alt="Preview" className="diario-image-preview" />
             <button 
               className="ghost-delete-btn" 
               style={{ position: "absolute", top: -8, right: -8, background: "var(--danger)", color: "white", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", padding: 0, opacity: 1 }}

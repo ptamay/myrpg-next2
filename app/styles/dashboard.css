@@ -782,4 +782,96 @@
     color: var(--success);
     opacity: 0.7;
 }
+
+/* =========================================================
+   RESPONSIVIDADE: DASHBOARD
+   ========================================================= */
+
+@media (max-width: 1100px) {
+    .dash-ultra-grid {
+        grid-template-columns: 1fr 280px;
+        gap: 1rem;
+    }
+    
+    .block-hero {
+        padding: 1rem 1.5rem;
+    }
+
+    .hero-celestial-icon {
+        width: 70px;
+        height: 70px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dash-ultra-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .dash-header-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .dash-day-control {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .day-selector, .dash-stepper {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .dash-ultra-header {
+        padding: 0.75rem;
+    }
+
+    .dash-ultra-grid {
+        display: flex;
+        flex-direction: column;
+        overflow: auto; /* Permite scroll natural */
+    }
+
+    .dash-main-content {
+        min-height: auto;
+        overflow: visible; /* Remover barra de scroll interna dupla no mobile */
+    }
+
+    .dash-side-panel {
+        height: auto;
+        padding: 1rem;
+        margin-top: 1rem;
+    }
+
+    .block-two-cols {
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+        margin-bottom: 1.5rem;
+    }
+
+    .block-hero {
+        flex-direction: column;
+        height: auto;
+        text-align: center;
+        gap: 0.5rem;
+    }
+
+    .block-hero-right {
+        text-align: center;
+    }
+
+    .hero-celestial-icon {
+        display: none; /* Oculta as celestiais gigantes para economizar espaço e evitar bug visual no flex */
+    }
+
+    .world-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
 

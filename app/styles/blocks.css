@@ -1318,4 +1318,14 @@ body.hide-combat-effects .npc-card-combat-console {
     color: #93c5fd !important;
     box-shadow: 0 0 15px hsla(210, 100%, 50%, 0.3) !important;
 }
+
+/* =========================================================
+   RESPONSIVIDADE EXTRA: MURAIS E BLOCOS
+   ========================================================= */
+@media (max-width: 768px) {
+    .form-attr-row, .det-attr-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 4px;
+    }
+}
 

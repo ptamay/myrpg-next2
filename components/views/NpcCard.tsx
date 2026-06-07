@@ -5,6 +5,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "../ui/HpInlineEditor";
 import BuffPanel from "../ui/BuffPanel";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface NpcCardProps {
   npc: any;
@@ -21,6 +22,34 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
 
   const activeHp = activeNpc.hpCurrent !== undefined ? activeNpc.hpCurrent : (activeNpc.hpMax || 0);
   const activeTemp = activeNpc.tempHp || 0;
+
+  const calcEffectiveAc = () => {
+    let baseAc = parseInt((activeNpc.ac || 10).toString().replace(/\D/g, '')) || 10;
+    const dexValue = parseInt((activeNpc.dex || 10).toString()) || 10;
+    const dexMod = Math.floor((dexValue - 10) / 2);
+    
+    let acOverride = 0;
+    let acBonus = 0;
+    
+    if (activeNpc.activeBuffs && Array.isArray(activeNpc.activeBuffs)) {
+      activeNpc.activeBuffs.forEach((b: any) => {
+        if (b.effects?.baseAcOverride && b.effects.baseAcOverride > acOverride) {
+          acOverride = b.effects.baseAcOverride;
+        }
+        if (b.effects?.acBonus) {
+          acBonus += b.effects.acBonus;
+        }
+      });
+    }
+    
+    if (acOverride > 0) {
+      baseAc = Math.max(baseAc, acOverride + dexMod);
+    }
+    
+    return baseAc + acBonus;
+  };
+
+  const effectiveAc = calcEffectiveAc();
 
   const handleUpdate = (updates: any) => {
     const newNpcs = dadosGlobais.npcs.map((n: any) => n.id === npc.id ? { ...n, ...updates } : n);
@@ -177,7 +206,7 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
 
       <div className="npc-card-header" onClick={openDetail}>
         {activeNpc.image ? (
-          <img src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
+          <OptimizedImage src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
         ) : (
           <div className="npc-card-placeholder" style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }}>{(activeNpc.name || "?").charAt(0).toUpperCase()}</div>
         )}
@@ -230,7 +259,7 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
           <div className="npc-card-stats" onClick={openDetail}>
             <div className="stat-mini" title="Classe de Armadura (Esquerdo: +1 | Direito: -1)" onClick={(e) => handleAcMod(e, 1)} onContextMenu={(e) => handleAcMod(e, -1)} style={{ cursor: "pointer", userSelect: "none" }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-              <span className="base-val">{activeNpc.ac || '--'}</span>
+              <span className="base-val">{effectiveAc}</span>
               {activeNpc.tempAc ? <span className="temp-bonus">{activeNpc.tempAc > 0 ? '+' : ''}{activeNpc.tempAc}</span> : null}
             </div>
             <div className="stat-mini" title="Iniciativa">

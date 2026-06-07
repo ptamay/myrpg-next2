@@ -6,12 +6,14 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
 import { Player } from "@/lib/gameData";
-import { usePlayers } from "@/hooks/useGameData";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function MeuPerfilView() {
-  const { openModal, setActiveData } = useApp();
+  const { openModal, setActiveData, dadosGlobais, setDadosGlobais } = useApp();
   const { session } = useUserSession();
-  const { players, setPlayers } = usePlayers();
+  // Reutiliza a lista de players do AppContext (evita subscription duplicada ao Realtime)
+  const players = dadosGlobais?.players || [];
+  const setPlayers = (val: any) => setDadosGlobais({ ...dadosGlobais, players: val });
   
   const player = players?.find((p: any) => p.id === session?.player_id);
   
@@ -101,7 +103,7 @@ export default function MeuPerfilView() {
             </div>
             
             {player.image ? (
-              <img src={player.image} alt={player.name} style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border-subtle)" }} />
+              <OptimizedImage src={player.image} alt={player.name} loading="lazy" style={{ width: "90px", height: "90px", borderRadius: "50%", objectFit: "cover", border: "3px solid var(--border-subtle)" }} />
             ) : (
               <div style={{ width: "90px", height: "90px", borderRadius: "50%", background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem", fontWeight: "bold", color: "var(--text-muted)", border: "3px solid var(--border-subtle)" }}>
                 {player.name?.charAt(0).toUpperCase()}

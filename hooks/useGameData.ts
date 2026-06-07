@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCampaignId } from "@/lib/supabase/campaignCache";
 import { GlobalData, Npc, Player } from "@/lib/gameData";
 import { mapDBToNpc, mapDBToPlayer, mapNpcToDB, mapPlayerToDB } from "@/lib/supabase/mappers";
 import { getInitialJornada } from "@/lib/dataHelpers";
@@ -26,13 +27,19 @@ export function useCampaignInfo() {
 
   const fetchCampaign = useCallback(async () => {
     try {
-      const { data: campaign } = await supabase.from("campaign").select("*").limit(1).maybeSingle();
+      const { data: campaign } = await supabase
+        .from("campaign")
+        .select("id, current_day, active_block_index")
+        .limit(1)
+        .maybeSingle();
       if (campaign) {
         setDiaAtualLocal(campaign.current_day);
         setIndiceBlocoAtivoLocal(campaign.active_block_index);
       }
       
-      const { data: blocks } = await supabase.from("journey_blocks").select("*, journey_days(day_number)");
+      const { data: blocks } = await supabase
+        .from("journey_blocks")
+        .select("block_index, weather, weather_effect, timeline, plots, sidequests, player_sessions, journey_days(day_number)");
       if (blocks && blocks.length > 0) {
         const newJornada: Record<number, any> = {};
         blocks.forEach((block: any) => {
@@ -76,9 +83,9 @@ export function useCampaignInfo() {
     const next = typeof val === 'function' ? val(diaAtual) : val;
     setDiaAtualLocal(next);
     if (role === 'gm') {
-      const { data } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (data) {
-        await supabase.from("campaign").update({ current_day: next }).eq("id", data.id);
+      const campaignId = await getCampaignId();
+      if (campaignId) {
+        await supabase.from("campaign").update({ current_day: next }).eq("id", campaignId);
         window.dispatchEvent(new CustomEvent('sync_campaign_update'));
         window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'campaign_update', payload: {} } }));
       }
@@ -89,9 +96,9 @@ export function useCampaignInfo() {
     const next = typeof val === 'function' ? val(indiceBlocoAtivo) : val;
     setIndiceBlocoAtivoLocal(next);
     if (role === 'gm') {
-      const { data } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (data) {
-        await supabase.from("campaign").update({ active_block_index: next }).eq("id", data.id);
+      const campaignId = await getCampaignId();
+      if (campaignId) {
+        await supabase.from("campaign").update({ active_block_index: next }).eq("id", campaignId);
         window.dispatchEvent(new CustomEvent('sync_campaign_update'));
         window.dispatchEvent(new CustomEvent('send_broadcast', { detail: { type: 'campaign_update', payload: {} } }));
       }
@@ -104,8 +111,9 @@ export function useCampaignInfo() {
     
     // Sync to Supabase
     try {
-      const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (!campaign) return;
+      const campaignId = await getCampaignId();
+      if (!campaignId) return;
+      const campaign = { id: campaignId };
 
       const allDays = new Set([
         ...Object.keys(jornadaPorDia).map(Number),
@@ -180,9 +188,12 @@ export function useNpcs() {
   const { profile, sessionLoading } = useUserSession();
   const role = profile?.role;
 
+  // Voltando para '*' porque algumas das colunas virtuais/frontend não existem no Supabase e quebravam a query
+  const NPC_FIELDS = "*";
+
   const fetchNpcs = useCallback(async () => {
     try {
-      const { data } = await supabase.from("npcs").select("*");
+      const { data } = await supabase.from("npcs").select(NPC_FIELDS);
       const mapped = (data || []).map(mapDBToNpc);
       npcsRef.current = mapped;
       setNpcs(mapped);
@@ -268,8 +279,9 @@ export function useNpcs() {
     setNpcs(next);
 
     try {
-      const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (!campaign) return;
+      const campaignId = await getCampaignId();
+      if (!campaignId) return;
+      const campaign = { id: campaignId };
 
       const changedNpcs = next.filter(n => {
         const old = currentNpcs.find(o => o.id === n.id);
@@ -312,9 +324,12 @@ export function usePlayers() {
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Voltando para '*' porque algumas colunas mapeadas no frontend não existem nativamente no Postgres
+  const PLAYER_FIELDS = "*";
+
   const fetchPlayers = useCallback(async () => {
     try {
-      const { data } = await supabase.from("players").select("*");
+      const { data } = await supabase.from("players").select(PLAYER_FIELDS);
       const mapped = (data || []).map(mapDBToPlayer);
       playersRef.current = mapped;
       setPlayers(mapped);
@@ -401,8 +416,9 @@ export function usePlayers() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-        if (!campaign) return;
+        const campaignId = await getCampaignId();
+        if (!campaignId) return;
+        const campaign = { id: campaignId };
 
         const changedPlayers = next.filter(p => {
           const old = currentPlayers.find(o => o.id === p.id);
@@ -453,7 +469,11 @@ export function useSupplies() {
 
   const fetchSupplies = useCallback(async () => {
     try {
-      const { data } = await supabase.from("supplies").select("*").limit(1).maybeSingle();
+      const { data } = await supabase
+        .from("supplies")
+        .select("water, food, people")
+        .limit(1)
+        .maybeSingle();
       if (data) {
         setFood({ water: data.water, food: data.food, people: data.people });
       }
@@ -477,10 +497,10 @@ export function useSupplies() {
     setFood(next);
 
     try {
-      const { data: campaign } = await supabase.from("campaign").select("id").limit(1).maybeSingle();
-      if (campaign) {
+      const campaignId = await getCampaignId();
+      if (campaignId) {
         await supabase.from("supplies").upsert({
-          campaign_id: campaign.id,
+          campaign_id: campaignId,
           water: next.water,
           food: next.food,
           people: next.people
@@ -508,7 +528,11 @@ export function useDiario() {
 
   const fetchEntries = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('diary_entries').select('*').order('created_at', { ascending: false });
+      // Carrega apenas campos de listagem — 'content' (texto longo) é carregado sob demanda
+      const { data, error } = await supabase
+        .from('diary_entries')
+        .select('id, session_number, session_title, author_id, author_name, image_url, likes, comments, created_at, content')
+        .order('created_at', { ascending: false });
       if (error) throw new Error(error?.message || JSON.stringify(error));
       if (data) {
         setEntries(data.map((d: any) => ({
@@ -590,10 +614,10 @@ export function useDiario() {
 
   const add = useCallback(async (entry: DiaryEntry) => {
     try {
-      const { data: campaign } = await supabase.from('campaign').select('id').limit(1).maybeSingle();
+      const campaignId = await getCampaignId();
       const row = {
         id: entry.id,
-        campaign_id: campaign?.id,
+        campaign_id: campaignId,
         session_number: entry.sessionNumber,
         session_title: entry.sessionTitle,
         title: entry.sessionTitle || `Sessão ${entry.sessionNumber}`,
@@ -648,15 +672,28 @@ export function useMurais(activeMuralId?: string | null) {
   const supabase = useMemo(() => getSupabaseClient(), []);
   const { sessionLoading } = useUserSession();
 
+  const MURAL_FIELDS = 'id, name, background_style, created_at';
+  const CARD_FIELDS = 'id, mural_id, type, title, content, image_url, ref_id, position_x, position_y, created_by, created_at';
+  const CONN_FIELDS = 'id, mural_id, from_card_id, to_card_id, label, color';
+
   const fetchMurais = useCallback(async () => {
     try {
-      const { data: mData, error: mErr } = await supabase.from('murals').select('*');
+      // Se há um mural ativo, busca apenas os dados desse mural para reduzir egress
+      const muralFilter = activeMuralId ? `.eq('id', '${activeMuralId}')` : '';
+
+      const { data: mData, error: mErr } = activeMuralId
+        ? await supabase.from('murals').select(MURAL_FIELDS).eq('id', activeMuralId)
+        : await supabase.from('murals').select(MURAL_FIELDS);
       if (mErr) throw new Error(mErr?.message || JSON.stringify(mErr));
 
-      const { data: cData, error: cErr } = await supabase.from('mural_cards').select('*');
+      const { data: cData, error: cErr } = activeMuralId
+        ? await supabase.from('mural_cards').select(CARD_FIELDS).eq('mural_id', activeMuralId)
+        : await supabase.from('mural_cards').select(CARD_FIELDS);
       if (cErr) throw new Error(cErr?.message || JSON.stringify(cErr));
 
-      const { data: lData, error: lErr } = await supabase.from('mural_connections').select('*');
+      const { data: lData, error: lErr } = activeMuralId
+        ? await supabase.from('mural_connections').select(CONN_FIELDS).eq('mural_id', activeMuralId)
+        : await supabase.from('mural_connections').select(CONN_FIELDS);
       if (lErr) throw new Error(lErr?.message || JSON.stringify(lErr));
       
       const mapped = (mData || []).map((m: any) => {
@@ -794,9 +831,6 @@ export function useMurais(activeMuralId?: string | null) {
 
   const save = useCallback(async (mural: Mural) => {
     try {
-      const { data: campaign } = await supabase.from('campaign').select('id').limit(1).maybeSingle();
-      const cid = campaign?.id;
-      
       const { error: mErr } = await supabase.from('murals').upsert({
         id: mural.id,
         name: mural.name,

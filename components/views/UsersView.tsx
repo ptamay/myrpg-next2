@@ -47,7 +47,7 @@ export default function UsersView() {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, email, display_name, role, created_at')
           .order('created_at', { ascending: false });
         
         if (error) throw new Error(error?.message || JSON.stringify(error));

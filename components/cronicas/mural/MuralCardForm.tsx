@@ -5,6 +5,8 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { uploadBase64Image } from "@/lib/supabase/storage";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
+import { compressImageClientSide } from "@/lib/imageUtils";
 
 interface MuralCardFormProps {
   initialData?: MuralCard | null;
@@ -74,14 +76,21 @@ export default function MuralCardForm({ initialData, onSave, onCancel }: MuralCa
     }
   }, [type, refId, dadosGlobais.npcs, dadosGlobais.players, title]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setImageUrl(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageClientSide(file, 800);
+      setImageUrl(compressed);
+    } catch (err) {
+      console.error("Erro ao comprimir imagem:", err);
+      // Fallback para FileReader normal
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImageUrl(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSave = async () => {
@@ -246,7 +255,7 @@ export default function MuralCardForm({ initialData, onSave, onCancel }: MuralCa
               </label>
               {imageUrl && (
                 <div>
-                  <img src={imageUrl} alt="Preview" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-subtle)" }} />
+                  <OptimizedImage src={imageUrl} alt="Preview" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-subtle)" }} />
                   <button className="ghost-delete-btn" onClick={() => setImageUrl(undefined)} style={{ marginLeft: "8px", verticalAlign: "top" }}>Remover</button>
                 </div>
               )}

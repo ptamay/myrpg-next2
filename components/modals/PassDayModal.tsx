@@ -5,7 +5,6 @@ import Modal from "../ui/Modal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { getInitialJornada } from "@/lib/dataHelpers";
-import { getSupabaseClient } from "@/lib/supabase/client";
 
 interface PassDayModalProps {
   isOpen: boolean;
@@ -83,15 +82,10 @@ export default function PassDayModal({ isOpen, onClose }: PassDayModalProps) {
       return updated;
     });
 
-    const supabase = getSupabaseClient();
-    const channel = supabase.channel('game-sync');
-    if (channel.state === 'joined') {
-      channel.send({
-        type: 'broadcast',
-        event: 'day_passed',
-        payload: { newDay: nextDay }
-      });
-    }
+    // Notifica outros clientes via broadcast centralizado (useGameSync)
+    window.dispatchEvent(new CustomEvent('send_broadcast', {
+      detail: { type: 'campaign_update', payload: { newDay: nextDay } }
+    }));
 
     setTimeout(salvarEstadoLocal, 100);
     onClose();

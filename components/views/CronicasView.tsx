@@ -46,13 +46,15 @@ export default function CronicasView() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
-        {/* Ambos os componentes ficam montados para evitar refetch ao trocar de aba */}
-        <div style={{ height: "100%", display: activeTab === "diario" ? "block" : "none" }}>
-          <DiarioFeed />
-        </div>
-        <div style={{ height: "100%", display: activeTab === "mural" ? "block" : "none" }}>
-          <MuralCanvas isActive={activeTab === "mural"} />
-        </div>
+        {activeTab === "diario" ? (
+          <div style={{ height: "100%", width: "100%" }}>
+            <DiarioFeed />
+          </div>
+        ) : (
+          <div style={{ height: "100%", width: "100%" }}>
+            <MuralCanvas isActive={true} />
+          </div>
+        )}
       </div>
     </div>
   );

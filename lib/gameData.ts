@@ -19,6 +19,7 @@ export interface SpellEntry {
   spellAttack?: boolean;
   higherLevel?: string;
   conditionApplied?: string;
+  classes?: string[];
   // Automation fields
   effect?: 'damage' | 'heal' | 'condition' | 'buff' | 'utility' | 'passive';
   targetType?: 'single' | 'multiple' | 'area' | 'self';

@@ -7,6 +7,7 @@ import { useSystemDialog } from "../../contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { Npc } from "@/lib/gameData";
 import HpInlineEditor from "../ui/HpInlineEditor";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface NpcDetailModalProps {
   isOpen: boolean;
@@ -138,7 +139,7 @@ export default function NpcDetailModal({ isOpen, onClose, npc }: NpcDetailModalP
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "linear-gradient(45deg, rgba(var(--accent-primary-rgb), 0.1), transparent)", pointerEvents: "none" }} />
             )}
             {activeNpc.image ? (
-              <img src={activeNpc.image} alt="Avatar" className="npc-detail-avatar" style={{ border: isViewingTransformation ? "2px solid var(--accent-primary)" : "none" }} />
+              <OptimizedImage src={activeNpc.image} alt="Avatar" className="npc-detail-avatar" style={{ border: isViewingTransformation ? "2px solid var(--accent-primary)" : "none" }} />
             ) : (
               <div className="npc-detail-placeholder" style={{ border: isViewingTransformation ? "2px solid var(--accent-primary)" : "none" }}>?</div>
             )}

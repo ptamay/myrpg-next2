@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { MuralCard as MuralCardType } from "@/types/cronicas";
 import { useApp } from "@/contexts/AppContext";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface MuralCardProps {
   card: MuralCardType;
@@ -214,7 +215,7 @@ function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCardClick, onEdit
             
             {card.imageUrl && (
               <div style={{ marginBottom: "8px", borderRadius: "8px", overflow: "hidden", border: `1px solid ${noteBorder}` }}>
-                <img src={card.imageUrl} alt={card.title} style={{ width: "100%", height: "auto", display: "block" }} />
+                <OptimizedImage src={card.imageUrl} alt={card.title} width={200} height={200} style={{ width: "100%", height: "auto", display: "block" }} />
               </div>
             )}
 
@@ -251,7 +252,7 @@ function MuralCard({ card, zoom, pan, isConnecting, canEdit, onCardClick, onEdit
             
             {(card.imageUrl || (npc && npc.image) || (player && player.image)) && (
               <div style={{ marginBottom: "8px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-subtle)" }}>
-                <img src={card.imageUrl || npc?.image || player?.image} alt={card.title} style={{ width: "100%", height: "auto", display: "block" }} />
+                <OptimizedImage src={card.imageUrl || npc?.image || player?.image} alt={card.title} width={200} height={200} style={{ width: "100%", height: "auto", display: "block" }} />
               </div>
             )}
 

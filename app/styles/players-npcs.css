@@ -1120,4 +1120,43 @@
     text-align: right;
     padding: 4px;
 }
+
+/* =========================================================
+   RESPONSIVIDADE EXTRA: JOGADORES E NPCS
+   ========================================================= */
+@media (max-width: 1100px) {
+    .spell-slots-inputs {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+@media (max-width: 768px) {
+    .npc-card-attrs, .det-attr-grid, .form-attr-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 4px;
+    }
+    .det-combat-stats-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 4px;
+    }
+    .spell-slots-inputs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    
+    /* Scroll Horizontal de Filtros */
+    .filter-tags {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+    }
+    .filter-tags::-webkit-scrollbar {
+        display: none;
+    }
+    .filter-tag {
+        flex: 0 0 auto;
+        scroll-snap-align: start;
+    }
+}
 

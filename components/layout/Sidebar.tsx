@@ -2,12 +2,19 @@
 import { useUserSession } from '@/contexts/UserSessionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 
 export default function Sidebar() {
   const { profile, isGM } = useUserSession()
   const { signOut } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
+  const [isOpen, setIsOpen] = useState(false)
+
+  // Fecha o menu ao mudar de rota
+  useEffect(() => {
+    setIsOpen(false)
+  }, [pathname])
 
   const isAdmin = profile?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL
 
@@ -112,7 +119,33 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="sidebar glass-panel">
+    <>
+      <button 
+        className="mobile-menu-toggle glass-panel"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label="Toggle Menu"
+      >
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {isOpen ? (
+            <>
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </>
+          ) : (
+            <>
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </>
+          )}
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="mobile-menu-overlay" onClick={() => setIsOpen(false)} />
+      )}
+
+      <nav className={`sidebar glass-panel ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-logo">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14.5 2v22"></path><path d="M9.5 2v22"></path><path d="M2 14.5h22"></path><path d="M2 9.5h22"></path><circle cx="12" cy="12" r="7"></circle>
@@ -193,5 +226,6 @@ export default function Sidebar() {
         </button>
       </div>
     </nav>
+    </>
   )
 }
