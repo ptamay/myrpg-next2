@@ -123,6 +123,11 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
 
   const mural = murais.find(m => m.id === activeMuralId) ?? null;
 
+  const stateRef = useRef({ mural, connectingFrom, canEdit });
+  useEffect(() => {
+    stateRef.current = { mural, connectingFrom, canEdit };
+  });
+
   // Sincroniza localPositions quando o mural muda externamente
   useEffect(() => {
     if (!mural) return;
@@ -627,17 +632,18 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                   isConnecting={connectingFrom === card.id}
                   canEdit={cardCanEdit}
                   onCardClick={(resolvedData) => {
-                    if (!canEdit || !mural) return;
-                    if (connectingFrom === "") {
+                    const { mural: m, connectingFrom: cf, canEdit: ce } = stateRef.current;
+                    if (!ce || !m) return;
+                    if (cf === "") {
                       setConnectingFrom(card.id);
-                    } else if (connectingFrom && connectingFrom !== card.id) {
+                    } else if (cf && cf !== card.id) {
                       // Criar conexão
                       const updated: Mural = {
-                        ...mural,
-                        connections: [...mural.connections, {
+                        ...m,
+                        connections: [...m.connections, {
                           id: crypto.randomUUID(),
-                          muralId: mural.id,
-                          fromCardId: connectingFrom,
+                          muralId: m.id,
+                          fromCardId: cf,
                           toCardId: card.id,
                         }],
                       };
@@ -650,12 +656,13 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                   }}
                   onEdit={() => setEditingCardId(card.id)}
                   onDelete={async () => {
-                    if (!mural) return;
+                    const { mural: m } = stateRef.current;
+                    if (!m) return;
                     if (await showConfirm({ title: "Deletar Card", message: "Deseja deletar este card e todas as suas conexões?", type: "danger" })) {
                       const updated = {
-                        ...mural,
-                        cards: mural.cards.filter(c => c.id !== card.id),
-                        connections: mural.connections.filter(c => c.fromCardId !== card.id && c.toCardId !== card.id)
+                        ...m,
+                        cards: m.cards.filter(c => c.id !== card.id),
+                        connections: m.connections.filter(c => c.fromCardId !== card.id && c.toCardId !== card.id)
                       };
                       save(updated);
                     }
