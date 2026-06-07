@@ -29,6 +29,34 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
   const activeHp = activePlayer.hpCurrent !== undefined ? activePlayer.hpCurrent : (activePlayer.hpMax || 0);
   const activeTemp = activePlayer.tempHp || 0;
 
+  const calcEffectiveAc = () => {
+    let baseAc = parseInt((activePlayer.ac || 10).toString().replace(/\D/g, '')) || 10;
+    const dexValue = parseInt((activePlayer.dex || 10).toString()) || 10;
+    const dexMod = Math.floor((dexValue - 10) / 2);
+    
+    let acOverride = 0;
+    let acBonus = 0;
+    
+    if (activePlayer.activeBuffs && Array.isArray(activePlayer.activeBuffs)) {
+      activePlayer.activeBuffs.forEach((b: any) => {
+        if (b.effects?.baseAcOverride && b.effects.baseAcOverride > acOverride) {
+          acOverride = b.effects.baseAcOverride;
+        }
+        if (b.effects?.acBonus) {
+          acBonus += b.effects.acBonus;
+        }
+      });
+    }
+    
+    if (acOverride > 0) {
+      baseAc = Math.max(baseAc, acOverride + dexMod);
+    }
+    
+    return baseAc + acBonus;
+  };
+
+  const effectiveAc = calcEffectiveAc();
+
   const isOwner = player.id === session?.playerId;
   const canViewDetails = isGM || isOwner;
 
@@ -241,7 +269,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
         <div className="npc-card-stats">
           <div className="stat-mini" title="Classe de Armadura (Esquerdo: +1 | Direito: -1)" onClick={(e) => handleAcMod(e, 1)} onContextMenu={(e) => handleAcMod(e, -1)} style={{ cursor: "pointer", userSelect: "none" }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            <span className="base-val">{activePlayer.ac || '--'}</span>
+            <span className="base-val">{effectiveAc}</span>
             {activePlayer.tempAc ? <span className="temp-bonus">{activePlayer.tempAc > 0 ? '+' : ''}{activePlayer.tempAc}</span> : null}
           </div>
           <div className="stat-mini" title="Iniciativa">

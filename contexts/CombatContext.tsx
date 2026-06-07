@@ -106,6 +106,9 @@ export interface CombatParticipant {
   }[];
   preTransformImage?: string;
   preTransformName?: string;
+  preTransformClassResources?: CombatClassResource[];
+  preTransformSpellSlots?: Record<number, number>;
+  preTransformSpellSlotsUsed?: Record<number, number>;
   combatTransformActive?: boolean;
   combatTransformName?: string;
 }
@@ -692,6 +695,9 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           preTransformAttacks: p.attacks,
           preTransformImage: p.image,
           preTransformName: p.name,
+          preTransformClassResources: p.classResources,
+          preTransformSpellSlots: p.spellSlots,
+          preTransformSpellSlotsUsed: p.spellSlotsUsed,
           combatTransformActive: true,
           combatTransformName: transformData.name,
           hpCurrent: newHpCurrent,
@@ -709,6 +715,9 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           immunities: Array.isArray(transformData.immunities) ? transformData.immunities : (transformData.imm ? transformData.imm.split(',') : []),
           saves: Array.isArray(transformData.saves) ? transformData.saves : (transformData.saves ? [transformData.saves] : []),
           attacks: Array.isArray(transformData.attacks) ? transformData.attacks : [],
+          classResources: transformData.classResources && transformData.classResources.length > 0 ? transformData.classResources : p.classResources,
+          spellSlots: transformData.spellSlots ? transformData.spellSlots : p.spellSlots,
+          spellSlotsUsed: transformData.spellSlotsUsed ? transformData.spellSlotsUsed : p.spellSlotsUsed,
           image: transformData.image,
           name: `${transformData.name} (${p.originalName || p.name})`
         };
@@ -733,6 +742,9 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           immunities: p.preTransformImmunities ?? p.immunities,
           saves: p.preTransformSaves ?? p.saves,
           attacks: p.preTransformAttacks ?? p.attacks,
+          classResources: p.preTransformClassResources ?? p.classResources,
+          spellSlots: p.preTransformSpellSlots ?? p.spellSlots,
+          spellSlotsUsed: p.preTransformSpellSlotsUsed ?? p.spellSlotsUsed,
           image: p.preTransformImage ?? p.image,
           name: p.preTransformName ?? p.name,
         };
@@ -867,6 +879,9 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           immunities: p.preTransformImmunities ?? p.immunities,
           saves: p.preTransformSaves ?? p.saves,
           attacks: p.preTransformAttacks ?? p.attacks,
+          classResources: p.preTransformClassResources ?? p.classResources,
+          spellSlots: p.preTransformSpellSlots ?? p.spellSlots,
+          spellSlotsUsed: p.preTransformSpellSlotsUsed ?? p.spellSlotsUsed,
           image: p.preTransformImage ?? p.image,
           name: p.preTransformName ?? p.name,
         };
@@ -958,7 +973,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         const sourceIndex = newParticipants.findIndex(x => x.refId === sourceId);
         if (sourceIndex !== -1) {
           const source = newParticipants[sourceIndex];
-          const maxHealable = source.hpMax - source.hpCurrent;
+          const maxHealable = Number(source.hpMax) - Number(source.hpCurrent);
           const healed = Math.min(finalAmount, maxHealable);
           if (healed > 0) {
             newParticipants[sourceIndex] = {

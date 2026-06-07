@@ -224,7 +224,9 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
         hit.res.isCritical
       );
       const parsed = parseDmgString(hit.atk.dmg);
-      applyDamage(hit.target.refId, totalDmg, parsed.damageType);
+      const isLifesteal = parsed.isLifesteal || hit.atk.name.toLowerCase().includes('[roubo de vida]') || hit.atk.name.toLowerCase().includes('[lifesteal]') || hit.atk.name.toLowerCase().includes('[cura]');
+      
+      applyDamage(hit.target.refId, totalDmg, parsed.damageType, activeParticipant.refId, isLifesteal);
       addToLog(logMsg, activeParticipant.name, hit.res.isCritical ? 'critical' : 'damage');
     });
 

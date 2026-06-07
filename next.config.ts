@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
     imageSizes: [48, 80, 120, 256],
     // WebP é o formato padrão — reduz até 30% do tamanho em relação a JPEG
     formats: ["image/webp"],
+    // Força o cache do Next.js a durar 1 ano para as imagens baixadas do Supabase, evitando picos de Egress.
+    minimumCacheTTL: 31536000,
   },
 };
 

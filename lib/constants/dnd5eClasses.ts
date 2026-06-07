@@ -213,16 +213,8 @@ export function getDefaultClassResources(classId: string, level: number, subclas
     addRes('Canalizar Divindade', cd, 'short');
   }
 
-  // Inject Spell Slots automatically
-  const spellSlots = getSpellSlotsForLevel(classId, level);
-  const casterType = getCasterType(classId);
-  const resetOn = casterType === 'pact' ? 'short' : 'long';
-  
-  for (const [lvlStr, maxSlots] of Object.entries(spellSlots)) {
-    if (maxSlots > 0) {
-      addRes(`Espaço Nível ${lvlStr}`, maxSlots, resetOn);
-    }
-  }
+  // Note: Spell Slots are no longer injected into generic classResources
+  // as the system now uses a dedicated spellSlots object natively.
 
   return resources;
 }

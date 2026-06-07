@@ -21,7 +21,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Usando getSession para evitar o bug de timeout de fetch no Next.js Edge Runtime no Windows
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user || null
 
   // Redireciona para login se não autenticado (fora de rotas públicas)
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||

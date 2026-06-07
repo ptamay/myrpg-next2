@@ -239,7 +239,8 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         );
         
         combat.selectedTargetIds.forEach(targetId => {
-          applyDamage(targetId, logData.total, entry.damageType, entry.sourceId, entry.isLifesteal);
+          const isLifesteal = entry.isLifesteal || pendingAttack?.name?.toLowerCase().includes('[roubo de vida]') || pendingAttack?.name?.toLowerCase().includes('[lifesteal]') || pendingAttack?.name?.toLowerCase().includes('[cura]');
+          applyDamage(targetId, logData.total, entry.damageType, entry.sourceId, isLifesteal);
           if (pendingAttack?.conditionApplied) {
             addCondition(targetId, pendingAttack.conditionApplied);
             addToLog(`🤕 Recebeu a condição: **${pendingAttack.conditionApplied}**`, damagedNames.join(', '), 'system');
@@ -264,7 +265,8 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
           combat.selectedTargetIds.forEach((targetId, idx) => {
             const dmg = damages[idx] || 0;
             if (dmg > 0) {
-              applyDamage(targetId, dmg, entry.damageType, entry.sourceId, entry.isLifesteal);
+              const isLifesteal = entry.isLifesteal || pendingAttack?.name?.toLowerCase().includes('[roubo de vida]') || pendingAttack?.name?.toLowerCase().includes('[lifesteal]') || pendingAttack?.name?.toLowerCase().includes('[cura]');
+              applyDamage(targetId, dmg, entry.damageType, entry.sourceId, isLifesteal);
               const tName = combat.participants.find(p => p.refId === targetId)?.name;
               addToLog(`🩸 Míssil/Auto-Hit: causou **${dmg}** de dano em ${tName}!`, entry.actorName, 'damage');
               if (pendingAttack?.conditionApplied) {
@@ -279,7 +281,8 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       }
 
       combat.selectedTargetIds.forEach(targetId => {
-        applyDamage(targetId, entry.total, entry.damageType, entry.sourceId, entry.isLifesteal);
+        const isLifesteal = entry.isLifesteal || pendingAttack?.name?.toLowerCase().includes('[roubo de vida]') || pendingAttack?.name?.toLowerCase().includes('[lifesteal]') || pendingAttack?.name?.toLowerCase().includes('[cura]');
+        applyDamage(targetId, entry.total, entry.damageType, entry.sourceId, isLifesteal);
       });
       addToLog(`🩸 causou **${entry.total}** de dano em ${damagedNames.join(', ')}!`, entry.actorName, 'damage');
       setPendingDamage(null);
@@ -331,10 +334,27 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
               if (shieldAb && !target.reactionSpent && entry.total < effAc + shieldAb.tempAcBonus!) {
                 let canCast = true;
                 let slotLevel = shieldAb.spellLevel || 1;
+                let isLegacy = false;
                 if (shieldAb.resourceCost?.resourceName?.startsWith('Espaço Nível')) {
-                  const max = target.spellSlots?.[slotLevel] || 0;
-                  const used = target.spellSlotsUsed?.[slotLevel] || 0;
-                  if (max - used <= 0) canCast = false;
+                  let availableSlot = -1;
+                  for (let sl = slotLevel; sl <= 9; sl++) {
+                    const m = target.spellSlots?.[sl] || 0;
+                    const u = target.spellSlotsUsed?.[sl] || 0;
+                    if (m - u > 0) {
+                      availableSlot = sl;
+                      break;
+                    }
+                  }
+                  if (availableSlot === -1) {
+                    const leg = target.classResources?.find(r => r.name === `Espaço Nível ${slotLevel}`);
+                    if (!leg || leg.current <= 0) {
+                      canCast = false;
+                    } else {
+                      isLegacy = true;
+                    }
+                  } else {
+                    slotLevel = availableSlot;
+                  }
                 }
                 
                 if (canCast && await asyncConfirm(`[REAÇÃO] ${target.name} foi atingido (Ataque: ${entry.total} vs CA: ${effAc}).\nDeseja usar a Reação: ${shieldAb.name} para ganhar +${shieldAb.tempAcBonus} de CA e evitar o ataque?`)) {
@@ -343,8 +363,15 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                     tempAc: (target.tempAc || 0) + shieldAb.tempAcBonus!
                   };
                   if (shieldAb.resourceCost?.resourceName?.startsWith('Espaço Nível')) {
-                    const used = target.spellSlotsUsed?.[slotLevel] || 0;
-                    targetUpdates.spellSlotsUsed = { ...(target.spellSlotsUsed || {}), [slotLevel]: used + 1 };
+                    if (isLegacy) {
+                      const newRes = [...(target.classResources || [])];
+                      const idx = newRes.findIndex(r => r.name === `Espaço Nível ${shieldAb.spellLevel || 1}`);
+                      if (idx >= 0) newRes[idx].current -= 1;
+                      targetUpdates.classResources = newRes;
+                    } else {
+                      const used = target.spellSlotsUsed?.[slotLevel] || 0;
+                      targetUpdates.spellSlotsUsed = { ...(target.spellSlotsUsed || {}), [slotLevel]: used + 1 };
+                    }
                   }
                   updateParticipant(target.refId, targetUpdates);
                   effAc += shieldAb.tempAcBonus!;
@@ -384,9 +411,13 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         
         if (hitsToDispatch.length > 0) {
           if (pendingAttack && pendingAttack.dmg) {
+            const parsed = parseDmgString(pendingAttack.dmg);
+            if (pendingAttack.name.toLowerCase().includes('[roubo de vida]') || pendingAttack.name.toLowerCase().includes('[lifesteal]') || pendingAttack.name.toLowerCase().includes('[cura]')) {
+              parsed.isLifesteal = true;
+            }
             setPendingDamage({
               isCritical: entry.isCritical,
-              parsedDmg: parseDmgString(pendingAttack.dmg)
+              parsedDmg: parsed
             });
           }
         }
@@ -437,20 +468,37 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
 
     let consumedResourceName = '';
     let consumedResourceAmount = 0;
+    let isSpellSlot = false;
+    let spellLevel = 0;
 
     // Check for spell slots via spellLevel (if added to attacks) or resourceCost
     if (atk.spellLevel !== undefined && atk.spellLevel > 0) {
       consumedResourceName = `Espaço Nível ${atk.spellLevel}`;
       consumedResourceAmount = atk.resourceCost?.amount || 1;
+      isSpellSlot = true;
+      spellLevel = atk.spellLevel;
+    } else if (atk.resourceCost?.resourceName?.startsWith('Espaço Nível')) {
+      consumedResourceName = atk.resourceCost.resourceName;
+      consumedResourceAmount = atk.resourceCost.amount || 1;
+      isSpellSlot = true;
+      spellLevel = parseInt(consumedResourceName.replace('Espaço Nível ', ''));
     } else if (atk.resourceCost?.resourceName) {
       consumedResourceName = atk.resourceCost.resourceName;
       consumedResourceAmount = atk.resourceCost.amount || 1;
     }
 
     if (consumedResourceName) {
-      const res = participant.classResources?.find(r => r.name === consumedResourceName);
-      if (!res || res.current < consumedResourceAmount) {
-        return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
+      if (isSpellSlot) {
+        const max = participant.spellSlots?.[spellLevel] || 0;
+        const used = participant.spellSlotsUsed?.[spellLevel] || 0;
+        if (max - used < consumedResourceAmount) {
+          return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${max - used}, Necessário: ${consumedResourceAmount})`);
+        }
+      } else {
+        const res = participant.classResources?.find(r => r.name === consumedResourceName);
+        if (!res || res.current < consumedResourceAmount) {
+          return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
+        }
       }
     }
 
@@ -465,11 +513,16 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     }
     
     if (consumedResourceName) {
-      const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
-      if (resIdx !== undefined && resIdx >= 0) {
-        const newResources = [...(participant.classResources || [])];
-        newResources[resIdx].current -= consumedResourceAmount;
-        updates.classResources = newResources;
+      if (isSpellSlot) {
+        const used = participant.spellSlotsUsed?.[spellLevel] || 0;
+        updates.spellSlotsUsed = { ...(participant.spellSlotsUsed || {}), [spellLevel]: used + consumedResourceAmount };
+      } else {
+        const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
+        if (resIdx !== undefined && resIdx >= 0) {
+          const newResources = [...(participant.classResources || [])];
+          newResources[resIdx].current -= consumedResourceAmount;
+          updates.classResources = newResources;
+        }
       }
     }
 
@@ -494,20 +547,37 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
 
     let consumedResourceName = '';
     let consumedResourceAmount = 0;
+    let isSpellSlot = false;
+    let spellLevel = 0;
 
     // Check for spell slots via spellLevel
     if (ab.spellLevel !== undefined && ab.spellLevel > 0) {
       consumedResourceName = `Espaço Nível ${ab.spellLevel}`;
       consumedResourceAmount = ab.resourceCost?.amount || 1;
+      isSpellSlot = true;
+      spellLevel = ab.spellLevel;
+    } else if (ab.resourceCost?.resourceName?.startsWith('Espaço Nível')) {
+      consumedResourceName = ab.resourceCost.resourceName;
+      consumedResourceAmount = ab.resourceCost.amount || 1;
+      isSpellSlot = true;
+      spellLevel = parseInt(consumedResourceName.replace('Espaço Nível ', ''));
     } else if (ab.resourceCost?.resourceName) {
       consumedResourceName = ab.resourceCost.resourceName;
       consumedResourceAmount = ab.resourceCost.amount || 1;
     }
 
     if (consumedResourceName) {
-      const res = participant.classResources?.find(r => r.name === consumedResourceName);
-      if (!res || res.current < consumedResourceAmount) {
-        return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
+      if (isSpellSlot) {
+        const max = participant.spellSlots?.[spellLevel] || 0;
+        const used = participant.spellSlotsUsed?.[spellLevel] || 0;
+        if (max - used < consumedResourceAmount) {
+          return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${max - used}, Necessário: ${consumedResourceAmount})`);
+        }
+      } else {
+        const res = participant.classResources?.find(r => r.name === consumedResourceName);
+        if (!res || res.current < consumedResourceAmount) {
+          return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
+        }
       }
     }
 
@@ -517,11 +587,16 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     if (ab.actionCost === 'reaction') updates.reactionSpent = true;
     
     if (consumedResourceName) {
-      const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
-      if (resIdx !== undefined && resIdx >= 0) {
-        const newResources = [...(participant.classResources || [])];
-        newResources[resIdx].current -= consumedResourceAmount;
-        updates.classResources = newResources;
+      if (isSpellSlot) {
+        const used = participant.spellSlotsUsed?.[spellLevel] || 0;
+        updates.spellSlotsUsed = { ...(participant.spellSlotsUsed || {}), [spellLevel]: used + consumedResourceAmount };
+      } else {
+        const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
+        if (resIdx !== undefined && resIdx >= 0) {
+          const newResources = [...(participant.classResources || [])];
+          newResources[resIdx].current -= consumedResourceAmount;
+          updates.classResources = newResources;
+        }
       }
     }
 
@@ -783,9 +858,13 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
           });
           return; // Skip setting pending attack/dice panel
         } else {
+          const parsed = parseDmgString(ab.dmg);
+          if (ab.name.toLowerCase().includes('[roubo de vida]') || ab.name.toLowerCase().includes('[lifesteal]') || ab.name.toLowerCase().includes('[cura]')) {
+            parsed.isLifesteal = true;
+          }
           setPendingDamage({
             isCritical: false,
-            parsedDmg: parseDmgString(ab.dmg)
+            parsedDmg: parsed
           });
         }
       }
