@@ -656,14 +656,16 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       }
 
       // 2. Update profiles table
-      if (selectedUserId) {
-        await supabase.from('profiles').update({ player_id: null }).eq('player_id', id);
-        const { error } = await supabase.from('profiles').update({ player_id: id }).eq('id', selectedUserId);
-        if (error) {
-          console.error("Erro ao vincular perfil no Supabase:", error);
+      if (isGM) {
+        if (selectedUserId) {
+          await supabase.from('profiles').update({ player_id: null }).eq('player_id', id);
+          const { error } = await supabase.from('profiles').update({ player_id: id }).eq('id', selectedUserId);
+          if (error) {
+            console.error("Erro ao vincular perfil no Supabase:", error);
+          }
+        } else {
+          await supabase.from('profiles').update({ player_id: null }).eq('player_id', id);
         }
-      } else {
-        await supabase.from('profiles').update({ player_id: null }).eq('player_id', id);
       }
     } catch (e) {
       console.error("Erro ao executar update de profiles/players:", e);
