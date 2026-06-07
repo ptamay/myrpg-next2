@@ -12,6 +12,7 @@ export interface ParsedDamage {
   modifier: number;   // modificador fixo (ex: 3)
   damageType: string; // tipo de dano (ex: "cortante")
   raw: string;        // string original
+  isLifesteal?: boolean; // indica se o ataque cura o atacante
 }
 
 /**
@@ -24,13 +25,16 @@ export function parseDmgString(expr: string): ParsedDamage {
   };
   if (!expr) return defaultResult;
 
+  const lowerExpr = expr.toLowerCase();
+  const isLifesteal = lowerExpr.includes('[roubo de vida]') || lowerExpr.includes('[lifesteal]') || lowerExpr.includes('[cura]');
+
   // Separar a parte numérica do tipo de dano
   // Ex: "1d8+3 cortante" → dice="1d8+3", type="cortante"
-  const trimmed = expr.trim();
+  const trimmed = expr.replace(/\[.*?\]/g, '').trim(); // Remove tags the text
   const diceTypeRegex = /^(\d*d\d+(?:[+-]\d+)?)\s*(.*)/i;
   const match = trimmed.match(diceTypeRegex);
 
-  if (!match) return defaultResult;
+  if (!match) return { ...defaultResult, isLifesteal };
 
   const diceStr = match[1];
   const damageType = match[2]?.trim() || '';
@@ -38,7 +42,7 @@ export function parseDmgString(expr: string): ParsedDamage {
   const diceRegex = /^(\d*)d(\d+)([+-]\d+)?$/i;
   const diceMatch = diceStr.match(diceRegex);
 
-  if (!diceMatch) return defaultResult;
+  if (!diceMatch) return { ...defaultResult, isLifesteal };
 
   return {
     dieCount: diceMatch[1] ? parseInt(diceMatch[1], 10) : 1,
@@ -46,6 +50,7 @@ export function parseDmgString(expr: string): ParsedDamage {
     modifier: diceMatch[3] ? parseInt(diceMatch[3], 10) : 0,
     damageType,
     raw: expr,
+    isLifesteal
   };
 }
 
@@ -113,9 +118,9 @@ export function rollAttack(bonusStr: string, advantage: 'normal' | 'advantage' |
   return { total, rollResult, rolls, bonus, isCritical, isCritFail };
 }
 
-export function rollDamage(expr: string, isCritical: boolean = false) {
+export function rollDamage(expr: string, isCritical: boolean = false, extraCritDice: number = 0) {
   const { dieCount, dieSides, modifier } = parseDmgString(expr);
-  const actualCount = isCritical ? dieCount * 2 : dieCount;
+  const actualCount = isCritical ? (dieCount * 2) + extraCritDice : dieCount;
   
   let total = 0;
   const rolls = [];

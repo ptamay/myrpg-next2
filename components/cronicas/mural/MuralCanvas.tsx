@@ -15,6 +15,7 @@ import { toPng } from "html-to-image";
 import { motion, AnimatePresence } from "framer-motion";
 import Modal from "@/components/ui/Modal";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 const getSlotId = (slotIndex: number, mode: "private" | "players") => {
   const prefix = mode === "private" ? "1" : "2";
@@ -803,7 +804,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                   <div className="modal-body custom-scrollbar" style={{ padding: 0 }}>
                     {detailCard.imageUrl && (
                       <div style={{ padding: "0 2rem 1.5rem 2rem", marginTop: "-1rem" }}>
-                        <img src={detailCard.imageUrl} alt={detailCard.liveTitle || detailCard.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${noteBorder}` }} />
+                        <OptimizedImage src={detailCard.imageUrl} alt={detailCard.liveTitle || detailCard.title} style={{ width: "100%", borderRadius: "8px", border: `1px solid ${noteBorder}` }} />
                       </div>
                     )}
                     {(detailCard.liveContent || detailCard.content) ? (
@@ -844,7 +845,7 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                 
                 <div className="scrollable-area custom-scrollbar" style={{ maxHeight: "60vh", overflowY: "auto", paddingRight: "0.5rem" }}>
                   {detailCard.imageUrl && (
-                    <img src={detailCard.imageUrl} alt={detailCard.liveTitle || detailCard.title} style={{ width: "100%", borderRadius: "8px", marginBottom: "1rem", border: "1px solid var(--border-subtle)" }} />
+                    <OptimizedImage src={detailCard.imageUrl} alt={detailCard.liveTitle || detailCard.title} style={{ width: "100%", borderRadius: "8px", marginBottom: "1rem", border: "1px solid var(--border-subtle)" }} />
                   )}
                   {(detailCard.liveContent || detailCard.content) ? (
                     <div style={{ whiteSpace: "pre-wrap", fontSize: "1rem", lineHeight: 1.6, color: "var(--text-primary)" }}>

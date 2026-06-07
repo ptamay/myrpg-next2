@@ -54,7 +54,7 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
       // 1. Busca o próprio profile (toda policy permite id = auth.uid())
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, display_name, role, player_id')
         .eq('id', user.id)
         .maybeSingle()
 
@@ -114,20 +114,12 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
         name: profileData.display_name || profileData.email,
       })
 
-      console.log('[UserSessionContext] ✅ Profile carregado:', {
-        id: profileData.id,
-        email: profileData.email,
-        roleNoBanco: profileData.role,
-        roleResolvida: resolvedRole,
-        isGM: resolvedRole === 'gm',
-        player_id: profileData.player_id,
-      })
-
+      // Não logar dados completos de perfil em produção
       // 3. Se é jogador com personagem vinculado, carrega o personagem
       if (profileData.player_id) {
         const { data: playerData } = await supabase
           .from('players')
-          .select('*')
+          .select('id, name, player_class, hp_current, hp_max')
           .eq('id', profileData.player_id)
           .single()
         setPlayerCharacter(playerData ?? null)

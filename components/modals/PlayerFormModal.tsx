@@ -10,6 +10,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapPlayerToDB } from "@/lib/supabase/mappers";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
 import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities, getSpellcastingAbility } from "@/lib/constants/dnd5eClasses";
+import { getDefaultRacialAbilities, getDefaultRacialResistances } from "@/lib/constants/dnd5eRaces";
 import SpellsSection from "../ui/SpellsSection";
 import ClassResourcesSection from "../ui/ClassResourcesSection";
 import AbilitiesSection from "../ui/AbilitiesSection";
@@ -17,6 +18,7 @@ import DamageTypeSelector from "../ui/DamageTypeSelector";
 import LevelUpModal from "./LevelUpModal";
 import { SpellEntry, ClassResource, Ability } from "@/lib/gameData";
 import { uploadBase64Image } from "@/lib/supabase/storage";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface PlayerFormModalProps {
   isOpen: boolean;
@@ -36,6 +38,7 @@ const initialFormState = {
   wis: "10",
   cha: "10",
   hpMax: "",
+  hpCurrent: "",
   ac: "",
   init: "",
   speed: "9m",
@@ -69,6 +72,7 @@ const dataToFormState = (data: any) => ({
   wis: data?.wis?.toString() || "10",
   cha: data?.cha?.toString() || "10",
   hpMax: data?.hpMax?.toString() || "",
+  hpCurrent: data?.hpCurrent?.toString() || data?.hpMax?.toString() || "",
   ac: data?.ac?.toString() || "",
   init: data?.init || "",
   speed: data?.speed || "",
@@ -237,6 +241,27 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     const finalValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
     
     let updates: any = { [name]: finalValue };
+    
+    if (name === 'hpMax') {
+      updates.hpCurrent = finalValue;
+    }
+
+    if (name === 'race') {
+      const racialAbs = getDefaultRacialAbilities(finalValue as string);
+      const oldRacialAbs = getDefaultRacialAbilities(isEditingTransformation ? transFormState.race : formState.race);
+      const oldRacialNames = oldRacialAbs.map(a => a.name);
+      
+      const currentAbs = isEditingTransformation ? transFormState.abilities : formState.abilities;
+      const filteredAbs = currentAbs.filter(a => !oldRacialNames.includes(a.name));
+      
+      updates.abilities = [...filteredAbs, ...racialAbs];
+
+      const racialRes = getDefaultRacialResistances(finalValue as string);
+      const oldRacialRes = getDefaultRacialResistances(isEditingTransformation ? transFormState.race : formState.race);
+      const currentRes = isEditingTransformation ? transFormState.resistances : formState.resistances;
+      const filteredRes = currentRes.filter((r: string) => !oldRacialRes.includes(r));
+      updates.resistances = Array.from(new Set([...filteredRes, ...racialRes]));
+    }
     
     if (name === 'playerClass' && value !== 'custom' && value !== '') {
       const cls = DND5E_CLASSES.find(c => c.id === value);
@@ -465,6 +490,12 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       const data = await res.json();
       
       const newState = dataToFormState(data);
+      const importedRaceAbilities = getDefaultRacialAbilities(data.race || "");
+      newState.abilities = [...(data.abilities || []), ...importedRaceAbilities];
+
+      const importedRaceResistances = getDefaultRacialResistances(data.race || "");
+      newState.resistances = Array.from(new Set([...(data.resistances || []), ...importedRaceResistances]));
+
       if (isEditingTransformation) {
         setTransFormState(prev => ({...prev, ...newState}));
         if (data.saves && Array.isArray(data.saves)) setTransSelectedSaves(data.saves);
@@ -492,6 +523,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
 
   const constructPlayerObject = (state: typeof initialFormState, attacksList: any[], savesList: string[], skillsList: string[], expertiseList: string[], imgBase: string | null, prevData: any) => {
     const hpMax = parseInt(state.hpMax) || 0;
+    const hpCurrent = parseInt(state.hpCurrent);
     const cleanAttacks = attacksList.filter(a => a.name || a.bonus || a.dmg);
     
     // Calcula features baseado na classe selecionada
@@ -513,7 +545,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       wis: state.wis,
       cha: state.cha,
       hpMax,
-      hpCurrent: prevData?.hpCurrent !== undefined ? prevData.hpCurrent : hpMax,
+      hpCurrent: !isNaN(hpCurrent) ? hpCurrent : (prevData?.hpCurrent !== undefined ? prevData.hpCurrent : hpMax),
       image: imgBase || undefined,
       ac: state.ac,
       init: state.init || "",
@@ -719,7 +751,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
             <div className="form-col-avatar">
               <div className="avatar-upload" id="player-avatar-upload-area" onClick={() => fileInputRef.current?.click()} style={{ cursor: "pointer", border: isEditingTransformation ? "2px dashed var(--accent-primary)" : undefined }}>
                 {activeAvatar ? (
-                  <img src={activeAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "12px" }} />
+                  <OptimizedImage src={activeAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "12px" }} />
                 ) : (
                   <div className="avatar-placeholder" id="form-player-avatar-placeholder">
                     <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" strokeWidth="1.5" fill="none">

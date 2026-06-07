@@ -1,6 +1,7 @@
 import React from 'react';
 import { useCombat } from '@/contexts/CombatContext';
 import { useUserSession } from '@/contexts/UserSessionContext';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function InitiativeBar() {
   const { combat, nextTurn, prevTurn, endCombat, addToLog, removeParticipant } = useCombat();
@@ -22,7 +23,7 @@ export default function InitiativeBar() {
           return (
             <div key={p.refId} className={classNames} title={`${p.name} (Iniciativa: ${p.initiative})`}>
               {p.image ? (
-                <img src={p.image} alt={p.name} />
+                <OptimizedImage src={p.image} alt={p.name} />
               ) : (
                 <span className="fallback-initial">{p.name.charAt(0)}</span>
               )}

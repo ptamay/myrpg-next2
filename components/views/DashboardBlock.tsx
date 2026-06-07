@@ -8,6 +8,7 @@ import { blocosDeTempo } from "@/lib/gameData";
 import CelestialIcon from "../ui/CelestialIcon";
 import { useRouter } from "next/navigation";
 import RestModal from "../modals/RestModal";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function DashboardBlock({ 
   diaAtual, 
@@ -485,7 +486,7 @@ export default function DashboardBlock({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ display: "flex", gap: isOtherPlayer ? "8px" : "12px", alignItems: "center" }}>
                   <div style={{ position: "relative", width: imgSize, height: imgSize, borderRadius: "50%", overflow: "hidden", border: isMe ? '3px solid var(--accent-primary)' : '2px solid rgba(255,255,255,0.1)', flexShrink: 0, boxShadow: isMe ? "0 0 10px rgba(0,0,0,0.5)" : "none" }}>
-                    {player.image ? <img src={player.image} alt={player.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (
+                    {player.image ? <OptimizedImage src={player.image} alt={player.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : (
                       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.05)", fontWeight: "bold", fontSize: isMe ? "1.5rem" : "1rem", color: "var(--text-muted)" }}>{(player.name || "?").charAt(0).toUpperCase()}</div>
                     )}
                     {isDone && <div style={{ position: "absolute", bottom: 0, right: 0, background: "#10b981", width: isOtherPlayer ? "10px" : "14px", height: isOtherPlayer ? "10px" : "14px", borderRadius: "50%", border: "2px solid #000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.5rem", color: "#fff", fontWeight: "bold", zIndex: 2 }}>{isOtherPlayer ? "" : "✓"}</div>}

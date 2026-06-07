@@ -1,5 +1,6 @@
 // Originalmente usava IndexedDB, agora usa Supabase Storage e a tabela 'maps'
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCampaignId } from "@/lib/supabase/campaignCache";
 
 export async function saveMapToDB(id: string, name: string, base64Data: string): Promise<void> {
   const supabase = getSupabaseClient();
@@ -28,13 +29,13 @@ export async function saveMapToDB(id: string, name: string, base64Data: string):
   const { error: uploadError } = await supabase.storage.from('maps').upload(path, blob, { upsert: true });
   if (uploadError) throw new Error(uploadError?.message || JSON.stringify(uploadError));
   
-  // Obter campanha
-  const { data: campaign } = await supabase.from('campaign').select('id').limit(1).single();
+  // Obter campanha (usa cache para evitar round-trip desnecessário)
+  const campaignId = await getCampaignId();
   
   // Inserir metadados na tabela
   const { error: dbError } = await supabase.from('maps').upsert({
     id,
-    campaign_id: campaign?.id,
+    campaign_id: campaignId,
     name,
     image_url: path
   });
@@ -44,7 +45,8 @@ export async function saveMapToDB(id: string, name: string, base64Data: string):
 
 export async function getAllMapsFromDB(): Promise<{id: string, name: string, data: string}[]> {
   const supabase = getSupabaseClient();
-  const { data: mapsData, error } = await supabase.from('maps').select('*');
+  // Seleciona apenas os campos necessários para a listagem
+  const { data: mapsData, error } = await supabase.from('maps').select('id, name, image_url');
   
   if (error || !mapsData) return [];
   

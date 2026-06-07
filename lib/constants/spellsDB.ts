@@ -4,6 +4,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 0 (TRUQUES)
   {
     id: "fire_bolt",
+    classes: ["feiticeiro","mago"],
     name: "Raio de Fogo",
     level: 0,
     school: "Evocação",
@@ -22,6 +23,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "light",
+    classes: ["bardo","clerigo","feiticeiro","mago"],
     name: "Luz",
     level: 0,
     school: "Evocação",
@@ -37,6 +39,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "guidance",
+    classes: ["clerigo","druida"],
     name: "Orientação",
     level: 0,
     school: "Adivinhação",
@@ -52,6 +55,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "mage_hand",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Mãos Mágicas",
     level: 0,
     school: "Conjuração",
@@ -67,6 +71,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "minor_illusion",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Ilusão Menor",
     level: 0,
     school: "Ilusão",
@@ -82,6 +87,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "eldritch_blast",
+    classes: ["bruxo"],
     name: "Rajada Mística",
     level: 0,
     school: "Evocação",
@@ -100,6 +106,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "sacred_flame",
+    classes: ["clerigo"],
     name: "Chama Sagrada",
     level: 0,
     school: "Evocação",
@@ -118,6 +125,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "ray_of_frost",
+    classes: ["feiticeiro","mago"],
     name: "Raio de Gelo",
     level: 0,
     school: "Evocação",
@@ -138,6 +146,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 1
   {
     id: "mage_armor",
+    classes: ["feiticeiro","mago"],
     name: "Armadura Arcana",
     level: 1,
     school: "Abjuração",
@@ -153,6 +162,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "shield_of_faith",
+    classes: ["clerigo","paladino"],
     name: "Escudo da Fé",
     level: 1,
     school: "Abjuração",
@@ -168,6 +178,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "healing_word",
+    classes: ["bardo","clerigo","druida"],
     name: "Palavra Curativa",
     level: 1,
     school: "Evocação",
@@ -184,6 +195,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "shield",
+    classes: ["feiticeiro","mago"],
     name: "Escudo Arcano",
     level: 1,
     school: "Abjuração",
@@ -201,6 +213,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "magic_missile",
+    classes: ["feiticeiro","mago"],
     name: "Mísseis Mágicos",
     level: 1,
     school: "Evocação",
@@ -219,6 +232,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "cure_wounds",
+    classes: ["bardo","clerigo","druida","paladino","guardinha"],
     name: "Curar Ferimentos",
     level: 1,
     school: "Evocação",
@@ -235,6 +249,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "bless",
+    classes: ["clerigo","paladino"],
     name: "Bênção",
     level: 1,
     school: "Encantamento",
@@ -251,6 +266,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "detect_magic",
+    classes: ["bardo","clerigo","druida","paladino","guardinha","feiticeiro","bruxo","mago"],
     name: "Detectar Magia",
     level: 1,
     school: "Adivinhação",
@@ -266,6 +282,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "feather_fall",
+    classes: ["bardo","feiticeiro","mago"],
     name: "Queda Suave",
     level: 1,
     school: "Transmutação",
@@ -282,6 +299,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "thunderwave",
+    classes: ["bardo","druida","feiticeiro","mago"],
     name: "Onda Trovejante",
     level: 1,
     school: "Evocação",
@@ -300,6 +318,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "sleep",
+    classes: ["bardo","feiticeiro","mago"],
     name: "Sono",
     level: 1,
     school: "Encantamento",
@@ -315,6 +334,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "bane",
+    classes: ["bardo","clerigo"],
     name: "Perdição",
     level: 1,
     school: "Encantamento",
@@ -331,6 +351,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "faerie_fire",
+    classes: ["bardo","druida"],
     name: "Fogo das Fadas",
     level: 1,
     school: "Evocação",
@@ -349,6 +370,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 2
   {
     id: "misty_step",
+    classes: ["feiticeiro","mago","bruxo"],
     name: "Passo Nebuloso",
     level: 2,
     school: "Conjuração",
@@ -364,6 +386,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "shatter",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Despedaçar",
     level: 2,
     school: "Evocação",
@@ -382,6 +405,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "spiritual_weapon",
+    classes: ["clerigo"],
     name: "Arma Espiritual",
     level: 2,
     school: "Evocação",
@@ -400,6 +424,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "blindness_deafness",
+    classes: ["bardo","clerigo","feiticeiro","mago"],
     name: "Cegueira/Surdez",
     level: 2,
     school: "Necromancia",
@@ -416,6 +441,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "darkness",
+    classes: ["feiticeiro","mago","bruxo"],
     name: "Escuridão",
     level: 2,
     school: "Evocação",
@@ -431,6 +457,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "hold_person",
+    classes: ["bardo","clerigo","druida","feiticeiro","mago","bruxo"],
     name: "Imobilizar Pessoa",
     level: 2,
     school: "Encantamento",
@@ -447,6 +474,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "invisibility",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Invisibilidade",
     level: 2,
     school: "Ilusão",
@@ -462,6 +490,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "mirror_image",
+    classes: ["feiticeiro","mago","bruxo"],
     name: "Reflexos",
     level: 2,
     school: "Ilusão",
@@ -477,6 +506,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "web",
+    classes: ["feiticeiro","mago"],
     name: "Teia",
     level: 2,
     school: "Conjuração",
@@ -495,6 +525,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 3
   {
     id: "mass_healing_word",
+    classes: ["clerigo"],
     name: "Palavra Curativa em Massa",
     level: 3,
     school: "Evocação",
@@ -511,6 +542,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "spirit_guardians",
+    classes: ["clerigo"],
     name: "Espíritos Guardiões",
     level: 3,
     school: "Conjuração",
@@ -529,6 +561,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "counterspell",
+    classes: ["feiticeiro","mago","bruxo"],
     name: "Contramágica",
     level: 3,
     school: "Abjuração",
@@ -545,6 +578,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "dispel_magic",
+    classes: ["bardo","clerigo","druida","paladino","feiticeiro","mago","bruxo"],
     name: "Dissipar Magia",
     level: 3,
     school: "Abjuração",
@@ -560,6 +594,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "fly",
+    classes: ["feiticeiro","mago","bruxo"],
     name: "Voar",
     level: 3,
     school: "Transmutação",
@@ -575,6 +610,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "haste",
+    classes: ["feiticeiro","mago"],
     name: "Velocidade",
     level: 3,
     school: "Transmutação",
@@ -590,6 +626,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "slow",
+    classes: ["bardo","feiticeiro","mago"],
     name: "Lentidão",
     level: 3,
     school: "Transmutação",
@@ -606,6 +643,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "revivify",
+    classes: ["clerigo","paladino"],
     name: "Reviver",
     level: 3,
     school: "Necromancia",
@@ -621,6 +659,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "hypnotic_pattern",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Padrão Hipnótico",
     level: 3,
     school: "Ilusão",
@@ -637,6 +676,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "fear",
+    classes: ["bardo","feiticeiro","mago","bruxo"],
     name: "Medo",
     level: 3,
     school: "Ilusão",
@@ -653,6 +693,7 @@ export const SPELLS_DB: SpellEntry[] = [
   },
   {
     id: "fireball",
+    classes: ["feiticeiro","mago"],
     name: "Bola de Fogo",
     level: 3,
     school: "Evocação",
@@ -673,6 +714,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 4
   {
     id: "polymorph",
+    classes: ["bardo","druida","feiticeiro","mago"],
     name: "Polimorfo",
     level: 4,
     school: "Transmutação",
@@ -691,6 +733,7 @@ export const SPELLS_DB: SpellEntry[] = [
   // NÍVEL 5
   {
     id: "cone_of_cold",
+    classes: ["feiticeiro","mago"],
     name: "Cone de Frio",
     level: 5,
     school: "Evocação",
@@ -706,5 +749,523 @@ export const SPELLS_DB: SpellEntry[] = [
     savingThrow: "con",
     effect: "damage",
     targetType: "area"
+  },
+  
+  // NOVAS MAGIAS (Feiticeiro da Tempestade e Afins)
+  // TRUQUES
+  {
+    id: "shocking_grasp",
+    classes: ["feiticeiro","mago"],
+    name: "Toque Chocante",
+    level: 0,
+    school: "Evocação",
+    castingTime: "action",
+    range: "Toque",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Energia elétrica surge na sua mão. Faça um ataque corpo a corpo com magia. Você tem vantagem se o alvo estiver usando armadura de metal. Num acerto, sofre 1d8 dano elétrico e não pode ter reações até o início do próximo turno.",
+    damageDice: "1d8",
+    damageType: "eletrico",
+    spellAttack: true,
+    effect: "damage",
+    targetType: "single"
+  },
+  {
+    id: "thunderclap",
+    classes: ["bardo","druida","feiticeiro","mago","bruxo"],
+    name: "Trovoada",
+    level: 0,
+    school: "Evocação",
+    castingTime: "action",
+    range: "Pessoal (1,5m)",
+    components: "S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você cria uma explosão de som trovejante que pode ser ouvida a 30m. Cada criatura a até 1,5m deve passar num teste de Constituição ou sofre 1d6 dano trovejante.",
+    damageDice: "1d6",
+    damageType: "trovejante",
+    savingThrow: "con",
+    effect: "damage",
+    targetType: "area"
+  },
+  {
+    id: "lightning_lure",
+    classes: ["feiticeiro","mago","bruxo"],
+    name: "Atração Relampejante",
+    level: 0,
+    school: "Evocação",
+    castingTime: "action",
+    range: "4,5 metros",
+    components: "V",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Um chicote de energia elétrica atinge uma criatura que você possa ver a até 4,5m. Teste de Força, se falhar é puxada 3m na sua direção e sofre 1d8 dano elétrico se terminar a até 1,5m de você.",
+    damageDice: "1d8",
+    damageType: "eletrico",
+    savingThrow: "for",
+    effect: "damage",
+    targetType: "single"
+  },
+  
+  // NÍVEL 1
+  {
+    id: "witch_bolt",
+    classes: ["feiticeiro","mago","bruxo"],
+    name: "Raio de Bruxa",
+    level: 1,
+    school: "Evocação",
+    castingTime: "action",
+    range: "9 metros",
+    components: "V, S, M",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Um raio azul vai de você até um alvo. Faça um ataque com magia à distância. Num acerto, sofre 1d12 de dano elétrico. Nos turnos seguintes, você pode usar sua ação para causar 1d12 dano elétrico automaticamente enquanto a magia durar.",
+    damageDice: "1d12",
+    damageType: "eletrico",
+    spellAttack: true,
+    effect: "damage",
+    targetType: "single"
+  },
+  {
+    id: "thunderous_smite",
+    classes: ["paladino"],
+    name: "Destruição Trovejante",
+    level: 1,
+    school: "Evocação",
+    castingTime: "bonus",
+    range: "Pessoal",
+    components: "V",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "A primeira vez que você acertar um ataque corpo a corpo durante a magia, a arma ressoa com trovão visível, causando 2d6 dano trovejante extra. Alvo faz teste de FOR ou é empurrado 3m e cai Prone.",
+    damageDice: "2d6",
+    damageType: "trovejante",
+    savingThrow: "for",
+    effect: "damage",
+    targetType: "self"
+  },
+
+  // NÍVEL 3
+  {
+    id: "lightning_bolt",
+    classes: ["feiticeiro","mago"],
+    name: "Relâmpago",
+    level: 3,
+    school: "Evocação",
+    castingTime: "action",
+    range: "Pessoal (Linha 30m)",
+    components: "V, S, M",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Um traço de relâmpago forma uma linha com 30 metros de comprimento e 1,5 metro de largura na direção que você escolher. Cada criatura deve fazer um teste de Destreza, sofrendo 8d6 de dano elétrico se falhar (metade no sucesso).",
+    damageDice: "8d6",
+    damageType: "eletrico",
+    savingThrow: "des",
+    effect: "damage",
+    targetType: "area"
+  },
+  {
+    id: "call_lightning",
+    classes: ["druida"],
+    name: "Convocar Relâmpagos",
+    level: 3,
+    school: "Conjuração",
+    castingTime: "action",
+    range: "36 metros",
+    components: "V, S",
+    duration: "10 minutos",
+    isConcentration: true,
+    isRitual: false,
+    description: "Uma nuvem de tempestade aparece a 36m do chão. Você escolhe um ponto e um relâmpago cai dele. Teste de Destreza, sofrendo 3d10 dano elétrico. Você pode repetir a ação em seus turnos seguintes para conjurar novos relâmpagos.",
+    damageDice: "3d10",
+    damageType: "eletrico",
+    savingThrow: "des",
+    effect: "damage",
+    targetType: "area"
+  },
+
+  // NÍVEL 4
+  {
+    id: "storm_sphere",
+    classes: ["feiticeiro","mago"],
+    name: "Esfera da Tempestade",
+    level: 4,
+    school: "Evocação",
+    castingTime: "action",
+    range: "45 metros",
+    components: "V, S",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Uma esfera de ventos uivantes de 6m cria área de terreno difícil. Criaturas lá dentro sofrem desvantagem em ouvir. Ficar lá força um teste de Força sofrendo 2d6 concussão. Com ação bônus, você lança um raio da esfera num alvo a 18m dela, ataque com magia causa 4d6 dano elétrico.",
+    damageDice: "4d6",
+    damageType: "eletrico",
+    spellAttack: true,
+    effect: "damage",
+    targetType: "area"
+  },
+
+  // NÍVEL 6
+  {
+    id: "chain_lightning",
+    classes: ["feiticeiro","mago"],
+    name: "Corrente de Relâmpagos",
+    level: 6,
+    school: "Evocação",
+    castingTime: "action",
+    range: "45 metros",
+    components: "V, S, M",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você cria um relâmpago que acerta um alvo à escolha. Em seguida, três raios secundários saltam desse alvo para até 3 outras criaturas num raio de 9m do alvo inicial. Todos fazem teste de Destreza, sofrendo 10d8 dano elétrico (metade se passar).",
+    damageDice: "10d8",
+    damageType: "eletrico",
+    savingThrow: "des",
+    effect: "damage",
+    targetType: "multiple"
+  },
+  // ============================================
+  // MAGIAS ADICIONAIS: FEITICEIRO E PALADINO
+  // Automatizadas com efeitos de dano, buff e condição
+  // ============================================
+
+  // --- TRUQUES ---
+  {
+    id: "acid_splash",
+    name: "Espirro Ácido",
+    level: 0,
+    school: "Conjuração",
+    castingTime: "action",
+    range: "18 metros",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você arremessa uma bolha de ácido. Escolha uma ou duas criaturas a até 1,5m uma da outra. Teste de Destreza ou sofrem 1d6 dano de ácido.",
+    damageDice: "1d6",
+    damageType: "acido",
+    savingThrow: "des",
+    effect: "damage",
+    targetType: "multiple",
+    classes: ["feiticeiro", "mago"]
+  },
+  {
+    id: "chill_touch",
+    name: "Toque Arrepiante",
+    level: 0,
+    school: "Necromancia",
+    castingTime: "action",
+    range: "36 metros",
+    components: "V, S",
+    duration: "1 rodada",
+    isConcentration: false,
+    isRitual: false,
+    description: "Uma mão cadavérica ataca o alvo. Ataque mágico. Em acerto, sofre 1d8 dano necrótico e não pode recuperar PV até o início do seu próximo turno.",
+    damageDice: "1d8",
+    damageType: "necrotico",
+    spellAttack: true,
+    effect: "damage",
+    targetType: "single",
+    conditionApplied: "Toque Arrepiante",
+    classes: ["bruxo", "feiticeiro", "mago"]
+  },
+  {
+    id: "poison_spray",
+    name: "Rajada de Veneno",
+    level: 0,
+    school: "Conjuração",
+    castingTime: "action",
+    range: "3 metros",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você projeta um gás tóxico. Teste de Constituição ou sofre 1d12 de dano de veneno.",
+    damageDice: "1d12",
+    damageType: "veneno",
+    savingThrow: "con",
+    effect: "damage",
+    targetType: "single",
+    classes: ["druida", "feiticeiro", "bruxo", "mago"]
+  },
+
+  // --- NÍVEL 1 ---
+  {
+    id: "burning_hands",
+    name: "Mãos Flamejantes",
+    level: 1,
+    school: "Evocação",
+    castingTime: "action",
+    range: "Cone de 4,5m",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Labaredas disparam de seus dedos num cone. Teste de Destreza ou 3d6 dano de fogo (metade no sucesso).",
+    damageDice: "3d6",
+    damageType: "fogo",
+    savingThrow: "des",
+    effect: "damage",
+    targetType: "area",
+    classes: ["feiticeiro", "mago"]
+  },
+  {
+    id: "chromatic_orb",
+    name: "Orbe Cromático",
+    level: 1,
+    school: "Evocação",
+    castingTime: "action",
+    range: "27 metros",
+    components: "V, S, M",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Ataque mágico. Se acertar, causa 3d8 de dano (ácido, frio, fogo, elétrico, venenoso ou trovejante).",
+    damageDice: "3d8",
+    damageType: "energia", // Player chooses element
+    spellAttack: true,
+    effect: "damage",
+    targetType: "single",
+    classes: ["feiticeiro", "mago"]
+  },
+  {
+    id: "command",
+    name: "Comando",
+    level: 1,
+    school: "Encantamento",
+    castingTime: "action",
+    range: "18 metros",
+    components: "V",
+    duration: "1 rodada",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você fala uma palavra de comando. Teste de Sabedoria ou alvo segue o comando (fugir, largar, deitar, parar) no próximo turno.",
+    effect: "condition",
+    targetType: "single",
+    savingThrow: "sab",
+    conditionApplied: "Comandado",
+    classes: ["clerigo", "paladino"]
+  },
+  {
+    id: "divine_favor",
+    name: "Favor Divino",
+    level: 1,
+    school: "Evocação",
+    castingTime: "bonus",
+    range: "Pessoal",
+    components: "V, S",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Sua arma fica imbuída com poder divino, causando 1d4 de dano radiante extra ao acertar um ataque.",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Favor Divino",
+    classes: ["paladino"]
+  },
+  {
+    id: "searing_smite",
+    name: "Destruição Ardente",
+    level: 1,
+    school: "Evocação",
+    castingTime: "bonus",
+    range: "Pessoal",
+    components: "V",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Seu próximo acerto com arma causa +1d6 dano de fogo e alvo pega fogo. Teste CON ou 1d6 fogo a cada turno.",
+    damageDice: "1d6",
+    damageType: "fogo",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Destruição Ardente",
+    classes: ["paladino"]
+  },
+  {
+    id: "wrathful_smite",
+    name: "Destruição Colérica",
+    level: 1,
+    school: "Evocação",
+    castingTime: "bonus",
+    range: "Pessoal",
+    components: "V",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Próximo acerto causa +1d6 dano psíquico. Teste de Sabedoria ou alvo fica Amedrontado até a magia acabar.",
+    damageDice: "1d6",
+    damageType: "psiquico",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Destruição Colérica",
+    classes: ["paladino"]
+  },
+  {
+    id: "false_life",
+    name: "Vida Falsa",
+    level: 1,
+    school: "Necromancia",
+    castingTime: "action",
+    range: "Pessoal",
+    components: "V, S, M",
+    duration: "1 hora",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você ganha 1d4+4 Pontos de Vida Temporários por 1 hora.",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Vida Falsa",
+    classes: ["feiticeiro", "mago", "bruxo"]
+  },
+  {
+    id: "heroism",
+    name: "Heroísmo",
+    level: 1,
+    school: "Encantamento",
+    castingTime: "action",
+    range: "Toque",
+    components: "V, S",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Alvo se torna imune a Amedrontado e ganha PV temporários igual seu mod de conjuração todo turno.",
+    effect: "buff",
+    targetType: "single",
+    conditionApplied: "Heroísmo",
+    classes: ["bardo", "paladino"]
+  },
+
+  // --- NÍVEL 2 ---
+  {
+    id: "scorching_ray",
+    name: "Raio Ardente",
+    level: 2,
+    school: "Evocação",
+    castingTime: "action",
+    range: "36 metros",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Você cria 3 raios de fogo e dispara. Cada raio requer ataque com magia. Em acerto, cada raio causa 2d6 dano de fogo.",
+    damageDice: "2d6",
+    damageType: "fogo",
+    spellAttack: true,
+    effect: "damage",
+    targetType: "multiple",
+    classes: ["feiticeiro", "mago"]
+  },
+  {
+    id: "blur",
+    name: "Borrão",
+    level: 2,
+    school: "Ilusão",
+    castingTime: "action",
+    range: "Pessoal",
+    components: "V",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Seu corpo se distorce ilusoriamente. Ataques contra você têm desvantagem.",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Borrão",
+    classes: ["feiticeiro", "mago"]
+  },
+  {
+    id: "enlarge_reduce",
+    name: "Aumentar/Reduzir",
+    level: 2,
+    school: "Transmutação",
+    castingTime: "action",
+    range: "9 metros",
+    components: "V, S, M",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Aumenta o alvo (Vantagem FOR e +1d4 de dano corpo a corpo) ou Reduz o alvo (Desvantagem FOR e -1d4 dano).",
+    effect: "buff",
+    targetType: "single",
+    conditionApplied: "Alterado (Tamanho)",
+    classes: ["bardo", "feiticeiro", "mago"]
+  },
+  {
+    id: "aid",
+    name: "Ajuda",
+    level: 2,
+    school: "Abjuração",
+    castingTime: "action",
+    range: "9 metros",
+    components: "V, S, M",
+    duration: "8 horas",
+    isConcentration: false,
+    isRitual: false,
+    description: "Até 3 criaturas aumentam seus PV máximos e atuais em 5.",
+    effect: "buff",
+    targetType: "multiple",
+    conditionApplied: "Ajuda",
+    classes: ["clerigo", "paladino"]
+  },
+  {
+    id: "branding_smite",
+    name: "Destruição Marcante",
+    level: 2,
+    school: "Evocação",
+    castingTime: "bonus",
+    range: "Pessoal",
+    components: "V",
+    duration: "1 minuto",
+    isConcentration: true,
+    isRitual: false,
+    description: "Próximo acerto causa +2d6 dano radiante. O alvo brilha e não pode ficar invisível.",
+    damageDice: "2d6",
+    damageType: "radiante",
+    effect: "buff",
+    targetType: "self",
+    conditionApplied: "Destruição Marcante",
+    classes: ["paladino"]
+  },
+  {
+    id: "magic_weapon",
+    name: "Arma Mágica",
+    level: 2,
+    school: "Transmutação",
+    castingTime: "bonus",
+    range: "Toque",
+    components: "V, S",
+    duration: "1 hora",
+    isConcentration: true,
+    isRitual: false,
+    description: "Uma arma não mágica ganha bônus de +1 nas rolagens de ataque e dano.",
+    effect: "buff",
+    targetType: "single",
+    conditionApplied: "Arma Mágica (+1)",
+    classes: ["paladino", "mago", "feiticeiro"]
+  },
+  {
+    id: "lesser_restoration",
+    name: "Restauração Menor",
+    level: 2,
+    school: "Abjuração",
+    castingTime: "action",
+    range: "Toque",
+    components: "V, S",
+    duration: "Instantânea",
+    isConcentration: false,
+    isRitual: false,
+    description: "Toca uma criatura para remover uma condição: Cego, Surdo, Paralisado ou Envenenado.",
+    effect: "heal",
+    targetType: "single",
+    classes: ["bardo", "clerigo", "druida", "paladino", "guardinha"]
   }
+
 ];

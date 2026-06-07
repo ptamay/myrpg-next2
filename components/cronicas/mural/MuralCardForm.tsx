@@ -5,6 +5,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { uploadBase64Image } from "@/lib/supabase/storage";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface MuralCardFormProps {
   initialData?: MuralCard | null;
@@ -246,7 +247,7 @@ export default function MuralCardForm({ initialData, onSave, onCancel }: MuralCa
               </label>
               {imageUrl && (
                 <div>
-                  <img src={imageUrl} alt="Preview" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-subtle)" }} />
+                  <OptimizedImage src={imageUrl} alt="Preview" style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid var(--border-subtle)" }} />
                   <button className="ghost-delete-btn" onClick={() => setImageUrl(undefined)} style={{ marginLeft: "8px", verticalAlign: "top" }}>Remover</button>
                 </div>
               )}

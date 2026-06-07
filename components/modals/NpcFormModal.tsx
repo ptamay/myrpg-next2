@@ -8,11 +8,13 @@ import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { Npc, SpellEntry, ClassResource, Ability } from "@/lib/gameData";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
 import { DND5E_CLASSES, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities, getSpellcastingAbility } from "@/lib/constants/dnd5eClasses";
+import { getDefaultRacialAbilities, getDefaultRacialResistances } from "@/lib/constants/dnd5eRaces";
 import SpellsSection from "../ui/SpellsSection";
 import ClassResourcesSection from "../ui/ClassResourcesSection";
 import AbilitiesSection from "../ui/AbilitiesSection";
 import DamageTypeSelector from "../ui/DamageTypeSelector";
 import { uploadBase64Image } from "@/lib/supabase/storage";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface NpcFormModalProps {
   isOpen: boolean;
@@ -161,13 +163,21 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
   useEffect(() => {
     const handleImportEvent = (e: any) => {
       const { data, target } = e.detail;
+      
+      const importedRaceAbilities = getDefaultRacialAbilities(data.race || "");
+      const importedRaceResistances = getDefaultRacialResistances(data.race || "");
+      
+      const newState = dataToFormState(data);
+      newState.abilities = [...(data.abilities || []), ...importedRaceAbilities];
+      newState.resistances = Array.from(new Set([...(data.resistances || []), ...importedRaceResistances]));
+
       if (target === 'transformation') {
-         setTransFormState(prev => ({ ...prev, ...dataToFormState(data) }));
+         setTransFormState(prev => ({ ...prev, ...newState }));
          setTransAttacksState(dataToAttacks(data));
          if (data.saves) setTransSelectedSaves(data.saves);
          if (data.skills) setTransSelectedSkills(data.skills);
       } else {
-         setFormState(prev => ({ ...prev, ...dataToFormState(data) }));
+         setFormState(prev => ({ ...prev, ...newState }));
          setAttacksState(dataToAttacks(data));
          if (data.saves) setSelectedSaves(data.saves);
          if (data.skills) setSelectedSkills(data.skills);
@@ -247,6 +257,23 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
     }
 
     let updates: any = { [name]: finalValue };
+
+    if (name === 'race') {
+      const racialAbs = getDefaultRacialAbilities(finalValue as string);
+      const oldRacialAbs = getDefaultRacialAbilities(isEditingTransformation ? transFormState.race : formState.race);
+      const oldRacialNames = oldRacialAbs.map(a => a.name);
+      
+      const currentAbs = isEditingTransformation ? transFormState.abilities : formState.abilities;
+      const filteredAbs = currentAbs.filter(a => !oldRacialNames.includes(a.name));
+      
+      updates.abilities = [...filteredAbs, ...racialAbs];
+
+      const racialRes = getDefaultRacialResistances(finalValue as string);
+      const oldRacialRes = getDefaultRacialResistances(isEditingTransformation ? transFormState.race : formState.race);
+      const currentRes = isEditingTransformation ? transFormState.resistances : formState.resistances;
+      const filteredRes = currentRes.filter((r: string) => !oldRacialRes.includes(r));
+      updates.resistances = Array.from(new Set([...filteredRes, ...racialRes]));
+    }
 
     if (name === 'playerClass' && value !== 'custom' && value !== '') {
       const cls = DND5E_CLASSES.find(c => c.id === value);
@@ -504,7 +531,7 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
             <div className="form-col-avatar">
               <div className="avatar-upload" onClick={() => fileInputRef.current?.click()} style={{ cursor: "pointer", border: isEditingTransformation ? "2px dashed var(--accent-primary)" : undefined }}>
                 {activeAvatar ? (
-                  <img src={activeAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "12px" }} />
+                  <OptimizedImage src={activeAvatar} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "12px" }} />
                 ) : (
                   <div className="avatar-placeholder">
                     <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" strokeWidth="1.5" fill="none">

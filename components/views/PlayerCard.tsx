@@ -9,6 +9,7 @@ import BuffPanel from "../ui/BuffPanel";
 
 import { SAVES_MAP, SKILLS_MAP } from "@/lib/dndConstants";
 import { DND5E_CLASSES } from "@/lib/constants/dnd5eClasses";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface PlayerCardProps {
   player: any;
@@ -153,7 +154,7 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
       
       <div className="npc-card-header">
         {activePlayer.image ? (
-          <img src={activePlayer.image} className="npc-card-avatar" alt={activePlayer.name} style={{ border: player.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
+          <OptimizedImage src={activePlayer.image} className="npc-card-avatar" alt={activePlayer.name} style={{ border: player.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
         ) : (
           <div className="npc-card-placeholder" style={{ border: player.isTransformed ? "2px solid var(--accent-primary)" : "none" }}>{(activePlayer.name || "?").charAt(0).toUpperCase()}</div>
         )}

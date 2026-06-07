@@ -27,6 +27,8 @@ export interface RollEntry {
   saveDC?: number;
   damageType?: string;
   conditionApplied?: string;
+  isLifesteal?: boolean;
+  sourceId?: string;
 }
 
 interface Props {
@@ -156,7 +158,16 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
 
         if (rollMode === "damage" && pendingDamage) {
           const expr = `${pendingDamage.parsedDmg.dieCount}d${faces}+${mod}`;
-          const dmgRes = rollDamage(expr, pendingDamage.isCritical);
+          
+          let extraCrit = 0;
+          if (pendingDamage.isCritical && activeParticipant?.abilities) {
+            const hasSavageAttacks = activeParticipant.abilities.some(a => a.name.includes("Ataques Selvagens") || a.name.includes("Savage Attacks"));
+            if (hasSavageAttacks) {
+              extraCrit = 1; // Rola 1 dado de dano extra em crítico (Mecânica Meio-Orc)
+            }
+          }
+          
+          const dmgRes = rollDamage(expr, pendingDamage.isCritical, extraCrit);
           total = dmgRes.total;
           rolls = dmgRes.rolls;
           dieResult = rolls[0] || 0; 
@@ -178,6 +189,17 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
           const critThreshold = hasEnhancedCrit ? 19 : 20;
           isCritical = faces === 20 && dieResult >= critThreshold;
           isCritFail = faces === 20 && dieResult === 1;
+
+          if (isCritFail && activeParticipant?.abilities?.some(a => a.name.includes('Sorte (Halfling)'))) {
+             if (window.confirm("🍀 Você tirou um 1 natural! Deseja usar sua Sorte de Halfling para jogar de novo? (Você deverá usar a nova rolagem).")) {
+                 const newRoll = rollDie(faces);
+                 dieResult = newRoll;
+                 rolls = [newRoll]; // Se for vantagem, perde o primeiro rolamento e assume esse único
+                 total = dieResult + mod;
+                 isCritical = faces === 20 && dieResult >= critThreshold;
+                 isCritFail = faces === 20 && dieResult === 1;
+             }
+          }
         }
         
         const entry: RollEntry = {
@@ -194,7 +216,9 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
           timestamp: new Date().toISOString(),
           rollMode,
           damageType: pendingDamage?.parsedDmg.damageType,
-          conditionApplied: pendingAttack?.conditionApplied
+          conditionApplied: pendingAttack?.conditionApplied,
+          isLifesteal: pendingDamage?.parsedDmg?.isLifesteal || false,
+          sourceId: activeParticipant?.refId
         };
 
         setDisplayNumber(dieResult);

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef } from "react";
 import Modal from "../ui/Modal";
-
 interface CropModalProps {
   isOpen: boolean;
   onClose: () => void;

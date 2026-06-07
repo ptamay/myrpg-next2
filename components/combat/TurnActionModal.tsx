@@ -10,6 +10,7 @@ import { parseDmgString, ParsedDamage, rollDamage } from '@/lib/dice/rollParser'
 import { computeExtraDamages, buildDamageLog } from '@/lib/dice/specialDamage';
 import { Ability } from '@/lib/gameData';
 import { CONDITIONS_MAP } from '@/lib/constants/dnd5e';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface Props {
   participantId: string;
@@ -123,6 +124,12 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
             }
           });
           
+          if (entry.conditionApplied && entry.conditionApplied.toLowerCase().includes("amedrontado")) {
+             if (target.abilities?.some(a => a.name.includes("Bravura"))) {
+                 hasAdvantage = true;
+             }
+          }
+          
           let rollResult = Math.floor(Math.random() * 20) + 1;
           let rollMsg = `${rollResult}`;
           
@@ -232,7 +239,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         );
         
         combat.selectedTargetIds.forEach(targetId => {
-          applyDamage(targetId, logData.total, entry.damageType);
+          applyDamage(targetId, logData.total, entry.damageType, entry.sourceId, entry.isLifesteal);
           if (pendingAttack?.conditionApplied) {
             addCondition(targetId, pendingAttack.conditionApplied);
             addToLog(`🤕 Recebeu a condição: **${pendingAttack.conditionApplied}**`, damagedNames.join(', '), 'system');
@@ -257,7 +264,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
           combat.selectedTargetIds.forEach((targetId, idx) => {
             const dmg = damages[idx] || 0;
             if (dmg > 0) {
-              applyDamage(targetId, dmg, entry.damageType);
+              applyDamage(targetId, dmg, entry.damageType, entry.sourceId, entry.isLifesteal);
               const tName = combat.participants.find(p => p.refId === targetId)?.name;
               addToLog(`🩸 Míssil/Auto-Hit: causou **${dmg}** de dano em ${tName}!`, entry.actorName, 'damage');
               if (pendingAttack?.conditionApplied) {
@@ -272,7 +279,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       }
 
       combat.selectedTargetIds.forEach(targetId => {
-        applyDamage(targetId, entry.total, entry.damageType);
+        applyDamage(targetId, entry.total, entry.damageType, entry.sourceId, entry.isLifesteal);
       });
       addToLog(`🩸 causou **${entry.total}** de dano em ${damagedNames.join(', ')}!`, entry.actorName, 'damage');
       setPendingDamage(null);
@@ -1048,7 +1055,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
           <div className="tam-main">
             <div className="tam-header">
               {participant.image ? (
-                <img src={participant.image} alt={participant.name} className="tam-avatar" />
+                <OptimizedImage src={participant.image} alt={participant.name} className="tam-avatar" />
               ) : (
                 <div className="tam-avatar">{participant.name.charAt(0)}</div>
               )}
@@ -1387,7 +1394,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                                   onClick={() => toggleTarget(t.refId)}
                                 >
                                   {t.image ? (
-                                    <img src={t.image} alt={t.name} className="tam-target-avatar" />
+                                    <OptimizedImage src={t.image} alt={t.name} className="tam-target-avatar" />
                                   ) : (
                                     <div className="tam-target-avatar">{t.name.charAt(0)}</div>
                                   )}

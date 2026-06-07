@@ -123,10 +123,11 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
     if (Object.keys(updates).length > 0) updateParticipant(activeParticipant.refId, updates);
     addToLog(`usou a habilidade: **${ab.name}**`, activeParticipant.name, 'system');
 
-    // ─── Automatização de Efeitos de Habilidades ───
+    // 💥 Automatização de Efeitos de Habilidades 💥
     if (ab.conditionApplied) {
-      addCondition(activeParticipant.refId, ab.conditionApplied);
-      addToLog(`Recebeu a condição: **${ab.conditionApplied}**`, activeParticipant.name, 'system');
+      const isFeyStep = ab.conditionApplied === "Fantasmagórico (Resistência Total)";
+      addCondition(activeParticipant.refId, ab.conditionApplied, isFeyStep ? 1 : undefined);
+      addToLog(`Recebeu a condição: **${ab.conditionApplied}**${isFeyStep ? " (1 Turno)" : ""}`, activeParticipant.name, 'system');
     }
 
     const nameLower = ab.name.toLowerCase();
@@ -197,7 +198,16 @@ export default function PlayerActionBar({ pendingAttack, setPendingAttack }: Pro
 
     // Rola o dano BASE uma única vez para todos os acertados
     const firstHit = pendingDamageList[0];
-    const dmgRes = rollDamage(firstHit.atk.dmg, firstHit.res.isCritical);
+    
+    let extraCrit = 0;
+    if (firstHit.res.isCritical && activeParticipant?.abilities) {
+      const hasSavageAttacks = activeParticipant.abilities.some(a => a.name.includes("Ataques Selvagens") || a.name.includes("Savage Attacks"));
+      if (hasSavageAttacks) {
+        extraCrit = 1;
+      }
+    }
+    
+    const dmgRes = rollDamage(firstHit.atk.dmg, firstHit.res.isCritical, extraCrit);
     const extras = computeExtraDamages(activeParticipant, firstHit.res.isCritical, firstHit.advantageType);
     if (smiteSlot) extras.push(rollDivineSmite(smiteSlot, firstHit.res.isCritical));
 

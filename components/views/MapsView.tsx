@@ -7,6 +7,7 @@ import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function MapsView() {
   const { dadosGlobais, setDadosGlobais } = useApp();
@@ -31,7 +32,23 @@ export default function MapsView() {
 
       const channelId = `maps_sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       currentChannel = supabase.channel(channelId)
-        .on("postgres_changes", { event: "*", schema: "public", table: "maps" }, () => {
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "maps" }, (payload: any) => {
+          // Novo mapa adicionado — gera URL pública e adiciona à lista sem refetch completo
+          if (payload.new?.image_url) {
+            const { data } = supabase.storage.from('maps').getPublicUrl(payload.new.image_url);
+            setMapsLoaded(prev => [...prev, { id: payload.new.id, name: payload.new.name, data: data.publicUrl }]);
+          }
+        })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "maps" }, (payload: any) => {
+          // Mapa removido — retira da lista localmente sem refetch
+          setMapsLoaded(prev => {
+            const next = prev.filter(m => m.id !== payload.old?.id);
+            setCurrentMapIndex(idx => Math.min(idx, Math.max(0, next.length - 1)));
+            return next;
+          });
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "maps" }, () => {
+          // Update de metadata — neste caso refetch é aceitável (raro)
           loadMaps();
         });
 
@@ -162,7 +179,7 @@ export default function MapsView() {
                 opacity: idx === currentMapIndex ? 1 : 0.6, transition: "all 0.2s", overflow: "hidden"
               }}
             >
-              <img src={map.data} alt={map.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <OptimizedImage src={map.data} alt={map.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </div>
           ))}
         </div>
@@ -187,7 +204,7 @@ export default function MapsView() {
                 <p>Nenhum mapa adicionado. Faça upload para começar.</p>
               </div>
             ) : (
-              <img src={mapsLoaded[currentMapIndex]?.data} alt="Mapa" loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "8px" }} />
+              <OptimizedImage src={mapsLoaded[currentMapIndex]?.data} alt="Mapa" loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "8px" }} />
             )}
           </div>
 

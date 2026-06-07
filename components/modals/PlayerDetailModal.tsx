@@ -5,6 +5,7 @@ import Modal from "../ui/Modal";
 import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "../ui/HpInlineEditor";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen: boolean; onClose: () => void; player: any }) {
   const { setModals, setActiveData, dadosGlobais, setDadosGlobais } = useApp();
@@ -107,7 +108,7 @@ export default function PlayerDetailModal({ isOpen, onClose, player }: { isOpen:
           <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
             <div style={{ width: "80px", height: "80px", borderRadius: "50%", overflow: "hidden", border: isViewingTransformation ? "2px solid var(--accent-primary)" : `2px solid rgba(255,255,255,0.15)`, background: "rgba(255,255,255,0.05)" }}>
               {activePlayer.image ? (
-                <img src={activePlayer.image} alt={activePlayer.name} style={{ width: "100%", height: "100%", objectFit: "cover", filter: isDead ? "grayscale(100%)" : "none" }} />
+                <OptimizedImage src={activePlayer.image} alt={activePlayer.name} style={{ width: "100%", height: "100%", objectFit: "cover", filter: isDead ? "grayscale(100%)" : "none" }} />
               ) : (
                 <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem", fontWeight: "bold", color: "var(--text-muted)" }}>
                   {(activePlayer.name || "?").charAt(0).toUpperCase()}

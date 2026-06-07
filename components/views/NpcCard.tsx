@@ -5,6 +5,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
 import HpInlineEditor from "../ui/HpInlineEditor";
 import BuffPanel from "../ui/BuffPanel";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface NpcCardProps {
   npc: any;
@@ -177,7 +178,7 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
 
       <div className="npc-card-header" onClick={openDetail}>
         {activeNpc.image ? (
-          <img src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
+          <OptimizedImage src={activeNpc.image} className="npc-card-avatar" alt={activeNpc.name} style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }} />
         ) : (
           <div className="npc-card-placeholder" style={{ border: npc.isTransformed ? "2px solid var(--accent-primary)" : "none" }}>{(activeNpc.name || "?").charAt(0).toUpperCase()}</div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Player, Npc, Ability } from '@/lib/gameData';
 import { ActiveBuff } from '@/lib/types/buffs';
 import { parseAC, parseSpeed, parseProfBonus } from '@/lib/dice/dnd5e';
@@ -164,7 +164,7 @@ export interface CombatContextValue {
   endCombat: () => Promise<void>;
   nextTurn: () => void;
   prevTurn: () => void;
-  applyDamage: (participantId: string, amount: number, damageType?: string) => void;
+  applyDamage: (participantId: string, amount: number, damageType?: string, sourceId?: string, isLifesteal?: boolean) => void;
   applyHeal: (participantId: string, amount: number) => void;
   addCondition: (participantId: string, condition: string, durationRounds?: number) => void;
   removeCondition: (participantId: string, condition: string) => void;
@@ -294,44 +294,93 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
   const [combat, setCombat] = useState<CombatSession | null>(null);
   const { isGM, profile } = useUserSession();
 
+  const broadcastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const broadcastBaseStateRef = useRef<CombatSession | null>(null);
+
   const broadcastCombatState = (newState: CombatSession | null, prevCombat?: CombatSession | null) => {
-    if (!newState || !prevCombat) {
+    // Se newState for null, enviaremos fullState: null IMEDIATAMENTE (fim de combate)
+    if (!newState) {
+      if (broadcastTimerRef.current) clearTimeout(broadcastTimerRef.current);
       window.dispatchEvent(new CustomEvent('send_broadcast', { 
-        detail: { type: 'combat_update', payload: { fullState: newState } } 
+        detail: { type: 'combat_update', payload: { fullState: null } } 
       }));
+      broadcastBaseStateRef.current = null;
       return;
     }
 
-    const changedParticipants = newState.participants.filter(p => {
-      const old = prevCombat.participants.find(o => o.refId === p.refId);
-      return !old || old !== p; 
-    });
-
-    const newLogs = newState.log.filter(l => !prevCombat.log.some(o => o.id === l.id));
-
-    const meta: Partial<CombatSession> = {};
-    if (newState.round !== prevCombat.round) meta.round = newState.round;
-    if (newState.currentTurnIndex !== prevCombat.currentTurnIndex) meta.currentTurnIndex = newState.currentTurnIndex;
-    if (newState.isActive !== prevCombat.isActive) meta.isActive = newState.isActive;
-    if (newState.selectedTargetIds !== prevCombat.selectedTargetIds) meta.selectedTargetIds = newState.selectedTargetIds;
-    if (newState.latestRollEvent !== prevCombat.latestRollEvent) meta.latestRollEvent = newState.latestRollEvent;
-
-    const payload: any = {};
-    if (changedParticipants.length > 0) payload.participants = changedParticipants;
-    if (newLogs.length > 0) payload.newLogs = newLogs;
-    if (Object.keys(meta).length > 0) payload.meta = meta;
-
-    const oldIds = prevCombat.participants.map(p => p.refId).join(',');
-    const newIds = newState.participants.map(p => p.refId).join(',');
-    if (oldIds !== newIds) {
-      payload.participants = newState.participants;
-      payload.fullParticipantsList = true;
+    // Se é o primeiro disparo dessa "janela de debounce", guardamos o estado base
+    if (!broadcastBaseStateRef.current && prevCombat) {
+      broadcastBaseStateRef.current = prevCombat;
     }
 
-    window.dispatchEvent(new CustomEvent('send_broadcast', { 
-      detail: { type: 'combat_update', payload } 
-    }));
+    if (broadcastTimerRef.current) {
+      clearTimeout(broadcastTimerRef.current);
+    }
+
+    // Aguardamos 150ms. Se vierem mais atualizações, o timeout é resetado e newState é atualizado pela closure
+    broadcastTimerRef.current = setTimeout(() => {
+      const baseState = broadcastBaseStateRef.current;
+      
+      if (!baseState) {
+        // Fallback: se não temos estado base, enviamos full state (ex: startCombat)
+        window.dispatchEvent(new CustomEvent('send_broadcast', { 
+          detail: { type: 'combat_update', payload: { fullState: newState } } 
+        }));
+      } else {
+        // Calcular diff real entre baseState e newState
+        const changedParticipants = newState.participants.filter(p => {
+          const old = baseState.participants.find(o => o.refId === p.refId);
+          return !old || old !== p; 
+        });
+
+        // Aplicar Shallow Diff para economizar banda
+        const diffParticipants = changedParticipants.map(p => {
+          const old = baseState.participants.find(o => o.refId === p.refId);
+          if (!old) return p; // Novo participante, envia completo
+          
+          const diff: Partial<CombatParticipant> = { refId: p.refId };
+          for (const k of Object.keys(p) as Array<keyof CombatParticipant>) {
+             if (p[k] !== old[k]) {
+                (diff as any)[k] = p[k];
+             }
+          }
+          return diff;
+        });
+
+        const newLogs = newState.log.filter(l => !baseState.log.some(o => o.id === l.id));
+
+        const meta: Partial<CombatSession> = {};
+        if (newState.round !== baseState.round) meta.round = newState.round;
+        if (newState.currentTurnIndex !== baseState.currentTurnIndex) meta.currentTurnIndex = newState.currentTurnIndex;
+        if (newState.isActive !== baseState.isActive) meta.isActive = newState.isActive;
+        if (newState.selectedTargetIds !== baseState.selectedTargetIds) meta.selectedTargetIds = newState.selectedTargetIds;
+        if (newState.latestRollEvent !== baseState.latestRollEvent) meta.latestRollEvent = newState.latestRollEvent;
+
+        const payload: any = {};
+        if (diffParticipants.length > 0) payload.participants = diffParticipants;
+        if (newLogs.length > 0) payload.newLogs = newLogs;
+        if (Object.keys(meta).length > 0) payload.meta = meta;
+
+        const oldIds = baseState.participants.map(p => p.refId).join(',');
+        const newIds = newState.participants.map(p => p.refId).join(',');
+        if (oldIds !== newIds) {
+          payload.participantIds = newState.participants.map(p => p.refId);
+        }
+
+        // Evitar envio de payload vazio
+        if (Object.keys(payload).length > 0) {
+          window.dispatchEvent(new CustomEvent('send_broadcast', { 
+            detail: { type: 'combat_update', payload } 
+          }));
+        }
+      }
+      
+      // Reseta a janela de debounce
+      broadcastBaseStateRef.current = null;
+    }, 150);
   };
+
+
 
   const updateCombatAndBroadcast = (updater: (prev: CombatSession | null) => CombatSession | null) => {
     setCombat(prev => {
@@ -354,21 +403,34 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         
         let newParticipants = prev.participants;
         if (payload.participants) {
-          if (payload.fullParticipantsList) {
-             newParticipants = payload.participants;
-          } else {
-             newParticipants = prev.participants.map(p => {
-               const updated = payload.participants.find((up: any) => up.refId === p.refId);
-               return updated ? updated : p;
-             });
+          // Merge as diffs
+          newParticipants = prev.participants.map(p => {
+            const updated = payload.participants.find((up: any) => up.refId === p.refId);
+            return updated ? { ...p, ...updated } : p;
+          });
+          
+          // Se tiver participantes novos no diff que não estavam no prev (ex: recém chegados)
+          const novos = payload.participants.filter((up: any) => !prev.participants.some(p => p.refId === up.refId));
+          if (novos.length > 0) {
+            newParticipants = [...newParticipants, ...novos];
           }
         }
+
+        if (payload.participantIds) {
+          // Reordena e remove quem não está mais na lista
+          newParticipants = payload.participantIds
+            .map((id: string) => newParticipants.find(p => p.refId === id))
+            .filter(Boolean) as CombatParticipant[];
+        }
+
+        // Limit local log to 50 entries
+        const mergedLog = payload.newLogs ? [...payload.newLogs, ...prev.log].slice(0, 50) : prev.log;
 
         return {
           ...prev,
           ...payload.meta,
           participants: newParticipants,
-          log: payload.newLogs ? [...payload.newLogs, ...prev.log] : prev.log
+          log: mergedLog
         };
       });
     };
@@ -520,11 +582,32 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
+          // Process Active Buff Durations at start of turn
+          let newActiveBuffs = p.activeBuffs.map(buff => {
+            if (buff.durationRounds !== undefined && buff.durationRounds > 0) {
+              return { ...buff, durationRounds: buff.durationRounds - 1 };
+            }
+            return buff;
+          }).filter(buff => {
+            if (buff.durationRounds !== undefined && buff.durationRounds <= 0) {
+              logEntries.push({
+                id: generateId(),
+                round: nextRound,
+                actorName: 'Sistema',
+                action: `O efeito **${buff.name}** encerrou-se para ${p.name}.`,
+                type: 'system',
+                timestamp: new Date().toISOString()
+              });
+              return false;
+            }
+            return true;
+          });
           
           return { 
             ...p, 
             conditions: newConditions,
             conditionDurations: newDurations,
+            activeBuffs: newActiveBuffs,
             actionSpent: false, 
             bonusActionSpent: false, 
             reactionSpent: false, 
@@ -669,7 +752,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const applyDamage = (participantId: string, amount: number, damageType?: string) => {
+  const applyDamage = (participantId: string, amount: number, damageType?: string, sourceId?: string, isLifesteal?: boolean) => {
     setCombat(prev => {
       if (!prev) return prev;
       const pIndex = prev.participants.findIndex(x => x.refId === participantId);
@@ -692,12 +775,14 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         });
       };
 
+      let hasGlobalResistance = p.conditions?.includes("Fantasmagórico (Resistência Total)");
+
       if (damageType) {
         if (matchDmgType(p.immunities, damageType)) {
           finalAmount = 0;
           logImmunity = true;
         } else {
-          let hasResistance = matchDmgType(p.resistances, damageType);
+          let hasResistance = hasGlobalResistance || matchDmgType(p.resistances, damageType);
           
           if (!hasResistance && p.isRaging) {
             const RAGE_PHYSICAL_TYPES = ['cortante', 'perfurante', 'contundente', 'slashing', 'piercing', 'bludgeoning'];
@@ -709,6 +794,9 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
             logResistance = true;
           }
         }
+      } else if (hasGlobalResistance) {
+         finalAmount = Math.floor(amount / 2);
+         logResistance = true;
       }
 
       if (temp > 0) {
@@ -832,19 +920,67 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
             timestamp: new Date().toISOString()
           });
         } else {
+          let finalCurrent = current;
+          let isDead = current <= 0 && temp <= 0;
+          let newConditions = [...(p.conditions || [])];
+          
+          if (isDead) {
+             const hasRelentless = p.abilities?.some(a => a.name.includes("Resistência Implacável") || a.name.includes("Relentless Endurance"));
+             const alreadyUsed = p.conditions?.includes("Resistência Implacável Usada");
+             
+             if (hasRelentless && !alreadyUsed) {
+                finalCurrent = 1;
+                isDead = false;
+                newConditions.push("Resistência Implacável Usada");
+                
+                logEntries.push({
+                  id: generateId(),
+                  round: prev.round,
+                  actorName: 'Sistema',
+                  action: `🛡️ **${p.name}** usou sua **Resistência Implacável** e sobreviveu com 1 PV!`,
+                  type: 'system',
+                  timestamp: new Date().toISOString()
+                });
+             }
+          }
+
           newParticipants[pIndex] = {
             ...p,
-            hpCurrent: current,
+            hpCurrent: finalCurrent,
             tempHp: temp,
-            isDead: current <= 0 && temp <= 0
+            isDead: isDead,
+            conditions: newConditions
           };
+        }
+      }
+
+      if (isLifesteal && sourceId && finalAmount > 0) {
+        const sourceIndex = newParticipants.findIndex(x => x.refId === sourceId);
+        if (sourceIndex !== -1) {
+          const source = newParticipants[sourceIndex];
+          const maxHealable = source.hpMax - source.hpCurrent;
+          const healed = Math.min(finalAmount, maxHealable);
+          if (healed > 0) {
+            newParticipants[sourceIndex] = {
+              ...source,
+              hpCurrent: source.hpCurrent + healed
+            };
+            logEntries.push({
+              id: generateId(),
+              round: prev.round,
+              actorName: source.name,
+              action: `🩸 Curou **${healed} PV** via Roubo de Vida!`,
+              type: 'heal',
+              timestamp: new Date().toISOString()
+            });
+          }
         }
       }
 
       return { 
         ...prev, 
         participants: newParticipants,
-        log: logEntries.length > 0 ? [...prev.log, ...logEntries] : prev.log 
+        log: logEntries.length > 0 ? [...logEntries, ...prev.log].slice(0, 50) : prev.log 
       };
     });
   };
@@ -916,7 +1052,7 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         type,
         timestamp: new Date().toISOString()
       };
-      return { ...prev, log: [newEntry, ...prev.log] };
+      return { ...prev, log: [newEntry, ...prev.log].slice(0, 50) };
     });
   };
 

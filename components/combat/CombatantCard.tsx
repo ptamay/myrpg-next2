@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CombatParticipant, useCombat } from '@/contexts/CombatContext';
 import { useUserSession } from '@/contexts/UserSessionContext';
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 interface Props {
   participant: CombatParticipant;
@@ -130,7 +131,7 @@ export default function CombatantCard({ participant, isActive, index, onClick }:
         {/* Target reticle removed */}
         
         <div className="card-portrait">
-          {participant.image ? <img src={participant.image} alt={participant.name} /> : <div style={{ fontSize: '2.5rem', color: '#666' }}>{participant.name.charAt(0)}</div>}
+          {participant.image ? <OptimizedImage src={participant.image} alt={participant.name} /> : <div style={{ fontSize: '2.5rem', color: '#666' }}>{participant.name.charAt(0)}</div>}
           {participant.isRaging && <div className="rage-overlay" title="Em Fúria!" />}
           {hasConditions && (
             <div className="conditions-overlay">

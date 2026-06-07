@@ -5,6 +5,7 @@ import Modal from "../ui/Modal";
 import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { useUserSession } from "@/contexts/UserSessionContext";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function SummaryCardModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { activeData: rawActiveData, dadosGlobais, setDadosGlobais, salvarEstadoLocal } = useApp();
@@ -115,7 +116,7 @@ export default function SummaryCardModal({ isOpen, onClose }: { isOpen: boolean;
             
             <div className={isDead ? "dead-modal-content" : ""} style={{ position: "relative", width: "110px", height: "110px", flexShrink: 0 }}>
               {activeData.image ? (
-                <img 
+                <OptimizedImage 
                   src={activeData.image} 
                   alt="Avatar" 
                   style={{ 

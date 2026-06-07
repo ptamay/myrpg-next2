@@ -1779,3 +1779,12 @@ input[type="number"] {
     display: none; /* Chrome, Safari and Opera */
 }
 
+/* =========================================================
+   RESPONSIVIDADE: CRÔNICAS E ALIMENTOS
+   ========================================================= */
+@media (max-width: 768px) {
+    .cronica-card, .alimentos-card, .quest-card {
+        padding: 1rem !important;
+    }
+}
+

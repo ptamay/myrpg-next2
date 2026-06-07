@@ -4,6 +4,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import DiarioEntryForm from "./DiarioEntryForm";
 import Modal from "@/components/ui/Modal";
+import { OptimizedImage } from '@/components/ui/OptimizedImage';
 
 export default function DiarioEntryCard({ 
   entry, 
@@ -78,7 +79,7 @@ export default function DiarioEntryCard({
     return (
       <div className="timeline-item">
         <div className="timeline-avatar-wrapper">
-          {avatar ? <img src={avatar} alt={displayName} /> : <div className="diario-avatar-placeholder">{(displayName || "?").charAt(0).toUpperCase()}</div>}
+          {avatar ? <OptimizedImage src={avatar} alt={displayName} /> : <div className="diario-avatar-placeholder">{(displayName || "?").charAt(0).toUpperCase()}</div>}
         </div>
         <div className="timeline-card" style={{ padding: "0.5rem" }}>
           <DiarioEntryForm
@@ -100,7 +101,7 @@ export default function DiarioEntryCard({
     <div className="timeline-item">
       <div className="timeline-avatar-wrapper">
         {avatar ? (
-          <img src={avatar} alt={displayName} />
+          <OptimizedImage src={avatar} alt={displayName} />
         ) : (
           <div className="diario-avatar-placeholder">
             {(displayName || "?").charAt(0).toUpperCase()}
@@ -164,7 +165,7 @@ export default function DiarioEntryCard({
           </div>
 
           {entry.imageUrl && (
-            <img src={entry.imageUrl} alt="Anexo" className="timeline-image-preview" />
+            <OptimizedImage src={entry.imageUrl} alt="Anexo" className="timeline-image-preview" />
           )}
         </div>
 
@@ -211,7 +212,7 @@ export default function DiarioEntryCard({
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
               <div className="timeline-avatar-wrapper" style={{ margin: 0 }}>
                 {avatar ? (
-                  <img src={avatar} alt={displayName} style={{ width: "40px", height: "40px", borderRadius: "50%" }} />
+                  <OptimizedImage src={avatar} alt={displayName} style={{ width: "40px", height: "40px", borderRadius: "50%" }} />
                 ) : (
                   <div className="diario-avatar-placeholder" style={{ width: "40px", height: "40px", fontSize: "1rem" }}>
                     {(displayName || "?").charAt(0).toUpperCase()}
@@ -231,7 +232,7 @@ export default function DiarioEntryCard({
 
             {/* Imagem em tamanho normal */}
             {entry.imageUrl && (
-              <img src={entry.imageUrl} alt="Anexo Detalhado" className="timeline-image-detail" />
+              <OptimizedImage src={entry.imageUrl} alt="Anexo Detalhado" className="timeline-image-detail" />
             )}
 
             {/* Ações e Comentários dentro do Modal */}
