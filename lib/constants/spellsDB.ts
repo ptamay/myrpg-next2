@@ -278,7 +278,7 @@ export const SPELLS_DB: SpellEntry[] = [
     description: "A taxa de queda de até cinco criaturas caindo que você possa ver a até 18 metros é reduzida para 18m por rodada e elas não tomam dano de queda.",
     effect: "buff",
     targetType: "multiple",
-    reactionTrigger: "falling"
+    reactionTrigger: "when_falling"
   },
   {
     id: "thunderwave",
@@ -324,8 +324,8 @@ export const SPELLS_DB: SpellEntry[] = [
     duration: "1 minuto",
     isConcentration: true,
     isRitual: false,
-    description: "Até três criaturas devem passar num teste de CAR. Se falharem, sempre que rolarem ataque ou salvaguarda, subtraem 1d4.",
-    effect: "debuff",
+    description: "Até três criaturas devem passar num teste de CAR. Se falharem, sempre que fizerem um teste de ataque ou salvaguarda, subtraem 1d4.",
+    effect: "condition",
     targetType: "multiple",
     savingThrow: "car"
   },
@@ -341,7 +341,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Cada objeto num cubo de 6m é delineado por luz. Criaturas que falhem no teste de DES também. Ataques contra essas criaturas têm vantagem.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "area",
     savingThrow: "des"
   },
@@ -410,7 +410,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: false,
     isRitual: false,
     description: "Você pode cegar ou ensurdecer um oponente. Teste de CON para evitar a condição. Cego ou Surdo.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "single",
     savingThrow: "con"
   },
@@ -441,7 +441,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Escolha um humanoide. Teste de SAB; se falhar, o alvo fica Paralisado até a magia terminar.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "single",
     savingThrow: "sab"
   },
@@ -487,7 +487,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Teias pegajosas num cubo de 6m. Criaturas na área devem passar num teste de DES ou ficam Restringidas.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "area",
     savingThrow: "des"
   },
@@ -600,7 +600,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Altera o tempo num cubo de 12m. Teste de SAB. Na falha, sofre -2 de CA, -2 DES, deslocamento cai pela metade e não pode ter reações ou múltiplos ataques.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "area",
     savingThrow: "sab"
   },
@@ -631,7 +631,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Cores num cubo de 9m. Teste de SAB. Na falha, a criatura fica Enfeitiçada, Incapacitada e com deslocamento 0 enquanto você concentrar.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "area",
     savingThrow: "sab"
   },
@@ -647,7 +647,7 @@ export const SPELLS_DB: SpellEntry[] = [
     isConcentration: true,
     isRitual: false,
     description: "Projeta uma imagem apavorante num cone de 9m. Teste de SAB ou fica Amedrontada e deve largar o que segura e fugir de você.",
-    effect: "debuff",
+    effect: "condition",
     targetType: "area",
     savingThrow: "sab"
   },

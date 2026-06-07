@@ -266,12 +266,12 @@ export default function DashboardView() {
                 Aliados & Vivos
               </h4>
               <ul id="display-npcs-alive" className="npc-status-list">
-                {players?.filter(p => !p.isDead).map(p => (
+                {players?.filter((p: any) => !p.isDead).map((p: any) => (
                   <li key={p.id} onClick={() => { setActiveData(p); openModal('summaryCard'); }} style={{ cursor: "pointer", fontWeight: "bold", color: "var(--primary-color)" }}>
                     {p.name}
                   </li>
                 ))}
-                {npcs?.filter(n => !n.isDead && !n.isHidden && n.faction !== 'enemy').map(n => (
+                {npcs?.filter((n: any) => !n.isDead && !n.isHidden && n.faction !== 'enemy').map((n: any) => (
                   <li key={n.id} onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     {n.name}
                   </li>
@@ -283,12 +283,12 @@ export default function DashboardView() {
                 Caídos / Mortos
               </h4>
               <ul id="display-npcs-dead" className="npc-status-list">
-                {players?.filter(p => p.isDead).map(p => (
+                {players?.filter((p: any) => p.isDead).map((p: any) => (
                   <li key={p.id} className="dead-member" onClick={() => { setActiveData(p); openModal('summaryCard'); }} style={{ cursor: "pointer", fontWeight: "bold" }}>
                     💀 {p.name}
                   </li>
                 ))}
-                {npcs?.filter(n => n.isDead && !n.isHidden && n.faction !== 'enemy').map(n => (
+                {npcs?.filter((n: any) => n.isDead && !n.isHidden && n.faction !== 'enemy').map((n: any) => (
                   <li key={n.id} className="dead-member" onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     💀 {n.name}
                   </li>

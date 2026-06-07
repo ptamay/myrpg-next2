@@ -64,7 +64,8 @@ const initialFormState = {
   abilities: [] as Ability[],
   resistances: [] as string[],
   immunities: [] as string[],
-  multiattackCount: "1"
+  multiattackCount: "1",
+  subclass: ""
 };
 
 const dataToAttacks = (data: any) => {
@@ -126,6 +127,7 @@ const dataToFormState = (data: any) => ({
   abilities: data?.abilities || [],
   resistances: data?.resistances || [],
   immunities: data?.immunities || [],
+  subclass: data?.subclass || "",
 });
 
 export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {

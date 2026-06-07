@@ -71,6 +71,7 @@ export interface CombatParticipant {
   // Spell Slots
   spellSlots?: Record<number, number>;
   spellSlotsUsed?: Record<number, number>;
+  spellcastingAbility?: 'str'|'dex'|'con'|'int'|'wis'|'cha';
 
   // Class Resources (Ki, Fúria, etc.)
   classResources?: CombatClassResource[];
@@ -119,6 +120,7 @@ export type PendingAttack = {
   saveDC?: number;
   conditionApplied?: string;
   advantage?: 'normal' | 'advantage' | 'disadvantage';
+  description?: string;
 };
 
 export type LogEntryType = 'attack' | 'damage' | 'critical' | 'crit_fail' | 'initiative' | 'system' | 'heal';
@@ -164,7 +166,7 @@ export interface CombatContextValue {
   prevTurn: () => void;
   applyDamage: (participantId: string, amount: number, damageType?: string) => void;
   applyHeal: (participantId: string, amount: number) => void;
-  addCondition: (participantId: string, condition: string) => void;
+  addCondition: (participantId: string, condition: string, durationRounds?: number) => void;
   removeCondition: (participantId: string, condition: string) => void;
   setInitiative: (participantId: string, value: number) => void;
   broadcastCombatState: (newState: CombatSession | null, prevCombat?: CombatSession | null) => void;
@@ -277,6 +279,7 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     flurryUsed: false,
     spellSlots: activeForm.spellSlots ? { ...activeForm.spellSlots } : undefined,
     spellSlotsUsed: activeForm.spellSlotsUsed ? { ...activeForm.spellSlotsUsed } : {},
+    spellcastingAbility: activeForm.spellcastingAbility,
     classResources,
     isRaging: false,
     isConcentrating: false,

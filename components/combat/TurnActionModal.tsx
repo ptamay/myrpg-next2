@@ -9,6 +9,7 @@ import { isPaladin, rollDivineSmite } from '@/lib/dice/specialDamage';
 import { parseDmgString, ParsedDamage, rollDamage } from '@/lib/dice/rollParser';
 import { computeExtraDamages, buildDamageLog } from '@/lib/dice/specialDamage';
 import { Ability } from '@/lib/gameData';
+import { CONDITIONS_MAP } from '@/lib/constants/dnd5e';
 
 interface Props {
   participantId: string;
@@ -1680,7 +1681,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                         applyHeal(targetId, total);
                         addToLog(`usou **Mãos que Curam**! Gastou 1 Ki e curou **${target.name}** em **${total}** PV (d${die}: ${rollResult} + Sab: ${modWis}).`, participant.name, 'heal');
                       } else {
-                        applyDamage(targetId, total, false, false);
+                        applyDamage(targetId, total, 'necrótico');
                         addToLog(`usou **Mãos de Dano**! Gastou 1 Ki e causou **${total}** de dano Necrótico extra em **${target.name}** (d${die}: ${rollResult} + Sab: ${modWis}).`, participant.name, 'damage');
                       }
                       

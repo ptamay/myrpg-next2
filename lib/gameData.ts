@@ -22,7 +22,7 @@ export interface SpellEntry {
   // Automation fields
   effect?: 'damage' | 'heal' | 'condition' | 'buff' | 'utility' | 'passive';
   targetType?: 'single' | 'multiple' | 'area' | 'self';
-  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling';
+  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling' | 'spell_cast';
   tempAcBonus?: number;
   spellLevel?: number;
   saveAttr?: string;
@@ -57,7 +57,7 @@ export interface Ability {
   isPassive?: boolean;
   minLevel?: number;
   targetType?: 'single' | 'multiple' | 'area' | 'self';
-  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling';
+  reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling' | 'spell_cast';
   tempAcBonus?: number;
   spellLevel?: number;
   savingThrow?: string;
