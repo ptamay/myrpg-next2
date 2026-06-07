@@ -679,21 +679,13 @@ export function useMurais(activeMuralId?: string | null) {
   const fetchMurais = useCallback(async () => {
     try {
       // Se há um mural ativo, busca apenas os dados desse mural para reduzir egress
-      const muralFilter = activeMuralId ? `.eq('id', '${activeMuralId}')` : '';
-
-      const { data: mData, error: mErr } = activeMuralId
-        ? await supabase.from('murals').select(MURAL_FIELDS).eq('id', activeMuralId)
-        : await supabase.from('murals').select(MURAL_FIELDS);
+      const { data: mData, error: mErr } = await supabase.from('murals').select(MURAL_FIELDS);
       if (mErr) throw new Error(mErr?.message || JSON.stringify(mErr));
 
-      const { data: cData, error: cErr } = activeMuralId
-        ? await supabase.from('mural_cards').select(CARD_FIELDS).eq('mural_id', activeMuralId)
-        : await supabase.from('mural_cards').select(CARD_FIELDS);
+      const { data: cData, error: cErr } = await supabase.from('mural_cards').select(CARD_FIELDS);
       if (cErr) throw new Error(cErr?.message || JSON.stringify(cErr));
 
-      const { data: lData, error: lErr } = activeMuralId
-        ? await supabase.from('mural_connections').select(CONN_FIELDS).eq('mural_id', activeMuralId)
-        : await supabase.from('mural_connections').select(CONN_FIELDS);
+      const { data: lData, error: lErr } = await supabase.from('mural_connections').select(CONN_FIELDS);
       if (lErr) throw new Error(lErr?.message || JSON.stringify(lErr));
       
       const mapped = (mData || []).map((m: any) => {
@@ -789,17 +781,10 @@ export function useMurais(activeMuralId?: string | null) {
         }
       };
 
-      if (activeMuralId) {
-        channel = channel
-          .on("postgres_changes", { event: "*", schema: "public", table: "murals", filter: `id=eq.${activeMuralId}` }, handleMuralChange)
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards", filter: `mural_id=eq.${activeMuralId}` }, handleCardChange)
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections", filter: `mural_id=eq.${activeMuralId}` }, handleConnChange);
-      } else {
-        channel = channel
-          .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, handleMuralChange)
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, handleCardChange)
-          .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, handleConnChange);
-      }
+      channel = channel
+        .on("postgres_changes", { event: "*", schema: "public", table: "murals" }, handleMuralChange)
+        .on("postgres_changes", { event: "*", schema: "public", table: "mural_cards" }, handleCardChange)
+        .on("postgres_changes", { event: "*", schema: "public", table: "mural_connections" }, handleConnChange);
 
       currentChannel = channel;
       currentChannel.subscribe((status: string) => {

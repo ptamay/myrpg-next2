@@ -451,7 +451,22 @@ export default function MuralCanvas({ isActive = true }: { isActive?: boolean })
                       onChange={(e) => {
                         const newMode = e.target.value as "private" | "players";
                         setViewingMode(newMode);
-                        setActiveMuralId(getSlotId(1, newMode));
+                        const targetId = getSlotId(1, newMode);
+                        const actualMural = murais.find(m => m.id === targetId || m.id === `slot-1` || m.id === `player-slot-1` || m.id === `gm-slot-1`);
+                        if (actualMural) {
+                          setActiveMuralId(actualMural.id);
+                        } else {
+                          const newMural = {
+                            id: targetId,
+                            name: `Investigação 1`,
+                            cards: [], 
+                            connections: [],
+                            createdAt: new Date().toISOString(),
+                            backgroundStyle: 'grid'
+                          } as any;
+                          save(newMural);
+                          setActiveMuralId(targetId);
+                        }
                       }}
                       style={{
                         background: "rgba(0,0,0,0.5)",
