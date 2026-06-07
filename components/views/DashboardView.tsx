@@ -16,9 +16,15 @@ export default function DashboardView() {
   const { isGM } = useUserSession();
   const { showConfirm, showAlert } = useSystemDialog();
 
-  const { diaAtual, setDiaAtual, indiceBlocoAtivo, setIndiceBlocoAtivo, jornadaPorDia, setJornadaPorDia, loading: campLoading } = useCampaignInfo();
-  const { npcs, setNpcs, loading: npcsLoading } = useNpcs();
-  const { players, setPlayers, loading: playersLoading } = usePlayers();
+  const { diaAtual, setDiaAtual, indiceBlocoAtivo, setIndiceBlocoAtivo, jornadaPorDia, setJornadaPorDia, dadosGlobais, setDadosGlobais } = useApp();
+  
+  const players = dadosGlobais?.players || [];
+  const setPlayers = (newPlayers: any) => setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+  
+  const npcs = dadosGlobais?.npcs || [];
+  const setNpcs = (newNpcs: any) => setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
+  
+  const isFirstLoad = false;
 
   useEffect(() => {
     const bloco = blocosDeTempo[indiceBlocoAtivo];
@@ -134,9 +140,6 @@ export default function DashboardView() {
       }
     }
   };
-
-  const hasData = Object.keys(jornadaPorDia).length > 0;
-  const isFirstLoad = (campLoading || npcsLoading || playersLoading) && !hasData;
 
   if (isFirstLoad) {
     return (

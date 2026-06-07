@@ -25,6 +25,7 @@ export interface SpellEntry {
   reactionTrigger?: 'when_hit' | 'when_attacked' | 'when_falling';
   tempAcBonus?: number;
   spellLevel?: number;
+  saveAttr?: string;
 }
 
 export interface ClassResource {
@@ -61,6 +62,11 @@ export interface Ability {
   spellLevel?: number;
   savingThrow?: string;
   saveDC?: number;
+  saveAttr?: string;
+  school?: string;
+  range?: string;
+  duration?: string;
+  components?: string;
 }
 
 export const personagens = ['Kronodyr', 'Alric', 'Marop', 'Vynik'];
@@ -80,6 +86,7 @@ export interface Player {
   playerName: string;
   classLevel: string;
   playerClass?: string;
+  subclass?: string;
   playerLevel?: number;
   race: string;
   str: number | string;
@@ -193,6 +200,7 @@ export interface Npc {
   
   // Phase 5.7: Unificação com Player
   playerClass?: string;
+  subclass?: string;
   playerLevel?: number;
   attacks?: { 
     name: string; 

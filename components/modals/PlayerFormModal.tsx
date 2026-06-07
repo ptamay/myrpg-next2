@@ -9,7 +9,7 @@ import { useUserSession } from "@/contexts/UserSessionContext";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { mapPlayerToDB } from "@/lib/supabase/mappers";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
-import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities } from "@/lib/constants/dnd5eClasses";
+import { DND5E_CLASSES, getProficiencyBonus, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities, getSpellcastingAbility } from "@/lib/constants/dnd5eClasses";
 import SpellsSection from "../ui/SpellsSection";
 import ClassResourcesSection from "../ui/ClassResourcesSection";
 import AbilitiesSection from "../ui/AbilitiesSection";
@@ -26,6 +26,7 @@ interface PlayerFormModalProps {
 const initialFormState = {
   name: "",
   playerClass: "",
+  subclass: "",
   playerLevel: "1",
   race: "",
   str: "10",
@@ -37,16 +38,16 @@ const initialFormState = {
   hpMax: "",
   ac: "",
   init: "",
-  speed: "",
-  perc: "",
-  hdTotal: "",
+  speed: "9m",
+  perc: "10",
+  hdTotal: "1",
   inspiration: false,
   minSleepReq: "8",
   profBonus: "2",
   customClass: "",
   hasSpells: false,
-  spellcastingAbility: "int",
-  spellSlotType: "standard",
+  spellcastingAbility: "int" as 'str'|'dex'|'con'|'int'|'wis'|'cha'|'none',
+  spellSlotType: "standard" as "standard"|"pact"|"none",
   spellSlots: {} as Record<number, number>,
   spellsKnown: [] as SpellEntry[],
   classResources: [] as ClassResource[],
@@ -55,10 +56,10 @@ const initialFormState = {
   immunities: [] as string[]
 };
 
-
 const dataToFormState = (data: any) => ({
   name: data?.name || "",
   playerClass: data?.playerClass || data?.classLevel || "",
+  subclass: data?.subclass || "",
   playerLevel: data?.playerLevel?.toString() || "1",
   race: data?.race || "",
   str: data?.str?.toString() || "10",
@@ -104,6 +105,7 @@ const dataToAttacks = (data: any) => {
 const dataToSaves = (data: any) => Array.isArray(data?.saves) ? data.saves : (typeof data?.saves === 'string' && data.saves ? data.saves.split(',').map((s:string) => s.trim()) : []);
 const dataToSkills = (data: any) => Array.isArray(data?.skills) ? data.skills : (typeof data?.skills === 'string' && data.skills ? data.skills.split(',').map((s:string) => s.trim()) : []);
 const dataToExpertise = (data: any) => Array.isArray(data?.expertiseSkills) ? data.expertiseSkills : [];
+const getModifier = (stat: number) => Math.floor((stat - 10) / 2);
 
 export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProps) {
   const { dadosGlobais, setDadosGlobais, salvarEstadoLocal, activeData } = useApp();
@@ -240,33 +242,90 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
       const cls = DND5E_CLASSES.find(c => c.id === value);
       if (cls) {
         const level = isEditingTransformation ? transFormState.playerLevel : formState.playerLevel;
+        const currentSubclass = ""; // Reset subclass on class change
+        updates.subclass = "";
+        
         updates.hdTotal = `${level}d${cls.hitDie}`;
         updates.profBonus = getProficiencyBonus(parseInt(level)).toString();
         
-        const currentResources = isEditingTransformation ? transFormState.classResources : formState.classResources;
-        const currentAbilities = isEditingTransformation ? transFormState.abilities : formState.abilities;
-
-        if (currentResources.length === 0) {
-          updates.classResources = getDefaultClassResources(value, parseInt(level) || 1);
-        }
-        if (currentAbilities.length === 0) {
-          updates.abilities = getDefaultAbilities(value, parseInt(level) || 1);
+        // Reset spells and class specific data when changing class
+        updates.classResources = getDefaultClassResources(value, parseInt(level) || 1, currentSubclass);
+        updates.abilities = getDefaultAbilities(value, parseInt(level) || 1, currentSubclass);
+        
+        if (value === 'monge') {
+          const atk = { name: 'Ataque Desarmado', bonus: '', dmg: '' };
+          if (isEditingTransformation) setTransAttacksState([atk]);
+          else setAttacksState([atk]);
+        } else {
+          if (isEditingTransformation) {
+            setTransAttacksState([]);
+          } else {
+            setAttacksState([]);
+          }
         }
         
-        if (isCaster(value)) {
+        updates.spellsKnown = [];
+        updates.spellSlotsUsed = {};
+        
+        if (isCaster(value, currentSubclass)) {
           updates.hasSpells = true;
-          updates.spellcastingAbility = cls.spellAbility || 'int';
-          updates.spellSlotType = getCasterType(value) === 'pact' ? 'pact' : 'standard';
-          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level));
+          updates.spellcastingAbility = getSpellcastingAbility(value, currentSubclass);
+          updates.spellSlotType = getCasterType(value, currentSubclass) === 'pact' ? 'pact' : 'standard';
+          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level) || 1, currentSubclass);
         } else {
           updates.hasSpells = false;
+          updates.spellSlots = {};
         }
       }
     }
 
     if (name === 'playerLevel') {
-      // NOTE: We no longer auto-update here, to prevent destroying custom user values
-      // (like custom spell slots or ki). Level up should be done via the Level Up button.
+      const cls = DND5E_CLASSES.find(c => c.id === (isEditingTransformation ? transFormState.playerClass : formState.playerClass));
+      if (cls) {
+        const oldLevel = parseInt(isEditingTransformation ? transFormState.playerLevel : formState.playerLevel) || 1;
+        const newLevel = parseInt(value) || 1;
+        const levelDiff = newLevel - oldLevel;
+        
+        updates.hdTotal = `${newLevel}d${cls.hitDie}`;
+        updates.profBonus = getProficiencyBonus(newLevel).toString();
+        
+        if (levelDiff !== 0) {
+          const conMod = getModifier(parseInt(isEditingTransformation ? transFormState.con : formState.con));
+          const avgDie = Math.floor(cls.hitDie / 2) + 1;
+          const currentHpMax = parseInt(isEditingTransformation ? transFormState.hpMax : formState.hpMax) || 0;
+          
+          // Se diminuiu de level, levelDiff será negativo e subtrairá HP. Se subiu, soma HP.
+          const hpDiff = levelDiff * (avgDie + conMod);
+          const finalHpMax = Math.max(1, currentHpMax + hpDiff);
+          
+          updates.hpMax = finalHpMax.toString();
+          updates.hpCurrent = updates.hpMax; // Atualiza o current pra bater com o max novo
+        }
+      }
+    }
+
+    if (name === 'subclass' && value !== '') {
+      const clsId = isEditingTransformation ? transFormState.playerClass : formState.playerClass;
+      const level = isEditingTransformation ? transFormState.playerLevel : formState.playerLevel;
+      const currentAbilities = isEditingTransformation ? transFormState.abilities : formState.abilities;
+      
+      // We replace the abilities entirely to prevent stale abilities from a previous subclass
+      updates.abilities = getDefaultAbilities(clsId, parseInt(level) || 1, value);
+
+      // Same for class resources
+      updates.classResources = getDefaultClassResources(clsId, parseInt(level) || 1, value);
+
+      if (isCaster(clsId, value)) {
+        updates.hasSpells = true;
+        updates.spellcastingAbility = getSpellcastingAbility(clsId, value);
+        updates.spellSlotType = getCasterType(clsId, value) === 'pact' ? 'pact' : 'standard';
+        updates.spellSlots = getSpellSlotsForLevel(clsId, parseInt(level) || 1, value);
+      } else {
+        updates.hasSpells = false;
+        updates.spellSlots = {};
+        updates.spellsKnown = [];
+        updates.spellSlotsUsed = {};
+      }
     }
 
     if (isEditingTransformation) {
@@ -442,6 +501,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     return {
       name: state.name || "",
       playerClass: state.playerClass || "",
+      subclass: state.subclass || "",
       customClass: state.playerClass === "custom" ? (state.customClass || "") : undefined,
       classLevel: state.playerClass || "",
       playerLevel: parseInt(state.playerLevel) || 1,
@@ -488,7 +548,8 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    try {
+      const isValidUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const id = (activeData?.id && isValidUUID(activeData.id)) ? activeData.id : crypto.randomUUID();
 
     const supabase = getSupabaseClient();
@@ -579,8 +640,17 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
     // 3. Update global context
     setDadosGlobais({ ...dadosGlobais, players: newPlayers });
     window.dispatchEvent(new CustomEvent('sync_entity_to_combat', { detail: { entity: playerData, type: 'player' } }));
+    
+    // Passamos a entidade mapeada direto no evento para economizar Egress e não bater no BD
+    window.dispatchEvent(new CustomEvent('force_players_refresh', { detail: { player: playerData } }));
+    
     salvarEstadoLocal();
-    onClose();
+    onClose(); // Close form first!
+    showAlert({ title: "Ficha Salva", message: "A ficha foi salva com sucesso no banco de dados!", type: "success" });
+    } catch (criticalError: any) {
+      console.error("Critical error in handleSubmit:", criticalError);
+      await showAlert({ title: "Erro Crítico", message: "Um erro inesperado aconteceu ao salvar: " + (criticalError.message || JSON.stringify(criticalError)), type: "danger" });
+    }
   };
 
   return (
@@ -667,7 +737,7 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
               <div className="form-row">
                 <div className="form-group flex-2">
                   <label>Nome do Personagem *</label>
-                  <input type="text" name="name" className="journey-input" required value={activeState.name} onChange={handleChange} />
+                  <input type="text" name="name" className="journey-input" value={activeState.name} onChange={handleChange} />
                 </div>
                 {!isEditingTransformation && (
                   <div className="form-group flex-2">
@@ -704,6 +774,25 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
                     )}
                   </div>
                 </div>
+                
+                {(() => {
+                  const cls = DND5E_CLASSES.find(c => c.id === activeState.playerClass);
+                  if (cls && cls.subclasses && cls.subclasses.length > 0 && parseInt(activeState.playerLevel) >= (cls.subclasses[0].minLevel || 3)) {
+                    return (
+                      <div className="form-group flex-2">
+                        <label>Subclasse / Juramento</label>
+                        <select name="subclass" className="journey-input" value={activeState.subclass} onChange={handleChange}>
+                          <option value="">Selecione...</option>
+                          {cls.subclasses.map(sub => (
+                            <option key={sub.id} value={sub.id}>{sub.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div className="form-group flex-1">
                   <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Nível</span>
@@ -864,30 +953,14 @@ export default function PlayerFormModal({ isOpen, onClose }: PlayerFormModalProp
                 playerLevel={parseInt(activeState.playerLevel) || 1}
               />
 
-              {(activeState.hasSpells || activeState.playerClass === 'custom' || isCaster(activeState.playerClass)) && (
-                <>
-                  <h4 className="form-section-title mt-4">Magias</h4>
-                  <SpellsSection
-                    hasSpells={activeState.hasSpells}
-                    onHasSpellsChange={(val) => handleChange({ target: { name: 'hasSpells', value: val, checked: val, type: 'checkbox' } } as any)}
-                    spellcastingAbility={activeState.spellcastingAbility}
-                    onAbilityChange={(val) => handleChange({ target: { name: 'spellcastingAbility', value: val } } as any)}
-                    spellSlotType={activeState.spellSlotType}
-                    onSlotTypeChange={(val) => handleChange({ target: { name: 'spellSlotType', value: val } } as any)}
-                    spellSlots={activeState.spellSlots}
-                    onSpellSlotsChange={(slots) => {
-                      if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellSlots: slots }));
-                      else setFormState(prev => ({ ...prev, spellSlots: slots }));
-                    }}
-                    spellsKnown={activeState.spellsKnown}
-                    onSpellsKnownChange={(spells) => {
-                      if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellsKnown: spells }));
-                      else setFormState(prev => ({ ...prev, spellsKnown: spells }));
-                    }}
-                    playerClass={activeState.playerClass}
-                    playerLevel={parseInt(activeState.playerLevel) || 1}
-                  />
-                </>
+              {(activeState.playerClass === 'custom' || isCaster(activeState.playerClass) || activeState.hasSpells) && (
+                <SpellsSection
+                  spellcastingAbility={activeState.spellcastingAbility}
+                  onAbilityChange={(val) => handleChange({ target: { name: 'spellcastingAbility', value: val } } as any)}
+                  spellSlotType={activeState.spellSlotType}
+                  onSlotTypeChange={(val) => handleChange({ target: { name: 'spellSlotType', value: val } } as any)}
+                  playerClass={activeState.playerClass}
+                />
               )}
             </div>
           </div>

@@ -198,6 +198,23 @@ export function useNpcs() {
     if (sessionLoading) return;
     fetchNpcs();
 
+    const handleLocalUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.npc) {
+        setNpcs(prev => {
+          const exists = prev.find(n => n.id === customEvent.detail.npc.id);
+          const next = exists 
+            ? prev.map(n => n.id === customEvent.detail.npc.id ? customEvent.detail.npc : n) 
+            : [...prev, customEvent.detail.npc];
+          npcsRef.current = next;
+          return next;
+        });
+      } else {
+        fetchNpcs();
+      }
+    };
+    window.addEventListener('force_npcs_refresh', handleLocalUpdate);
+
     let reconnectTimer: NodeJS.Timeout;
     let currentChannel: any = null;
     let isMounted = true;
@@ -237,6 +254,7 @@ export function useNpcs() {
 
     return () => {
       isMounted = false;
+      window.removeEventListener('force_npcs_refresh', handleLocalUpdate);
       clearTimeout(reconnectTimer);
       if (currentChannel) supabase.removeChannel(currentChannel);
     };
@@ -312,6 +330,23 @@ export function usePlayers() {
     if (sessionLoading) return;
     fetchPlayers();
 
+    const handleLocalUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.player) {
+        setPlayers(prev => {
+          const exists = prev.find(p => p.id === customEvent.detail.player.id);
+          const next = exists 
+            ? prev.map(p => p.id === customEvent.detail.player.id ? customEvent.detail.player : p) 
+            : [...prev, customEvent.detail.player];
+          playersRef.current = next;
+          return next;
+        });
+      } else {
+        fetchPlayers(); // fallback
+      }
+    };
+    window.addEventListener('force_players_refresh', handleLocalUpdate);
+
     let reconnectTimer: NodeJS.Timeout;
     let currentChannel: any = null;
     let isMounted = true;
@@ -351,6 +386,7 @@ export function usePlayers() {
 
     return () => {
       isMounted = false;
+      window.removeEventListener('force_players_refresh', handleLocalUpdate);
       clearTimeout(reconnectTimer);
       if (currentChannel) supabase.removeChannel(currentChannel);
     };

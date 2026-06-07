@@ -59,7 +59,10 @@ export default function LevelUpModal({
     if (applyProfBonus && suggestedProfBonus !== currentProfBonus) updates.profBonus = suggestedProfBonus;
     if (applyHdTotal && suggestedHdTotal !== currentHdTotal) updates.hdTotal = suggestedHdTotal;
     if (applySpells && hasSpellChanges) updates.spellSlots = suggestedSpellSlots;
-    if (applyHp && totalHpGain > 0) updates.hpMax = suggestedHpMax.toString();
+    if (applyHp && totalHpGain > 0) {
+      updates.hpMax = suggestedHpMax.toString();
+      updates.hpCurrent = suggestedHpMax.toString();
+    }
     
     onConfirm(updates);
     onClose();

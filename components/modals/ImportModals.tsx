@@ -23,6 +23,7 @@ export function NpcImportTextModal({ isOpen, onClose }: ImportModalProps) {
 # - Perícias: nomes separados por vírgula. Ex: Furtividade, Percepção, Atletismo
 # - Ataques Automáticos: use o padrão: Nome[X] Bônus[+Y] Dano[ZdN+M] | Nome[X] Bônus[+Y] Dano[ZdN+M]
 # - Magias Diárias: use o padrão: 1º[N] 2º[N] 3º[N] 4º[N] 5º[N] (apenas slots > 0)
+# - Atributo de Conjuração: int | wis | cha | con | none
 # - Ataque Principal: uma linha descrevendo o ataque principal em texto corrido
 # - Ações Completas: texto livre, uma ação por linha (nome + descrição)
 # - Se um campo não se aplica, deixe em branco
@@ -46,10 +47,12 @@ SAB:
 CAR: 
 Salvaguardas: 
 Perícias: 
+Ataques por Turno: 
 Ataques Automáticos: 
 Resistências: 
 Imunidades: 
 Traços: 
+Atributo de Conjuração: 
 Magias Diárias: 
 
 Ataque Principal (Resumo / Texto Secundário)
@@ -89,8 +92,9 @@ Notas do Mestre
         "for", "str", "des", "dex", "con", "int", "sab", "wis", "car", "cha",
         "salvaguardas", "saves", "salvaguardas (ex: for, con)", "salvaguardas (for, des, con, int, sab, car)",
         "pericias", "skills", "pericias (ex: furtividade, percepcao)",
-        "ataques automaticos", "ataques",
-        "resistencias", "imunidades", "tracos", "magias", "magias diarias"
+        "ataques automaticos", "ataques", "ataques por turno", "multiataque", "multiattack",
+        "resistencias", "imunidades", "tracos", "magias", "magias diarias",
+        "atributo de conjuracao", "spellcasting", "spellcasting ability"
       ];
 
       lines.forEach((line) => {
@@ -215,7 +219,7 @@ Notas do Mestre
             };
           }).filter((atk: any) => atk.name);
         }
-        if (key.includes("magias")) {
+        if (key.includes("magias") && key !== "atributo de conjuracao") {
           data.hasSpells = true;
           data.spellSlots = {};
           const slots = value.split(" ");
@@ -225,6 +229,22 @@ Notas do Mestre
                data.spellSlots[parseInt(match[1])] = parseInt(match[2]);
             }
           });
+        }
+        if (key === "atributo de conjuracao" || key.includes("spellcasting")) {
+          const lVal = value.toLowerCase().trim();
+          if (["int", "wis", "cha", "con", "none"].includes(lVal)) {
+            data.spellcastingAbility = lVal;
+          } else {
+            // tentar adivinhar em pt
+            if (lVal.includes("intelig")) data.spellcastingAbility = "int";
+            if (lVal.includes("sabedoria")) data.spellcastingAbility = "wis";
+            if (lVal.includes("carisma")) data.spellcastingAbility = "cha";
+            if (lVal.includes("constitui")) data.spellcastingAbility = "con";
+            if (lVal.includes("nenhum") || lVal.includes("nao")) data.spellcastingAbility = "none";
+          }
+        }
+        if (key.includes("ataques por turno") || key.includes("multiataque") || key.includes("multiattack")) {
+          data.multiattackCount = parseInt(value) || 1;
         }
       });
 

@@ -3,7 +3,7 @@ import { useCombat } from '@/contexts/CombatContext';
 import { useUserSession } from '@/contexts/UserSessionContext';
 
 export default function InitiativeBar() {
-  const { combat, nextTurn, endCombat, addToLog, removeParticipant } = useCombat();
+  const { combat, nextTurn, prevTurn, endCombat, addToLog, removeParticipant } = useCombat();
   const { isGM } = useUserSession();
 
   if (!combat) return null;
@@ -52,6 +52,17 @@ export default function InitiativeBar() {
               }}
             >
               🏃 Fugir
+            </button>
+            <button
+              className="btn secondary-btn"
+              style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)', padding: '0.5rem 1rem' }}
+              onClick={() => {
+                addToLog('O turno foi desfeito.', 'Mestre', 'system');
+                prevTurn();
+              }}
+              title="Voltar para o turno anterior"
+            >
+              ⏪ Voltar
             </button>
             <button 
               className="btn primary-btn" 

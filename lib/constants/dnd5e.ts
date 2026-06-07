@@ -44,7 +44,8 @@ export const CONDITIONS_MAP = [
   { id: 'restringido',   label: 'Restringido',   effect: { speedZero: true, attackAdvantageOnTarget: true, attackDisadvantage: true, disadvantageDexSave: true } },
   { id: 'invisível',     label: 'Invisível',     effect: { attackAdvantage: true, attackDisadvantageOnTarget: true } },
   { id: 'inconsciente',  label: 'Inconsciente',  effect: { noActions: true, noReactions: true, failForceDex: true, attackAdvantageOnTarget: true, autoMeleeCrit: true, prone: true } },
-  { id: 'exausto',       label: 'Exausto',       effect: { checkDisadvantage: true } } // Simplified for now
+  { id: 'exausto',       label: 'Exausto',       effect: { checkDisadvantage: true } },
+  { id: 'esquiva',       label: 'Esquiva',       effect: { attackDisadvantageOnTarget: true, advantageDexSave: true } }
 ] as const;
 
 export const SAVES_LIST = SAVES_MAP.map(s => s.key);

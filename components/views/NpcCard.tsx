@@ -25,6 +25,10 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
   const handleUpdate = (updates: any) => {
     const newNpcs = dadosGlobais.npcs.map((n: any) => n.id === npc.id ? { ...n, ...updates } : n);
     setDadosGlobais({ ...dadosGlobais, npcs: newNpcs });
+    const updatedNpc = newNpcs.find((n: any) => n.id === npc.id);
+    if (updatedNpc) {
+      window.dispatchEvent(new CustomEvent('force_npcs_refresh', { detail: { npc: updatedNpc } }));
+    }
     setTimeout(salvarEstadoLocal, 100);
   };
 
@@ -248,6 +252,16 @@ export default React.memo(function NpcCard({ npc }: NpcCardProps) {
             buffs={activeNpc.activeBuffs || []} 
             onUpdateBuffs={(newBuffs) => handleActiveUpdate({ activeBuffs: newBuffs })} 
             isGM={isGM} 
+            character={activeNpc}
+            onConsumeSpellSlot={(level, amount) => {
+              const used = activeNpc.spellSlotsUsed || {};
+              const currentUsed = used[level] || 0;
+              const maxSlots = activeNpc.spellSlots?.[level] || 0;
+              if (currentUsed + amount <= maxSlots) {
+                handleActiveUpdate({ spellSlotsUsed: { ...used, [level]: currentUsed + amount } });
+              }
+            }}
+            onUpdateCharacter={(updates) => handleActiveUpdate(updates)}
           />
 
           {!hideEffects && (

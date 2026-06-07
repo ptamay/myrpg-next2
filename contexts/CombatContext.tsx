@@ -33,6 +33,7 @@ export interface CombatParticipant {
   tempAc?: number;
   speed: number;           
   conditions: string[];
+  conditionDurations?: Record<string, number>;
   activeBuffs: ActiveBuff[];
   isDelayed: boolean;
   isDead: boolean;
@@ -63,6 +64,7 @@ export interface CombatParticipant {
   multiattack_count?: number;
   playerLevel?: number;
   playerClass?: string;
+  subclass?: string;
   cr?: string;         // ND do NPC
   combatFaction: 'ally' | 'enemy'; // Facção ativa neste combate específico
 
@@ -87,6 +89,13 @@ export interface CombatParticipant {
   preTransformStr?: number;
   preTransformDex?: number;
   preTransformCon?: number;
+  preTransformInt?: number;
+  preTransformWis?: number;
+  preTransformCha?: number;
+  preTransformAbilities?: any[];
+  preTransformResistances?: string[];
+  preTransformImmunities?: string[];
+  preTransformSaves?: string[];
   preTransformAttacks?: { 
     name: string; 
     bonus: string; 
@@ -211,6 +220,20 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     max: r.max ?? 0,
   }));
 
+  const dexValue = parseInt(activeForm.dex as any) || 10;
+  const dexMod = Math.floor((dexValue - 10) / 2);
+  let baseAc = parseAC(activeForm.ac || 10);
+  const buffs = Array.isArray(activeForm.activeBuffs) ? activeForm.activeBuffs : [];
+  let acOverride = 0;
+  buffs.forEach((b: any) => {
+    if (b.effects?.baseAcOverride && b.effects.baseAcOverride > acOverride) {
+      acOverride = b.effects.baseAcOverride;
+    }
+  });
+  if (acOverride > 0) {
+    baseAc = Math.max(baseAc, acOverride + dexMod);
+  }
+
   return {
     type,
     faction,
@@ -224,7 +247,7 @@ function toCombatParticipant(entity: Player | Npc, type: 'player' | 'npc'): Comb
     hpCurrent: activeForm.hpCurrent ?? activeForm.hpMax ?? 0,
     hpMax: activeForm.hpMax ?? 0,
     tempHp: activeForm.tempHp || 0,
-    ac: parseAC(activeForm.ac || 10) + sumBuffs(activeForm.activeBuffs, 'acBonus'),
+    ac: baseAc + sumBuffs(activeForm.activeBuffs, 'acBonus'),
     speed: parseSpeed(activeForm.speed || "30 ft") + sumBuffs(activeForm.activeBuffs, 'speedBonus'),
     conditions: Array.isArray(activeForm.conditions) ? activeForm.conditions : (activeForm.conditions ? [activeForm.conditions as unknown as string] : []),
     activeBuffs: Array.isArray(activeForm.activeBuffs) ? activeForm.activeBuffs : [],
@@ -468,13 +491,56 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
       }
       
       const incomingParticipantId = prev.participants[nextIndex].refId;
-      const newParticipants = prev.participants.map(p => 
-        p.refId === incomingParticipantId 
-          ? { ...p, actionSpent: false, bonusActionSpent: false, reactionSpent: false, movementSpent: false, attacksMade: 0, flurryUsed: false } 
-          : p
-      );
+      let logEntries: CombatLogEntry[] = [];
+      const newParticipants = prev.participants.map(p => {
+        if (p.refId === incomingParticipantId) {
+          // Process Condition Durations at start of turn
+          let newConditions = [...p.conditions];
+          let newDurations = p.conditionDurations ? { ...p.conditionDurations } : undefined;
+          
+          if (newDurations) {
+            for (const [condName, duration] of Object.entries(newDurations)) {
+              if (duration > 0) {
+                newDurations[condName] = duration - 1;
+                if (newDurations[condName] <= 0) {
+                  delete newDurations[condName];
+                  newConditions = newConditions.filter(c => c !== condName);
+                  logEntries.push({
+                    id: generateId(),
+                    round: nextRound,
+                    actorName: 'Sistema',
+                    action: `A condição **${condName}** dissipou-se de ${p.name}.`,
+                    type: 'system',
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              }
+            }
+          }
+          
+          return { 
+            ...p, 
+            conditions: newConditions,
+            conditionDurations: newDurations,
+            actionSpent: false, 
+            bonusActionSpent: false, 
+            reactionSpent: false, 
+            movementSpent: false, 
+            attacksMade: 0, 
+            flurryUsed: false 
+          };
+        }
+        return p;
+      });
       
-      return { ...prev, currentTurnIndex: nextIndex, round: nextRound, participants: newParticipants, selectedTargetIds: [] };
+      return { 
+        ...prev, 
+        currentTurnIndex: nextIndex, 
+        round: nextRound, 
+        participants: newParticipants, 
+        selectedTargetIds: [],
+        log: logEntries.length > 0 ? [ ...logEntries, ...prev.log ] : prev.log
+      };
     });
   };
 
@@ -530,6 +596,13 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           preTransformStr: p.str,
           preTransformDex: p.dex,
           preTransformCon: p.con,
+          preTransformInt: p.int,
+          preTransformWis: p.wis,
+          preTransformCha: p.cha,
+          preTransformAbilities: p.abilities,
+          preTransformResistances: p.resistances,
+          preTransformImmunities: p.immunities,
+          preTransformSaves: p.saves,
           preTransformAttacks: p.attacks,
           preTransformImage: p.image,
           preTransformName: p.name,
@@ -542,6 +615,13 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           str: parseInt(transformData.str) || 10,
           dex: parseInt(transformData.dex) || 10,
           con: parseInt(transformData.con) || 10,
+          int: parseInt(transformData.int) || 10,
+          wis: parseInt(transformData.wis) || 10,
+          cha: parseInt(transformData.cha) || 10,
+          abilities: Array.isArray(transformData.abilities) ? transformData.abilities : [],
+          resistances: Array.isArray(transformData.resistances) ? transformData.resistances : (transformData.res ? transformData.res.split(',') : []),
+          immunities: Array.isArray(transformData.immunities) ? transformData.immunities : (transformData.imm ? transformData.imm.split(',') : []),
+          saves: Array.isArray(transformData.saves) ? transformData.saves : (transformData.saves ? [transformData.saves] : []),
           attacks: Array.isArray(transformData.attacks) ? transformData.attacks : [],
           image: transformData.image,
           name: `${transformData.name} (${p.originalName || p.name})`
@@ -559,6 +639,13 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           str: p.preTransformStr ?? p.str,
           dex: p.preTransformDex ?? p.dex,
           con: p.preTransformCon ?? p.con,
+          int: p.preTransformInt ?? p.int,
+          wis: p.preTransformWis ?? p.wis,
+          cha: p.preTransformCha ?? p.cha,
+          abilities: p.preTransformAbilities ?? p.abilities,
+          resistances: p.preTransformResistances ?? p.resistances,
+          immunities: p.preTransformImmunities ?? p.immunities,
+          saves: p.preTransformSaves ?? p.saves,
           attacks: p.preTransformAttacks ?? p.attacks,
           image: p.preTransformImage ?? p.image,
           name: p.preTransformName ?? p.name,
@@ -653,6 +740,18 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
+      if (finalAmount > 0 && p.isConcentrating) {
+        const concDc = Math.max(10, Math.floor(finalAmount / 2));
+        logEntries.push({
+          id: generateId(),
+          round: prev.round,
+          actorName: 'Sistema',
+          action: `⚠️ **${p.name}** sofreu dano enquanto concentrava! Faça um Teste de Constituição **CD ${concDc}** para manter a concentração.`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        });
+      }
+
       if (p.combatTransformActive && current <= 0) {
         const overflow = Math.abs(current);
         const origHp = Math.max(0, (p.preTransformHp ?? p.hpCurrent) - overflow);
@@ -669,6 +768,13 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
           str: p.preTransformStr ?? p.str,
           dex: p.preTransformDex ?? p.dex,
           con: p.preTransformCon ?? p.con,
+          int: p.preTransformInt ?? p.int,
+          wis: p.preTransformWis ?? p.wis,
+          cha: p.preTransformCha ?? p.cha,
+          abilities: p.preTransformAbilities ?? p.abilities,
+          resistances: p.preTransformResistances ?? p.resistances,
+          immunities: p.preTransformImmunities ?? p.immunities,
+          saves: p.preTransformSaves ?? p.saves,
           attacks: p.preTransformAttacks ?? p.attacks,
           image: p.preTransformImage ?? p.image,
           name: p.preTransformName ?? p.name,
@@ -749,20 +855,41 @@ export function CombatProvider({ children }: { children: React.ReactNode }) {
     updateParticipant(participantId, { hpCurrent: current, isDead: current <= 0 && p.tempHp <= 0 });
   };
 
-  const addCondition = (participantId: string, condition: string) => {
+  const addCondition = (participantId: string, condition: string, durationRounds?: number) => {
     if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
-    if (!p.conditions.includes(condition)) {
-      updateParticipant(participantId, { conditions: [...p.conditions, condition] });
+    
+    let newConditions = [...p.conditions];
+    if (!newConditions.includes(condition)) {
+      newConditions.push(condition);
     }
+    
+    let newDurations = p.conditionDurations ? { ...p.conditionDurations } : {};
+    if (durationRounds && durationRounds > 0) {
+      newDurations[condition] = durationRounds;
+    }
+    
+    updateParticipant(participantId, { 
+      conditions: newConditions,
+      conditionDurations: Object.keys(newDurations).length > 0 ? newDurations : p.conditionDurations
+    });
   };
 
   const removeCondition = (participantId: string, condition: string) => {
     if (!combat) return;
     const p = combat.participants.find(p => p.refId === participantId);
     if (!p) return;
-    updateParticipant(participantId, { conditions: p.conditions.filter(c => c !== condition) });
+    
+    let newDurations = p.conditionDurations ? { ...p.conditionDurations } : undefined;
+    if (newDurations && newDurations[condition] !== undefined) {
+      delete newDurations[condition];
+    }
+    
+    updateParticipant(participantId, { 
+      conditions: p.conditions.filter(c => c !== condition),
+      conditionDurations: newDurations
+    });
   };
 
   const setInitiative = (participantId: string, value: number) => {

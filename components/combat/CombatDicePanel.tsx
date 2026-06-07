@@ -74,7 +74,15 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
         setSaveDC(pendingAttack.saveDC);
       } else {
         setRollMode("attack");
-        setModifier(pendingAttack.bonus.replace('+', ''));
+        let baseBonus = parseInt(pendingAttack.bonus.replace('+', '')) || 0;
+        
+        // Arma Sagrada: Adiciona modificador de Carisma ao Ataque
+        if (activeParticipant?.conditions?.includes('Arma Sagrada')) {
+          const chaMod = Math.floor((activeParticipant.cha - 10) / 2);
+          baseBonus += chaMod;
+        }
+        
+        setModifier(baseBonus.toString());
         
         let hasAdvantage = false;
         let hasDisadvantage = false;
@@ -84,8 +92,9 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
         attackerConditions.forEach(condName => {
           const cDef = CONDITIONS_MAP.find(c => c.id.toLowerCase() === condName.toLowerCase() || c.label.toLowerCase() === condName.toLowerCase());
           if (cDef?.effect) {
-            if (cDef.effect.attackAdvantage) hasAdvantage = true;
-            if (cDef.effect.attackDisadvantage) hasDisadvantage = true;
+            const effect: any = cDef.effect;
+            if (effect.attackAdvantage) hasAdvantage = true;
+            if (effect.attackDisadvantage) hasDisadvantage = true;
           }
           if (condName.toLowerCase() === 'ataque temerário') hasAdvantage = true;
         });
@@ -98,8 +107,13 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
             targetConditions.forEach(condName => {
               const cDef = CONDITIONS_MAP.find(c => c.id.toLowerCase() === condName.toLowerCase() || c.label.toLowerCase() === condName.toLowerCase());
               if (cDef?.effect) {
-                if (cDef.effect.attackAdvantageOnTarget || cDef.effect.meleeAdvantageOnTarget) hasAdvantage = true;
-                if (cDef.effect.attackDisadvantageOnTarget || cDef.effect.rangedDisadvantageOnTarget) hasDisadvantage = true;
+                const effect: any = cDef.effect;
+                if (effect.attackAdvantageOnTarget || effect.meleeAdvantageOnTarget) hasAdvantage = true;
+                if (effect.attackDisadvantageOnTarget || effect.rangedDisadvantageOnTarget) hasDisadvantage = true;
+              }
+              // Voto de Inimizade: Se o alvo é um "Inimigo Jurado" e o Paladino estiver atacando
+              if (condName === 'Inimigo Jurado') {
+                 hasAdvantage = true;
               }
             });
           }
@@ -160,7 +174,9 @@ export default function CombatDicePanel({ activeParticipant, participants, onRol
             rolls = [dieResult];
           }
           total = dieResult + mod;
-          isCritical = faces === 20 && dieResult === 20;
+          const hasEnhancedCrit = activeParticipant?.abilities?.some(a => a.name === 'Acerto Crítico Aprimorado');
+          const critThreshold = hasEnhancedCrit ? 19 : 20;
+          isCritical = faces === 20 && dieResult >= critThreshold;
           isCritFail = faces === 20 && dieResult === 1;
         }
         

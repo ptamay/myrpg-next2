@@ -181,14 +181,16 @@ export function buildDamageLog(
 
   const extraLines = extras.map(e => {
     if (e.dice.startsWith('+')) {
-      return `${e.emoji} ${e.label}: **${e.total}**`;
+      return `> ${e.emoji} ${e.label}: **${e.total}**`;
     }
-    return `${e.emoji} ${e.label}: [${e.rolls.join(', ')}] = **${e.total}**`;
+    return `> ${e.emoji} ${e.label}: [${e.rolls.join(', ')}] = **${e.total}**`;
   });
 
   const critTag = isCritical ? '💥 CRÍTICO! ' : '';
-  const allParts = [weaponPart, ...extraLines].join(' | ');
-  const message = `${critTag}causou **${grandTotal}** em ${targetName}. [${allParts}]`;
+  const header = `${critTag}causou **${grandTotal}** de dano em ${targetName}.`;
+  
+  const allParts = [`> ⚔️ Arma (${weaponExpr}): [${weaponRolls.join(', ')}]${modStr} = **${weaponTotal}**`, ...extraLines].join('\n');
+  const message = `${header}\n${allParts}`;
 
   return { total: grandTotal, message };
 }

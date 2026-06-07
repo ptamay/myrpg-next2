@@ -14,8 +14,10 @@ export interface ActiveBuff {
     resistance?: string[];
     immunity?: string[];
     custom?: string;
+    baseAcOverride?: number;
   };
   duration: 'combat' | 'short_rest' | 'long_rest' | 'permanent' | number;
   durationRounds?: number;
   appliedAt?: string;
+  isConcentration?: boolean;
 }

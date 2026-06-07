@@ -6,7 +6,7 @@ import { useUserSession } from '@/contexts/UserSessionContext';
 import CombatDicePanel, { RollEntry } from './CombatDicePanel';
 import { getMaxAttacks } from '@/lib/dice/multiattack';
 import { isPaladin, rollDivineSmite } from '@/lib/dice/specialDamage';
-import { parseDmgString, ParsedDamage } from '@/lib/dice/rollParser';
+import { parseDmgString, ParsedDamage, rollDamage } from '@/lib/dice/rollParser';
 import { computeExtraDamages, buildDamageLog } from '@/lib/dice/specialDamage';
 import { Ability } from '@/lib/gameData';
 
@@ -25,6 +25,23 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
   const [isTargeting, setIsTargeting] = useState(false);
   const [pendingDamage, setPendingDamage] = useState<{ isCritical: boolean; parsedDmg: ParsedDamage } | null>(null);
   
+  const [magicMissileUI, setMagicMissileUI] = useState<{
+    active: boolean;
+    abilityName: string;
+    dmgStr: string;
+    totalDarts: number;
+    targets: { refId: string; name: string; darts: number }[];
+    damageType: string;
+    conditionApplied?: string;
+    actorName: string;
+  } | null>(null);
+  
+  const [mercyMonkUI, setMercyMonkUI] = useState<{
+    active: boolean;
+    mode: 'cura' | 'dano' | null;
+    selectedTargetId: string | null;
+  } | null>(null);
+  
   if (!combat) return null;
 
   const participant = combat.participants.find(p => p.refId === participantId);
@@ -33,11 +50,36 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
   const isActiveTurn = combat.participants[combat.currentTurnIndex]?.refId === participantId;
   const isMyCharacter = participant.type === 'player' && participant.refId === profile?.player_id;
   
-  const canAct = isGM || (isMyCharacter && isActiveTurn);
+  // O Mestre pode controlar monstros e jogadores, o Jogador só controla a si mesmo.
+  // MAS as ações normais e ataques só podem ser usados se for o TURNO do personagem (isActiveTurn),
+  // mesmo para o Mestre, para evitar cliques acidentais.
+  const hasPermission = isGM || isMyCharacter;
+  const canAct = hasPermission && isActiveTurn;
+
+  // ---------------- Async Dialog State ----------------
+  const [dialogConfig, setDialogConfig] = useState<{
+    isOpen: boolean;
+    type: 'prompt' | 'confirm';
+    message: string;
+    defaultValue?: string;
+    resolve?: (value: any) => void;
+  }>({ isOpen: false, type: 'prompt', message: '' });
+
+  const asyncPrompt = (message: string, defaultValue = ''): Promise<string | null> => {
+    return new Promise(resolve => {
+      setDialogConfig({ isOpen: true, type: 'prompt', message, defaultValue, resolve });
+    });
+  };
+
+  const asyncConfirm = (message: string): Promise<boolean> => {
+    return new Promise(resolve => {
+      setDialogConfig({ isOpen: true, type: 'confirm', message, resolve });
+    });
+  };
 
   // ---------------- Handlers ----------------
 
-  const handleDiceRoll = (entry: RollEntry) => {
+  const handleDiceRoll = async (entry: RollEntry) => {
     const { rollMode, saveAttr, saveDC } = entry;
     
     const type = entry.isCritical ? 'critical' : entry.isCritFail ? 'crit_fail' : 'attack';
@@ -65,11 +107,38 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
             mod += target.profBonus;
           }
           
-          const rollResult = Math.floor(Math.random() * 20) + 1;
+          let hasAdvantage = false;
+          let hasDisadvantage = false;
+          
+          // Verificar condições que afetam o teste (ex: Esquiva, Restringido, etc)
+          const targetConditions = target.conditions || [];
+          targetConditions.forEach(condName => {
+            const cDef = CONDITIONS_MAP.find(c => c.id.toLowerCase() === condName.toLowerCase() || c.label.toLowerCase() === condName.toLowerCase());
+            if (cDef?.effect) {
+              const effect: any = cDef.effect;
+              if (saveAttr === "Destreza" && effect.advantageDexSave) hasAdvantage = true;
+              if (saveAttr === "Destreza" && effect.disadvantageDexSave) hasDisadvantage = true;
+              if (effect.failForceDex && (saveAttr === "Força" || saveAttr === "Destreza")) hasDisadvantage = true; // tecnicamente falha automática, mas desvantagem simula o malefício no rolamento provisoriamente
+            }
+          });
+          
+          let rollResult = Math.floor(Math.random() * 20) + 1;
+          let rollMsg = `${rollResult}`;
+          
+          if (hasAdvantage && !hasDisadvantage) {
+            const r2 = Math.floor(Math.random() * 20) + 1;
+            rollResult = Math.max(rollResult, r2);
+            rollMsg = `[${rollMsg}, ${r2}] Vantagem → ${rollResult}`;
+          } else if (hasDisadvantage && !hasAdvantage) {
+            const r2 = Math.floor(Math.random() * 20) + 1;
+            rollResult = Math.min(rollResult, r2);
+            rollMsg = `[${rollMsg}, ${r2}] Desvantagem → ${rollResult}`;
+          }
+          
           const total = rollResult + mod;
           const passed = total >= saveDC!;
           
-          let resMsg = `(Rolou d20: ${rollResult} + Mod: ${mod}) = **${total}**`;
+          let resMsg = `(Rolou d20: ${rollMsg} | Mod: ${mod}) = **${total}**`;
           if (passed) {
             addToLog(`🛡️ ${target.name} **PASSOU** no teste. ${resMsg}`, entry.actorName, 'system');
           } else {
@@ -84,7 +153,14 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       return;
     }
 
-    let msg = `rolou d${entry.dieFaces}${entry.modifier !== 0 ? (entry.modifier > 0 ? '+' : '') + entry.modifier : ''} → **${entry.total}**`;
+    let rollDetails = `d${entry.dieFaces}: ${entry.dieResult}`;
+    if (entry.advantage === "advantage" && entry.rolls && entry.rolls.length >= 2) {
+      rollDetails = `[${entry.rolls[0]}, ${entry.rolls[1]}] Vantagem → ${entry.dieResult}`;
+    } else if (entry.advantage === "disadvantage" && entry.rolls && entry.rolls.length >= 2) {
+      rollDetails = `[${entry.rolls[0]}, ${entry.rolls[1]}] Desvantagem → ${entry.dieResult}`;
+    }
+
+    let msg = `rolou ${rollDetails} ${entry.modifier !== 0 ? (entry.modifier > 0 ? '+ ' : '- ') + Math.abs(entry.modifier) : ''} = **${entry.total}**`;
     
     if (entry.isCritical) msg += ' 💥 CRÍTICO!';
     if (entry.isCritFail) msg += ' 💀 Falha Crítica!';
@@ -130,7 +206,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         const extras = computeExtraDamages(actor, pendingDamage.isCritical, entry.advantage);
         let finalExtras = [...extras];
         if (actor.conditions?.some(c => c.toLowerCase() === 'destruição divina')) {
-          const slotStr = prompt("Destruição Divina ativa! Qual nível do espaço de magia você quer gastar? (1 a 5)");
+          const slotStr = await asyncPrompt("Destruição Divina ativa! Qual nível do espaço de magia você quer gastar? (1 a 5)");
           const slotLvl = parseInt(slotStr || "1");
           if (!isNaN(slotLvl) && slotLvl >= 1) {
             finalExtras.push(rollDivineSmite(slotLvl, pendingDamage.isCritical));
@@ -169,7 +245,29 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         }
         
         setPendingDamage(null);
+        setPendingAttack(null);
         return;
+      }
+
+      if (pendingAttack && pendingAttack.bonus === "Auto" && combat.selectedTargetIds.length > 1) {
+        const distStr = await asyncPrompt(`Dano Total: ${entry.total}. Você selecionou ${combat.selectedTargetIds.length} alvos.\nDigite os danos para cada alvo separados por vírgula na ordem em que foram selecionados.\n(Ex: se rolou 12 para 3 alvos, digite: 4, 4, 4)`);
+        if (distStr) {
+          const damages = distStr.split(',').map(n => parseInt(n.trim()) || 0);
+          combat.selectedTargetIds.forEach((targetId, idx) => {
+            const dmg = damages[idx] || 0;
+            if (dmg > 0) {
+              applyDamage(targetId, dmg, entry.damageType);
+              const tName = combat.participants.find(p => p.refId === targetId)?.name;
+              addToLog(`🩸 Míssil/Auto-Hit: causou **${dmg}** de dano em ${tName}!`, entry.actorName, 'damage');
+              if (pendingAttack?.conditionApplied) {
+                addCondition(targetId, pendingAttack.conditionApplied);
+              }
+            }
+          });
+          setPendingDamage(null);
+          setPendingAttack(null);
+          return;
+        }
       }
 
       combat.selectedTargetIds.forEach(targetId => {
@@ -177,6 +275,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       });
       addToLog(`🩸 causou **${entry.total}** de dano em ${damagedNames.join(', ')}!`, entry.actorName, 'damage');
       setPendingDamage(null);
+      setPendingAttack(null);
       return;
     }
 
@@ -185,7 +284,14 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       const atkBonus = pendingAttack ? pendingAttack.bonus : `+${entry.modifier}`;
       const atkDmg = pendingAttack ? pendingAttack.dmg : '';
 
-      let baseMsg = `usou **${atkName}** (d20: ${entry.dieResult} + Mod: ${entry.modifier} = **${entry.total}**)`;
+      let rollDetails = `d20: ${entry.dieResult}`;
+      if (entry.advantage === "advantage" && entry.rolls && entry.rolls.length >= 2) {
+        rollDetails = `[${entry.rolls[0]}, ${entry.rolls[1]}] Vantagem → ${entry.dieResult}`;
+      } else if (entry.advantage === "disadvantage" && entry.rolls && entry.rolls.length >= 2) {
+        rollDetails = `[${entry.rolls[0]}, ${entry.rolls[1]}] Desvantagem → ${entry.dieResult}`;
+      }
+
+      let baseMsg = `usou **${atkName}** (${rollDetails} | Mod: ${entry.modifier >= 0 ? '+' : ''}${entry.modifier} = **${entry.total}**)`;
       if (entry.isCritical) baseMsg += ' (💥 CRÍTICO)';
       if (entry.isCritFail) baseMsg += ' (💀 Falha Crítica)';
 
@@ -206,7 +312,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         const hitLogs: string[] = [];
         const hitsToDispatch: any[] = [];
         
-        combat.selectedTargetIds.forEach(targetId => {
+        for (const targetId of combat.selectedTargetIds) {
           const target = combat.participants.find(p => p.refId === targetId);
           if (target) {
             let effAc = target.ac;
@@ -223,7 +329,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                   if (max - used <= 0) canCast = false;
                 }
                 
-                if (canCast && window.confirm(`[REAÇÃO] ${target.name} foi atingido (Ataque: ${entry.total} vs CA: ${effAc}).\nDeseja usar a Reação: ${shieldAb.name} para ganhar +${shieldAb.tempAcBonus} de CA e evitar o ataque?`)) {
+                if (canCast && await asyncConfirm(`[REAÇÃO] ${target.name} foi atingido (Ataque: ${entry.total} vs CA: ${effAc}).\nDeseja usar a Reação: ${shieldAb.name} para ganhar +${shieldAb.tempAcBonus} de CA e evitar o ataque?`)) {
                   const targetUpdates: any = { 
                     reactionSpent: true, 
                     tempAc: (target.tempAc || 0) + shieldAb.tempAcBonus!
@@ -253,7 +359,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
               hitLogs.push(`❌ Errou ${target.name}`);
             }
           }
-        });
+        }
         
         triggerRollEvent({
           type: "attack",
@@ -321,18 +427,22 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       if (currentAttacks >= maxAttacks) return alert("Você já usou sua Ação Principal e todos os Ataques Extras!");
     }
 
-    if (atk.resourceCost && atk.resourceCost.resourceName) {
-      if (atk.resourceCost.resourceName.startsWith('Espaço Nível')) {
-        const lvlMatch = atk.resourceCost.resourceName.match(/\d+/);
-        if (lvlMatch) {
-          const lvl = parseInt(lvlMatch[0]);
-          const max = participant.spellSlots?.[lvl] || 0;
-          const used = participant.spellSlotsUsed?.[lvl] || 0;
-          if (max - used < atk.resourceCost.amount) return alert(`Espaço de Magia Insuficiente: Nível ${lvl}`);
-        }
-      } else {
-        const res = participant.classResources?.find(r => r.name === atk.resourceCost.resourceName);
-        if (!res || res.current < atk.resourceCost.amount) return alert(`Recurso Insuficiente: ${atk.resourceCost.resourceName}`);
+    let consumedResourceName = '';
+    let consumedResourceAmount = 0;
+
+    // Check for spell slots via spellLevel (if added to attacks) or resourceCost
+    if (atk.spellLevel !== undefined && atk.spellLevel > 0) {
+      consumedResourceName = `Espaço Nível ${atk.spellLevel}`;
+      consumedResourceAmount = atk.resourceCost?.amount || 1;
+    } else if (atk.resourceCost?.resourceName) {
+      consumedResourceName = atk.resourceCost.resourceName;
+      consumedResourceAmount = atk.resourceCost.amount || 1;
+    }
+
+    if (consumedResourceName) {
+      const res = participant.classResources?.find(r => r.name === consumedResourceName);
+      if (!res || res.current < consumedResourceAmount) {
+        return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
       }
     }
 
@@ -346,21 +456,12 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       updates.attacksMade = (participant.attacksMade || 0) + 1;
     }
     
-    if (atk.resourceCost && atk.resourceCost.resourceName) {
-      if (atk.resourceCost.resourceName.startsWith('Espaço Nível')) {
-        const lvlMatch = atk.resourceCost.resourceName.match(/\d+/);
-        if (lvlMatch) {
-          const lvl = parseInt(lvlMatch[0]);
-          const used = participant.spellSlotsUsed?.[lvl] || 0;
-          updates.spellSlotsUsed = { ...(participant.spellSlotsUsed || {}), [lvl]: used + atk.resourceCost.amount };
-        }
-      } else {
-        const resIdx = participant.classResources?.findIndex(r => r.name === atk.resourceCost.resourceName);
-        if (resIdx !== undefined && resIdx >= 0) {
-          const newResources = [...(participant.classResources || [])];
-          newResources[resIdx].current -= atk.resourceCost.amount;
-          updates.classResources = newResources;
-        }
+    if (consumedResourceName) {
+      const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
+      if (resIdx !== undefined && resIdx >= 0) {
+        const newResources = [...(participant.classResources || [])];
+        newResources[resIdx].current -= consumedResourceAmount;
+        updates.classResources = newResources;
       }
     }
 
@@ -375,7 +476,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     }
   };
 
-  const handleAbility = (ab: any) => {
+  const handleAbility = async (ab: any) => {
     if (!canAct) return;
     if (ab.actionCost) {
       if (ab.actionCost === 'action' && participant.actionSpent) return alert("Ação Principal já gasta!");
@@ -383,18 +484,22 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       if (ab.actionCost === 'reaction' && participant.reactionSpent) return alert("Reação já gasta!");
     }
 
-    if (ab.resourceCost && ab.resourceCost.resourceName) {
-      if (ab.resourceCost.resourceName.startsWith('Espaço Nível')) {
-        const lvlMatch = ab.resourceCost.resourceName.match(/\d+/);
-        if (lvlMatch) {
-          const lvl = parseInt(lvlMatch[0]);
-          const max = participant.spellSlots?.[lvl] || 0;
-          const used = participant.spellSlotsUsed?.[lvl] || 0;
-          if (max - used < ab.resourceCost.amount) return alert(`Espaço de Magia Insuficiente: Nível ${lvl}`);
-        }
-      } else {
-        const res = participant.classResources?.find(r => r.name === ab.resourceCost.resourceName);
-        if (!res || res.current < ab.resourceCost.amount) return alert(`Recurso Insuficiente: ${ab.resourceCost.resourceName}`);
+    let consumedResourceName = '';
+    let consumedResourceAmount = 0;
+
+    // Check for spell slots via spellLevel
+    if (ab.spellLevel !== undefined && ab.spellLevel > 0) {
+      consumedResourceName = `Espaço Nível ${ab.spellLevel}`;
+      consumedResourceAmount = ab.resourceCost?.amount || 1;
+    } else if (ab.resourceCost?.resourceName) {
+      consumedResourceName = ab.resourceCost.resourceName;
+      consumedResourceAmount = ab.resourceCost.amount || 1;
+    }
+
+    if (consumedResourceName) {
+      const res = participant.classResources?.find(r => r.name === consumedResourceName);
+      if (!res || res.current < consumedResourceAmount) {
+        return alert(`Recurso Insuficiente: ${consumedResourceName} (Atual: ${res?.current || 0}, Necessário: ${consumedResourceAmount})`);
       }
     }
 
@@ -403,21 +508,12 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     if (ab.actionCost === 'bonus') updates.bonusActionSpent = true;
     if (ab.actionCost === 'reaction') updates.reactionSpent = true;
     
-    if (ab.resourceCost && ab.resourceCost.resourceName) {
-      if (ab.resourceCost.resourceName.startsWith('Espaço Nível')) {
-        const lvlMatch = ab.resourceCost.resourceName.match(/\d+/);
-        if (lvlMatch) {
-          const lvl = parseInt(lvlMatch[0]);
-          const used = participant.spellSlotsUsed?.[lvl] || 0;
-          updates.spellSlotsUsed = { ...(participant.spellSlotsUsed || {}), [lvl]: used + ab.resourceCost.amount };
-        }
-      } else {
-        const resIdx = participant.classResources?.findIndex(r => r.name === ab.resourceCost.resourceName);
-        if (resIdx !== undefined && resIdx >= 0) {
-          const newResources = [...(participant.classResources || [])];
-          newResources[resIdx].current -= ab.resourceCost.amount;
-          updates.classResources = newResources;
-        }
+    if (consumedResourceName) {
+      const resIdx = participant.classResources?.findIndex(r => r.name === consumedResourceName);
+      if (resIdx !== undefined && resIdx >= 0) {
+        const newResources = [...(participant.classResources || [])];
+        newResources[resIdx].current -= consumedResourceAmount;
+        updates.classResources = newResources;
       }
     }
 
@@ -426,8 +522,22 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     }
 
     if (ab.conditionApplied && (ab.effect === 'buff' || ab.targetType === 'self' || ab.description?.toLowerCase().includes('si mesmo'))) {
+      let durRounds: number | undefined;
+      if (ab.duration) {
+        const dStr = ab.duration.toLowerCase();
+        if (dStr.includes('minuto')) {
+          const match = dStr.match(/\d+/);
+          durRounds = match ? parseInt(match[0]) * 10 : 10;
+        } else if (dStr.includes('hora')) {
+          const match = dStr.match(/\d+/);
+          durRounds = match ? parseInt(match[0]) * 600 : 600;
+        } else if (dStr.includes('turno') || dStr.includes('rodada')) {
+          const match = dStr.match(/\d+/);
+          durRounds = match ? parseInt(match[0]) : 1;
+        }
+      }
       addCondition(participant.refId, ab.conditionApplied);
-      addToLog(`Recebeu a condição: **${ab.conditionApplied}**`, participant.name, 'system');
+      addToLog(`Recebeu a condição: **${ab.conditionApplied}** ${durRounds ? `(Duração: ${durRounds} rodadas)` : ''}`, participant.name, 'system');
     }
 
     const nameLower = ab.name.toLowerCase();
@@ -456,7 +566,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
       }
       const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'cura pelas mãos (pv)');
       if (!pRes || pRes.current <= 0) return;
-      const input = prompt(`Quantos pontos deseja usar? (Max: ${pRes.current})`);
+      const input = await asyncPrompt(`Quantos pontos deseja usar? (Max: ${pRes.current})`);
       const healAmount = parseInt(input || "0");
       if (isNaN(healAmount) || healAmount <= 0) return;
       if (healAmount > pRes.current) return alert("Não tem pontos suficientes.");
@@ -474,6 +584,46 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     } else if (nameLower === 'smite divino' || nameLower === 'destruição divina') {
       addCondition(participant.refId, 'Destruição Divina');
       addToLog(`A arma brilhou com poder Divino!`, participant.name, 'system');
+    } else if (nameLower === 'atleta incomparável') {
+      const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'canalizar divindade');
+      if (!pRes || pRes.current <= 0) return alert("Não possui usos de Canalizar Divindade.");
+      const newResources = [...(participant.classResources || [])];
+      const resIdx = newResources.findIndex(r => r.name.toLowerCase() === 'canalizar divindade');
+      newResources[resIdx].current -= 1;
+      updateParticipant(participant.refId, { classResources: newResources });
+      
+      addCondition(participant.refId, 'Atleta Incomparável', 100);
+      addToLog(`usou **Atleta Incomparável**! Ganhou vantagem em Atletismo, Acrobacia e pulos estendidos por 10 minutos.`, participant.name, 'system');
+    } else if (nameLower === 'destruição inspiradora') {
+      if (combat.selectedTargetIds.length === 0) return alert("Selecione os aliados no tabuleiro que receberão os PVs Temporários!");
+      
+      const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'canalizar divindade');
+      if (!pRes || pRes.current <= 0) return alert("Não possui usos de Canalizar Divindade.");
+      const newResources = [...(participant.classResources || [])];
+      const resIdx = newResources.findIndex(r => r.name.toLowerCase() === 'canalizar divindade');
+      newResources[resIdx].current -= 1;
+      updateParticipant(participant.refId, { classResources: newResources });
+      
+      const level = parseInt(participant.playerLevel?.toString() || '1');
+      const r1 = Math.floor(Math.random() * 8) + 1;
+      const r2 = Math.floor(Math.random() * 8) + 1;
+      const pool = r1 + r2 + level;
+      
+      const targets = combat.participants.filter(p => combat.selectedTargetIds.includes(p.refId));
+      if (targets.length === 1) {
+        const t = targets[0];
+        const newTemp = Math.max(t.tempHp || 0, pool);
+        updateParticipant(t.refId, { tempHp: newTemp });
+        addToLog(`usou **Destruição Inspiradora**! Concedeu **${pool} PVs Temporários** para **${t.name}** (2d8: ${r1}+${r2} + Nv: ${level}).`, participant.name, 'heal');
+      } else {
+        const amountPerTarget = Math.floor(pool / targets.length);
+        targets.forEach(t => {
+          const newTemp = Math.max(t.tempHp || 0, amountPerTarget);
+          updateParticipant(t.refId, { tempHp: newTemp });
+        });
+        const names = targets.map(t => t.name).join(', ');
+        addToLog(`usou **Destruição Inspiradora**! Dividiu **${pool} PVs Temporários** (2d8: ${r1}+${r2} + Nv: ${level}) entre: **${names}** (${amountPerTarget} para cada).`, participant.name, 'heal');
+      }
     } else if (nameLower === 'surto de ação') {
       updateParticipant(participant.refId, { actionSpent: false, attacksMade: 0 });
       addToLog(`Recuperou sua Ação Principal!`, participant.name, 'system');
@@ -487,6 +637,61 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     } else if (nameLower === 'passo do vento') {
       updateParticipant(participant.refId, { bonusActionSpent: true });
       addToLog(`Pode usar Disparada ou Desengajar como Ação Bônus!`, participant.name, 'system');
+    } else if (nameLower === 'técnica da mão aberta' || nameLower === 'tecnica da mao aberta') {
+      if (combat.selectedTargetIds.length === 0) return alert("Selecione um alvo no tabuleiro primeiro!");
+      const targetId = combat.selectedTargetIds[0];
+      const target = combat.participants.find(p => p.refId === targetId);
+      if (!target) return;
+      
+      const prof = parseInt(participant.profBonus?.toString().replace('+','') || "2");
+      const modWis = Math.floor(((participant.wis || 10) - 10) / 2);
+      const saveDC = 8 + prof + modWis;
+      
+      const choice = await asyncPrompt("Efeito da Técnica (Derrubar / Empurrar / Remover Reação):", "Derrubar");
+      if (!choice) return;
+      
+      const eff = choice.toLowerCase();
+      let saveAttr = 'Destreza';
+      if (eff.includes('empurrar')) saveAttr = 'Força';
+      
+      if (eff.includes('reacao') || eff.includes('reação') || eff.includes('remover')) {
+        addToLog(`💥 O alvo não pode usar Reações até o fim do próximo turno do Monge.`, participant.name, 'system');
+        addCondition(targetId, 'Sem Reação', 1);
+        return;
+      }
+      
+      let statVal = saveAttr === 'Força' ? target.str : target.dex;
+      let targetMod = Math.floor((statVal - 10) / 2);
+      if (target.saves?.some(s => s.toLowerCase() === saveAttr.toLowerCase())) {
+        targetMod += target.profBonus;
+      }
+      
+      const rollResult = Math.floor(Math.random() * 20) + 1;
+      const total = rollResult + targetMod;
+      const passed = total >= saveDC;
+      
+      let resMsg = `(Rolou d20: ${rollResult} + Mod: ${targetMod}) = **${total}** vs CD ${saveDC}`;
+      if (passed) {
+        addToLog(`🛡️ ${target.name} resistiu à Técnica da Mão Aberta! ${resMsg}`, participant.name, 'system');
+      } else {
+        addToLog(`💥 ${target.name} falhou no teste de ${saveAttr} contra a Técnica! ${resMsg}`, participant.name, 'crit_fail');
+        if (eff.includes('derrubar')) {
+          addCondition(targetId, 'Caído');
+          addToLog(`🤕 ${target.name} foi Derrubado e está Caído!`, 'Sistema', 'system');
+        } else if (eff.includes('empurrar')) {
+          addToLog(`🌪️ ${target.name} foi empurrado 4,5m (15ft) para trás!`, 'Sistema', 'system');
+        }
+      }
+      return;
+    } else if (nameLower === 'mãos que curam / mãos de dano') {
+      const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'pontos de ki');
+      if (!pRes || pRes.current <= 0) {
+        return alert("Não possui Pontos de Ki suficientes.");
+      }
+      setMercyMonkUI({ active: true, mode: null, selectedTargetId: null });
+      return;
+      
+
     } else {
       addToLog(`usou a habilidade: **${ab.name}**`, participant.name, 'system');
     }
@@ -502,23 +707,81 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
         };
         saveAttr = attrMap[ab.savingThrow.toLowerCase()] || ab.savingThrow;
         
-        // Calcular CD = 8 + prof + melhor modificador de conjuração (Int, Sab, Car)
-        const prof = participant.profBonus || 2;
-        const modInt = Math.floor(((participant.int || 10) - 10) / 2);
-        const modWis = Math.floor(((participant.wis || 10) - 10) / 2);
-        const modCha = Math.floor(((participant.cha || 10) - 10) / 2);
-        const bestMod = Math.max(modInt, modWis, modCha);
-        saveDC = ab.saveDC || (8 + prof + bestMod);
+        const prof = parseInt(participant.profBonus?.toString().replace('+','') || "2");
+        let mod = 0;
+        if (participant.spellcastingAbility) {
+          const statVal = (participant as any)[participant.spellcastingAbility] || 10;
+          mod = Math.floor((statVal - 10) / 2);
+        } else {
+          const modInt = Math.floor(((participant.int || 10) - 10) / 2);
+          const modWis = Math.floor(((participant.wis || 10) - 10) / 2);
+          const modCha = Math.floor(((participant.cha || 10) - 10) / 2);
+          mod = Math.max(modInt, modWis, modCha);
+        }
+        saveDC = ab.saveDC || (8 + prof + mod);
       }
 
-      setPendingAttack({
+      // Mísseis Mágicos bypass the d20 roll
+      const nLower = ab.name.toLowerCase();
+      const isAutoHit = nLower.includes('míssil mágico') || nLower.includes('mísseis mágicos') || nLower.includes('missil magico') || nLower.includes('misseis magicos') || nLower.includes('magic missile') || ab.description?.toLowerCase().includes('acerta automaticamente');
+      
+      let spellAttackBonus = 0;
+      if (!isAutoHit && !ab.savingThrow && ab.spellLevel !== undefined && ab.spellLevel >= 0) {
+        const prof = parseInt(participant.profBonus?.toString().replace('+','') || "2");
+        let mod = 0;
+        if (participant.spellcastingAbility) {
+          const statVal = (participant as any)[participant.spellcastingAbility] || 10;
+          mod = Math.floor((statVal - 10) / 2);
+        } else {
+          const modInt = Math.floor(((participant.int || 10) - 10) / 2);
+          const modWis = Math.floor(((participant.wis || 10) - 10) / 2);
+          const modCha = Math.floor(((participant.cha || 10) - 10) / 2);
+          mod = Math.max(modInt, modWis, modCha);
+        }
+        spellAttackBonus = prof + mod;
+      }
+      
+      const pAtk: any = {
         name: ab.name,
-        bonus: "0",
+        bonus: isAutoHit ? "Auto" : ((ab.spellLevel !== undefined && spellAttackBonus > 0) ? `+${spellAttackBonus}` : "0"),
         dmg: ab.dmg || "",
         conditionApplied: ab.conditionApplied,
         saveAttr: saveAttr,
-        saveDC: saveDC
-      });
+        saveDC: saveDC,
+        durationRounds: ab.duration,
+        spellLevel: ab.spellLevel,
+        damageType: ab.dmgType || 'force'
+      };
+
+      setPendingAttack(pAtk);
+
+      if (isAutoHit && ab.dmg) {
+        if (combat.selectedTargetIds.length > 0) {
+          // Special UI for assigning darts
+          const totalDarts = 2 + (ab.spellLevel || 1);
+          setMagicMissileUI({
+            active: true,
+            abilityName: ab.name,
+            dmgStr: ab.dmg,
+            totalDarts,
+            targets: combat.selectedTargetIds.map(id => ({
+              refId: id,
+              name: combat.participants.find(p => p.refId === id)?.name || 'Alvo',
+              darts: 0
+            })),
+            damageType: ab.dmgType || 'force',
+            conditionApplied: ab.conditionApplied,
+            actorName: participant.name
+          });
+          return; // Skip setting pending attack/dice panel
+        } else {
+          setPendingDamage({
+            isCritical: false,
+            parsedDmg: parseDmgString(ab.dmg)
+          });
+        }
+      }
+
       setShowDicePanel(true);
       if (combat.selectedTargetIds.length === 0) {
         setIsTargeting(true);
@@ -528,12 +791,12 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
     }
   };
 
-  const handleGeneralAction = (act: string) => {
+  const handleGeneralAction = async (act: string) => {
     if (!canAct) return;
     
     if (act === 'Reação') {
       if (participant.reactionSpent) return;
-      const reaction = prompt("Descreva a Reação:", "Ataque de Oportunidade");
+      const reaction = await asyncPrompt("Descreva a Reação:", "Ataque de Oportunidade");
       if (reaction) {
         updateParticipant(participant.refId, { reactionSpent: true });
         addToLog(`usou Reação: ${reaction}.`, participant.name, 'system');
@@ -815,6 +1078,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                   className={`tam-action-btn ${participant.actionSpent ? 'btn-act spent' : 'btn-act'}`}
                   onClick={() => handleAction('action')}
                   title={canAct ? "Clique para marcar como gasta manualmente" : undefined}
+                  disabled={!canAct}
                 >
                   ⚔️ Ação
                   {!participant.actionSpent && maxAttacks > 1 && (
@@ -830,6 +1094,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                 <button 
                   className={`tam-action-btn ${participant.bonusActionSpent ? 'btn-bonus spent' : 'btn-bonus'}`}
                   onClick={() => handleAction('bonus')}
+                  disabled={!canAct}
                 >
                   ⚡ Bônus {participant.bonusActionSpent && <span>✓</span>}
                 </button>
@@ -837,6 +1102,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                 <button 
                   className={`tam-action-btn ${participant.reactionSpent ? 'btn-react spent' : 'btn-react'}`}
                   onClick={() => handleAction('reaction')}
+                  disabled={!hasPermission}
                 >
                   🛡️ Reação {participant.reactionSpent && <span>✓</span>}
                 </button>
@@ -844,6 +1110,7 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                 <button 
                   className={`tam-action-btn ${participant.movementSpent ? 'btn-move spent' : 'btn-move'}`}
                   onClick={() => handleAction('movement')}
+                  disabled={!canAct}
                 >
                   🏃 Mov {participant.movementSpent && <span>✓</span>}
                 </button>
@@ -854,12 +1121,15 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                   <span className="tam-section-title">Ataques</span>
                   <div className="tam-attacks-grid">
                     {participant.attacks.map((atk, idx) => {
+                      const isReaction = atk.actionCost?.toLowerCase() === 'reação' || atk.actionCost?.toLowerCase() === 'reaction';
+                      const canUseThisAction = hasPermission && (isActiveTurn || isReaction);
                       const isOutOfAttacks = !atk.actionCost && currentAttacks >= maxAttacks;
+                      
                       return (
                         <button 
                           key={idx}
                           className="tam-atk-btn"
-                          disabled={!canAct || isOutOfAttacks}
+                          disabled={!canUseThisAction || isOutOfAttacks}
                           onClick={() => handleAttack(atk)}
                         >
                           <div className="tam-atk-title">{atk.name} {atk.actionCost ? `(${atk.actionCost})` : ''}</div>
@@ -892,28 +1162,36 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                       {participant.combatTransformActive ? '👤 Reverter Forma' : '🐺 Forma Selvagem'}
                     </button>
                   )}
-                  {activeAbilities.map((ab, idx) => (
-                    <button 
-                      key={`ab-${idx}`}
-                      className="tam-gen-btn"
-                      style={{ borderColor: 'rgba(99, 102, 241, 0.4)', background: 'rgba(79, 70, 229, 0.1)' }}
-                      disabled={!canAct}
-                      onClick={() => handleAbility(ab)}
-                      title={ab.description}
-                    >
-                      {ab.name} {ab.actionCost && ab.actionCost !== 'none' ? `[${ab.actionCost}]` : (ab.isPassive ? '[Passiva]' : '')}
-                      {ab.resourceCost?.resourceName && <span style={{ color: '#fdba74', display: 'block', fontSize: '0.7rem' }}>Custo: {ab.resourceCost.amount} {ab.resourceCost.resourceName}</span>}
-                    </button>
-                  ))}
+                  {activeAbilities.map((ab, idx) => {
+                    const isReaction = ab.actionCost?.toLowerCase() === 'reação' || ab.actionCost?.toLowerCase() === 'reaction';
+                    const canUseThisAbility = hasPermission && (isActiveTurn || isReaction);
+                    
+                    return (
+                      <button 
+                        key={`ab-${idx}`}
+                        className="tam-gen-btn"
+                        style={{ borderColor: 'rgba(99, 102, 241, 0.4)', background: 'rgba(79, 70, 229, 0.1)' }}
+                        disabled={!canUseThisAbility}
+                        onClick={() => handleAbility(ab)}
+                        title={ab.description}
+                      >
+                        {ab.name} {ab.actionCost && ab.actionCost !== 'none' ? `[${ab.actionCost}]` : (ab.isPassive ? '[Passiva]' : '')}
+                        {ab.resourceCost?.resourceName && <span style={{ color: '#fdba74', display: 'block', fontSize: '0.7rem' }}>Custo: {ab.resourceCost.amount} {ab.resourceCost.resourceName}</span>}
+                      </button>
+                    );
+                  })}
 
                   {['Disparada', 'Desengajar', 'Esquiva', 'Esconder', 'Reação'].map(act => {
                     const isBonus = (participant.playerClass?.toLowerCase().includes('ladino') && act !== 'Reação' && act !== 'Esquiva') || 
                                     (participant.playerClass?.toLowerCase().includes('monge') && (act === 'Disparada' || act === 'Desengajar'));
+                    const isReaction = act === 'Reação';
+                    const canUseThisAction = hasPermission && (isActiveTurn || isReaction);
+                                    
                     return (
                       <button 
                         key={act}
                         className="tam-gen-btn"
-                        disabled={!canAct}
+                        disabled={!canUseThisAction}
                         onClick={() => handleGeneralAction(act)}
                       >
                         {act} {isBonus ? <span style={{ color: '#4ade80' }}>(B)</span> : act === 'Reação' ? '' : <span style={{ color: '#60a5fa' }}>(A)</span>}
@@ -1131,14 +1409,14 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                               boxShadow: isHealOrBuff ? '0 0 15px rgba(34, 197, 94, 0.4)' : '0 0 15px rgba(239, 68, 68, 0.4)' 
                             }}
                             disabled={combat.selectedTargetIds.length === 0}
-                            onClick={() => {
+                            onClick={async () => {
                               if (combat.selectedTargetIds.length === 0) return alert("Selecione pelo menos um alvo!");
                               
                               if (pendingAttack?.name === 'Cura pelas Mãos (PV)') {
                                 // Lógica especial atrasada da Cura pelas mãos pois requer alvo primeiro
                                 const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'cura pelas mãos (pv)');
                                 if (!pRes || pRes.current <= 0) return;
-                                const input = prompt(`Quantos pontos deseja usar? (Max: ${pRes.current})`);
+                                const input = await asyncPrompt(`Quantos pontos deseja usar? (Max: ${pRes.current})`);
                                 const healAmount = parseInt(input || "0");
                                 if (!isNaN(healAmount) && healAmount > 0 && healAmount <= pRes.current) {
                                   const newResources = [...(participant.classResources || [])];
@@ -1157,6 +1435,35 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
                                 setPendingAttack(null);
                                 clearTargets();
                                 return;
+                              }
+                              const isAutoHit = pendingAttack?.bonus === 'Auto';
+                              if (isAutoHit && pendingAttack?.dmg) {
+                                const nLower = pendingAttack.name.toLowerCase();
+                                const isMagicMissile = nLower.includes('míssil mágico') || nLower.includes('mísseis mágicos') || nLower.includes('missil magico') || nLower.includes('misseis magicos') || nLower.includes('magic missile') || pendingAttack.description?.toLowerCase().includes('acerta automaticamente');
+                                
+                                if (isMagicMissile) {
+                                  const totalDarts = 2 + ((pendingAttack as any).spellLevel || 1);
+                                  setMagicMissileUI({
+                                    active: true,
+                                    abilityName: pendingAttack.name,
+                                    dmgStr: pendingAttack.dmg,
+                                    totalDarts,
+                                    targets: combat.selectedTargetIds.map(id => ({
+                                      refId: id,
+                                      name: combat.participants.find(p => p.refId === id)?.name || 'Alvo',
+                                      darts: 0
+                                    })),
+                                    damageType: (pendingAttack as any).damageType || 'force',
+                                    conditionApplied: pendingAttack.conditionApplied,
+                                    actorName: participant.name
+                                  });
+                                  
+                                  setShowDicePanel(false);
+                                  setIsTargeting(false);
+                                  setPendingAttack(null);
+                                  setPendingDamage(null);
+                                  return;
+                                }
                               }
                               
                               setIsTargeting(false);
@@ -1181,8 +1488,265 @@ export default function TurnActionModal({ participantId, onClose, pendingAttack,
             </div>
           )}
 
+          {magicMissileUI?.active && (
+            <div className="tam-dice-side" style={{ display: 'flex', flexDirection: 'column' }}>
+              <button 
+                className="tam-close" 
+                onClick={() => {
+                  setMagicMissileUI(null);
+                  clearTargets();
+                }} 
+                style={{ zIndex: 10 }}
+              >✕</button>
+              <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '8px' }}>Mísseis Mágicos</h3>
+                <p style={{ color: '#ccc', marginBottom: '16px', fontSize: '0.9rem' }}>Distribua os {magicMissileUI.totalDarts} dardos entre os alvos selecionados.</p>
+                
+                <div style={{ flex: 1 }}>
+                  {magicMissileUI.targets.map((t, idx) => (
+                    <div key={t.refId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px', marginBottom: '8px' }}>
+                      <span style={{ color: '#fff', fontWeight: 'bold' }}>{t.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <button onClick={() => {
+                          const newTargets = [...magicMissileUI.targets];
+                          if (newTargets[idx].darts > 0) newTargets[idx].darts--;
+                          setMagicMissileUI({...magicMissileUI, targets: newTargets});
+                        }} style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#374151', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                        
+                        <span style={{ color: '#60a5fa', width: '20px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 'bold' }}>{t.darts}</span>
+                        
+                        <button onClick={() => {
+                          const sum = magicMissileUI.targets.reduce((acc, curr) => acc + curr.darts, 0);
+                          if (sum < magicMissileUI.totalDarts) {
+                            const newTargets = [...magicMissileUI.targets];
+                            newTargets[idx].darts++;
+                            setMagicMissileUI({...magicMissileUI, targets: newTargets});
+                          }
+                        }} style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#4f46e5', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(79,70,229,0.5)' }}>+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', textAlign: 'center' }}>
+                  <span style={{ color: '#9ca3af', fontSize: '0.9rem' }}>
+                    Dardos Alocados: <span style={{ color: '#fff', fontWeight: 'bold' }}>{magicMissileUI.targets.reduce((acc, curr) => acc + curr.darts, 0)} / {magicMissileUI.totalDarts}</span>
+                  </span>
+                </div>
+
+                <button
+                  className="tam-btn-end"
+                  style={{ 
+                    marginTop: '20px', 
+                    background: 'linear-gradient(90deg, #4f46e5, #4338ca)', 
+                    color: '#fff',
+                    width: '100%',
+                    padding: '16px',
+                    fontSize: '1.1rem',
+                    boxShadow: '0 0 15px rgba(79, 70, 229, 0.4)'
+                  }}
+                  onClick={() => {
+                    const sum = magicMissileUI.targets.reduce((acc, curr) => acc + curr.darts, 0);
+                    if (sum === 0) return alert('Aloque pelo menos 1 dardo para disparar!');
+                    
+                    magicMissileUI.targets.forEach(t => {
+                      if (t.darts > 0) {
+                        let totalDmg = 0;
+                        let dartResults: number[] = [];
+                        for(let i=0; i<t.darts; i++) {
+                          const res = rollDamage(magicMissileUI.dmgStr, false);
+                          totalDmg += res.total;
+                          dartResults.push(res.total);
+                        }
+                        applyDamage(t.refId, totalDmg, magicMissileUI.damageType);
+                        if (magicMissileUI.conditionApplied) addCondition(t.refId, magicMissileUI.conditionApplied);
+                        addToLog(`🩸 Mísseis Mágicos (${t.darts} dardo${t.darts > 1 ? 's' : ''}): causou **${totalDmg}** de dano em ${t.name}! (Dardos: [${dartResults.join(', ')}])`, magicMissileUI.actorName, 'damage');
+                      }
+                    });
+                    
+                    setMagicMissileUI(null);
+                    clearTargets();
+                  }}
+                >
+                  🚀 Disparar Mísseis!
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
+      
+      {mercyMonkUI?.active && (
+        <div className="tam-overlay" style={{ zIndex: 12000 }}>
+          <div className="tam-container glass-panel" style={{ maxWidth: '400px', padding: '24px', margin: 'auto', alignSelf: 'center', marginTop: '10vh' }}>
+            <h3 style={{ marginBottom: '16px', fontSize: '1.2rem', color: '#fff', textAlign: 'center' }}>Mãos da Misericórdia</h3>
+            
+            {!mercyMonkUI.mode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginBottom: '8px' }}>Escolha o efeito desta habilidade:</p>
+                <button 
+                  className="btn primary-btn" 
+                  style={{ padding: '12px', background: 'linear-gradient(45deg, #10b981, #059669)' }}
+                  onClick={() => setMercyMonkUI({ ...mercyMonkUI, mode: 'cura' })}
+                >
+                  💚 Curar (Ação)
+                </button>
+                <button 
+                  className="btn primary-btn" 
+                  style={{ padding: '12px', background: 'linear-gradient(45deg, #ef4444, #b91c1c)' }}
+                  onClick={() => setMercyMonkUI({ ...mercyMonkUI, mode: 'dano' })}
+                >
+                  ☠️ Causar Dano (Após Acertar)
+                </button>
+                <button className="btn secondary-btn" style={{ marginTop: '8px' }} onClick={() => setMercyMonkUI(null)}>Cancelar</button>
+              </div>
+            ) : (
+              <div>
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginBottom: '16px' }}>
+                  Selecione o alvo para {mercyMonkUI.mode === 'cura' ? 'Curar' : 'Causar Dano'}:
+                </p>
+                
+                <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '20px', paddingRight: '5px' }} className="custom-scrollbar">
+                  {combat.participants.filter(p => p.hpCurrent > 0 || mercyMonkUI.mode === 'cura').map(p => (
+                    <div 
+                      key={p.refId} 
+                      style={{ 
+                        padding: '10px 12px', 
+                        marginBottom: '8px', 
+                        borderRadius: '8px',
+                        background: mercyMonkUI.selectedTargetId === p.refId ? 'rgba(79, 70, 229, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                        border: `1px solid ${mercyMonkUI.selectedTargetId === p.refId ? 'var(--primary)' : 'rgba(255,255,255,0.1)'}`,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                      onClick={() => setMercyMonkUI({ ...mercyMonkUI, selectedTargetId: p.refId })}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ 
+                          width: '12px', 
+                          height: '12px', 
+                          borderRadius: '50%', 
+                          background: p.type === 'player' ? 'var(--primary)' : 'var(--danger)' 
+                        }}></div>
+                        <span style={{ fontWeight: 500, color: '#fff' }}>{p.name}</span>
+                      </div>
+                      {mercyMonkUI.selectedTargetId === p.refId && (
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="var(--primary)" strokeWidth="3" fill="none">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button className="btn secondary-btn" style={{ flex: 1 }} onClick={() => setMercyMonkUI({ ...mercyMonkUI, mode: null, selectedTargetId: null })}>Voltar</button>
+                  <button 
+                    className="btn primary-btn" 
+                    style={{ flex: 2, background: mercyMonkUI.mode === 'cura' ? 'var(--success)' : 'var(--danger)' }}
+                    disabled={!mercyMonkUI.selectedTargetId}
+                    onClick={() => {
+                      if (!mercyMonkUI.selectedTargetId) return;
+                      const targetId = mercyMonkUI.selectedTargetId;
+                      const target = combat.participants.find(p => p.refId === targetId);
+                      if (!target) return;
+                      
+                      const pRes = participant.classResources?.find(r => r.name.toLowerCase() === 'pontos de ki');
+                      if (!pRes || pRes.current <= 0) {
+                        alert("Não possui Pontos de Ki suficientes.");
+                        setMercyMonkUI(null);
+                        return;
+                      }
+                      
+                      const newResources = [...(participant.classResources || [])];
+                      const resIdx = newResources.findIndex(r => r.name.toLowerCase() === 'pontos de ki');
+                      newResources[resIdx].current -= 1;
+                      updateParticipant(participant.refId, { classResources: newResources });
+                      
+                      const level = parseInt(participant.playerLevel?.toString() || '1');
+                      let die = 4;
+                      if (level >= 17) die = 10;
+                      else if (level >= 11) die = 8;
+                      else if (level >= 5) die = 6;
+                      
+                      const modWis = Math.floor(((participant.wis || 10) - 10) / 2);
+                      const rollResult = Math.floor(Math.random() * die) + 1;
+                      const total = Math.max(1, rollResult + modWis);
+                      
+                      if (mercyMonkUI.mode === 'cura') {
+                        applyHeal(targetId, total);
+                        addToLog(`usou **Mãos que Curam**! Gastou 1 Ki e curou **${target.name}** em **${total}** PV (d${die}: ${rollResult} + Sab: ${modWis}).`, participant.name, 'heal');
+                      } else {
+                        applyDamage(targetId, total, false, false);
+                        addToLog(`usou **Mãos de Dano**! Gastou 1 Ki e causou **${total}** de dano Necrótico extra em **${target.name}** (d${die}: ${rollResult} + Sab: ${modWis}).`, participant.name, 'damage');
+                      }
+                      
+                      setMercyMonkUI(null);
+                    }}
+                  >
+                    Aplicar {mercyMonkUI.mode === 'cura' ? 'Cura' : 'Dano'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {dialogConfig.isOpen && (
+        <div className="tam-overlay" style={{ zIndex: 12000 }}>
+          <div className="tam-container glass-panel" style={{ maxWidth: '400px', padding: '24px', textAlign: 'center', margin: 'auto', alignSelf: 'center', marginTop: '20vh' }}>
+            <h3 style={{ marginBottom: '16px', fontSize: '1.2rem', color: '#fff' }}>Ação Necessária</h3>
+            <p style={{ marginBottom: '20px', color: '#ccc', fontSize: '0.95rem' }}>{dialogConfig.message}</p>
+            {dialogConfig.type === 'prompt' && (
+              <input 
+                type="text" 
+                className="journey-input" 
+                defaultValue={dialogConfig.defaultValue} 
+                id="custom-prompt-input"
+                style={{ marginBottom: '20px', textAlign: 'center', fontSize: '1.1rem' }}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDialogConfig(prev => ({ ...prev, isOpen: false }));
+                    dialogConfig.resolve?.(e.currentTarget.value);
+                  }
+                }}
+              />
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button 
+                className="btn secondary-btn" 
+                style={{ padding: '8px 24px' }}
+                onClick={() => {
+                  setDialogConfig(prev => ({ ...prev, isOpen: false }));
+                  dialogConfig.resolve?.(dialogConfig.type === 'prompt' ? null : false);
+                }}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn primary-btn" 
+                style={{ padding: '8px 24px' }}
+                onClick={() => {
+                  setDialogConfig(prev => ({ ...prev, isOpen: false }));
+                  if (dialogConfig.type === 'prompt') {
+                    const val = (document.getElementById('custom-prompt-input') as HTMLInputElement)?.value || '';
+                    dialogConfig.resolve?.(val);
+                  } else {
+                    dialogConfig.resolve?.(true);
+                  }
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

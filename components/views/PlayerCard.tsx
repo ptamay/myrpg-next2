@@ -59,6 +59,10 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
   const handleUpdate = (updates: any) => {
     const newPlayers = dadosGlobais.players.map((p: any) => p.id === player.id ? { ...p, ...updates } : p);
     setDadosGlobais({ ...dadosGlobais, players: newPlayers });
+    const updatedPlayer = newPlayers.find((p: any) => p.id === player.id);
+    if (updatedPlayer) {
+      window.dispatchEvent(new CustomEvent('force_players_refresh', { detail: { player: updatedPlayer } }));
+    }
     setTimeout(salvarEstadoLocal, 100);
   };
 
@@ -287,7 +291,17 @@ export default React.memo(function PlayerCard({ player }: PlayerCardProps) {
         <BuffPanel 
           buffs={activePlayer.activeBuffs || []} 
           onUpdateBuffs={(newBuffs) => handleActiveUpdate({ activeBuffs: newBuffs })} 
-          isGM={isGM} 
+          isGM={isGM || session?.playerId === player.id} 
+          character={activePlayer}
+          onConsumeSpellSlot={(level, amount) => {
+            const used = activePlayer.spellSlotsUsed || {};
+            const currentUsed = used[level] || 0;
+            const maxSlots = activePlayer.spellSlots?.[level] || 0;
+            if (currentUsed + amount <= maxSlots) {
+              handleActiveUpdate({ spellSlotsUsed: { ...used, [level]: currentUsed + amount } });
+            }
+          }}
+          onUpdateCharacter={(updates) => handleActiveUpdate(updates)}
         />
 
         {activePlayer.classResources && activePlayer.classResources.length > 0 && (

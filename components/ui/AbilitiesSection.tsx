@@ -199,6 +199,25 @@ export default function AbilitiesSection({
                 )}
               </div>
 
+              <div className="form-row" style={{ gap: '10px', marginBottom: '8px' }}>
+                <div className="form-group flex-1">
+                  <label>Alcance</label>
+                  <input type="text" className="journey-input" value={ab.range || ''} onChange={e => updateAbility(ab.id, { range: e.target.value })} placeholder="ex: 9 metros" />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Componentes</label>
+                  <input type="text" className="journey-input" value={ab.components || ''} onChange={e => updateAbility(ab.id, { components: e.target.value })} placeholder="ex: V, S, M" />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Duração</label>
+                  <input type="text" className="journey-input" value={ab.duration || ''} onChange={e => updateAbility(ab.id, { duration: e.target.value })} placeholder="ex: 1 minuto" />
+                </div>
+                <div className="form-group flex-1" title="Nível da Magia (0 para Truque)">
+                  <label>Nível (Magia)</label>
+                  <input type="number" className="journey-input" value={ab.spellLevel !== undefined ? ab.spellLevel : ''} onChange={e => updateAbility(ab.id, { spellLevel: e.target.value !== '' ? parseInt(e.target.value) : undefined })} placeholder="ex: 1" min="0" max="9" />
+                </div>
+              </div>
+
               <div className="form-row" style={{ gap: '10px' }}>
                 <div className="form-group flex-1">
                   <label>Descrição</label>

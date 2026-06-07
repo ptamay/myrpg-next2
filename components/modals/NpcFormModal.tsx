@@ -7,7 +7,7 @@ import { useApp } from "@/contexts/AppContext";
 import { useSystemDialog } from "@/contexts/SystemDialogContext";
 import { Npc, SpellEntry, ClassResource, Ability } from "@/lib/gameData";
 import { SAVES_LIST, SKILLS_LIST } from "@/lib/constants/dnd5e";
-import { DND5E_CLASSES, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities } from "@/lib/constants/dnd5eClasses";
+import { DND5E_CLASSES, isCaster, getCasterType, getSpellSlotsForLevel, getDefaultClassResources, getDefaultAbilities, getSpellcastingAbility } from "@/lib/constants/dnd5eClasses";
 import SpellsSection from "../ui/SpellsSection";
 import ClassResourcesSection from "../ui/ClassResourcesSection";
 import AbilitiesSection from "../ui/AbilitiesSection";
@@ -260,11 +260,13 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
           updates.abilities = getDefaultAbilities(value, parseInt(level) || 1);
         }
         
-        if (isCaster(value)) {
+        const currentSubclass = isEditingTransformation ? transFormState.subclass : formState.subclass;
+        
+        if (isCaster(value, currentSubclass)) {
           updates.hasSpells = true;
-          updates.spellcastingAbility = cls.spellAbility || 'int';
-          updates.spellSlotType = getCasterType(value) === 'pact' ? 'pact' : 'standard';
-          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level) || 1);
+          updates.spellcastingAbility = getSpellcastingAbility(value, currentSubclass);
+          updates.spellSlotType = getCasterType(value, currentSubclass) === 'pact' ? 'pact' : 'standard';
+          updates.spellSlots = getSpellSlotsForLevel(value, parseInt(level) || 1, currentSubclass);
         } else {
           updates.hasSpells = false;
         }
@@ -734,24 +736,12 @@ export default function NpcFormModal({ isOpen, onClose }: NpcFormModalProps) {
               </div>
               <div className="form-group mt-2"><label>Notas do Mestre</label><textarea name="notes" className="journey-input form-textarea" style={{ minHeight: "120px" }} value={activeState.notes} onChange={handleChange}></textarea></div>
 
-              <h4 className="form-section-title mt-4">Magias</h4>
               <SpellsSection
-                hasSpells={activeState.hasSpells}
-                onHasSpellsChange={(val) => handleChange({ target: { name: 'hasSpells', value: val, checked: val, type: 'checkbox' } } as any)}
                 spellcastingAbility={activeState.spellcastingAbility}
                 onAbilityChange={(val) => handleChange({ target: { name: 'spellcastingAbility', value: val } } as any)}
                 spellSlotType={activeState.spellSlotType}
                 onSlotTypeChange={(val) => handleChange({ target: { name: 'spellSlotType', value: val } } as any)}
-                spellSlots={activeState.spellSlots}
-                onSpellSlotsChange={(slots) => {
-                  if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellSlots: slots }));
-                  else setFormState(prev => ({ ...prev, spellSlots: slots }));
-                }}
-                spellsKnown={activeState.spellsKnown}
-                onSpellsKnownChange={(spells) => {
-                  if (isEditingTransformation) setTransFormState(prev => ({ ...prev, spellsKnown: spells }));
-                  else setFormState(prev => ({ ...prev, spellsKnown: spells }));
-                }}
+                playerClass={activeState.playerClass}
               />
             </div>
           </div>
