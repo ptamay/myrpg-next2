@@ -271,7 +271,19 @@ export default function DashboardView() {
                     {p.name}
                   </li>
                 ))}
-                {npcs?.filter((n: any) => !n.isDead && !n.isHidden && n.faction !== 'enemy').map((n: any) => (
+                {npcs?.filter((n: any) => !n.isDead && !n.isHidden && n.faction !== 'enemy')
+                  .sort((a: any, b: any) => {
+                    const parseCr = (cr: string) => {
+                      if (!cr) return -1;
+                      if (cr.includes('/')) {
+                        const [num, den] = cr.split('/');
+                        return Number(num) / Number(den);
+                      }
+                      return Number(cr) || 0;
+                    };
+                    return parseCr(b.cr) - parseCr(a.cr);
+                  })
+                  .map((n: any) => (
                   <li key={n.id} onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     {n.name}
                   </li>
@@ -288,7 +300,19 @@ export default function DashboardView() {
                     💀 {p.name}
                   </li>
                 ))}
-                {npcs?.filter((n: any) => n.isDead && !n.isHidden && n.faction !== 'enemy').map((n: any) => (
+                {npcs?.filter((n: any) => n.isDead && !n.isHidden && n.faction !== 'enemy')
+                  .sort((a: any, b: any) => {
+                    const parseCr = (cr: string) => {
+                      if (!cr) return -1;
+                      if (cr.includes('/')) {
+                        const [num, den] = cr.split('/');
+                        return Number(num) / Number(den);
+                      }
+                      return Number(cr) || 0;
+                    };
+                    return parseCr(b.cr) - parseCr(a.cr);
+                  })
+                  .map((n: any) => (
                   <li key={n.id} className="dead-member" onClick={() => { setActiveData(n); openModal('summaryCard'); }} style={{ cursor: "pointer" }}>
                     💀 {n.name}
                   </li>
