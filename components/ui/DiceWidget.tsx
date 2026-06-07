@@ -96,7 +96,14 @@ function CustomSelect({ value, onChange, options, disabled = false, className = 
                     <div 
                       key={item.value}
                       onClick={() => { onChange(item.value); setOpen(false); }}
-                      style={{ padding: "8px 16px", fontSize: "0.8rem", cursor: "pointer", color: value === item.value ? "white" : "var(--text-muted)", background: value === item.value ? "rgba(255,255,255,0.1)" : "transparent" }}
+                      style={{ 
+                        padding: "8px 16px", 
+                        fontSize: "0.8rem", 
+                        cursor: "pointer", 
+                        color: value === item.value ? "white" : "rgba(255, 255, 255, 0.9)", 
+                        fontWeight: (item.value === "custom" || item.label === "Rolagem Livre") ? "bold" : "normal",
+                        background: value === item.value ? "rgba(255,255,255,0.1)" : "transparent" 
+                      }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = value === item.value ? "rgba(255,255,255,0.1)" : "transparent"}
                     >
@@ -110,7 +117,14 @@ function CustomSelect({ value, onChange, options, disabled = false, className = 
               <div 
                 key={opt.value}
                 onClick={() => { onChange(opt.value); setOpen(false); }}
-                style={{ padding: "8px 12px", fontSize: "0.8rem", cursor: "pointer", color: value === opt.value ? "white" : "var(--text-muted)", background: value === opt.value ? "rgba(255,255,255,0.1)" : "transparent" }}
+                style={{ 
+                  padding: "8px 12px", 
+                  fontSize: "0.8rem", 
+                  cursor: "pointer", 
+                  color: value === opt.value ? "white" : "rgba(255, 255, 255, 0.9)", 
+                  fontWeight: (opt.value === "custom" || opt.label === "Rolagem Livre") ? "bold" : "normal",
+                  background: value === opt.value ? "rgba(255,255,255,0.1)" : "transparent" 
+                }}
                 onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                 onMouseLeave={(e) => e.currentTarget.style.background = value === opt.value ? "rgba(255,255,255,0.1)" : "transparent"}
               >
